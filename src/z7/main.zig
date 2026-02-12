@@ -63,11 +63,17 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var storage = try Storage.init("s7_plc_shm");
+    var storage = Storage.init("s7_plc_shm") catch |err| {
+        log.err("Failed to init storage: {}", .{err});
+        return err;
+    };
     defer storage.deinit();
 
     // 4095 entries (u12 max), 0 flags
-    var io = try IO.init(4095, 0);
+    var io = IO.init(4095, 0) catch |err| {
+        log.err("Failed to init IO: {}", .{err});
+        return err;
+    };
     defer io.deinit();
 
     // Bind Port 102
@@ -83,7 +89,10 @@ pub fn main() !void {
     // Note: Windows SO_REUSEADDR behaves differently than Linux, but usually okay for restart.
     // std.os.setsockopt ... skipping for brevity.
 
-    try std.posix.bind(listener, &address.any, address.getOsSockLen());
+    std.posix.bind(listener, &address.any, address.getOsSockLen()) catch |err| {
+        log.err("Failed to bind port {}: {}", .{ port, err });
+        return err;
+    };
     try std.posix.listen(listener, 128);
 
     log.info("S7 Service listening on port {}", .{port});
