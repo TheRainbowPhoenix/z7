@@ -79,21 +79,25 @@ pub fn main() !void {
     // Bind Port 102
     // On Windows/Linux we need root/admin for ports < 1024 often.
     // S7 uses 102.
-    const port = 102;
-    const address = try std.net.Address.parseIp4("0.0.0.0", port);
+    // S7 uses 102 (or 10202 for testing).
+    const port = 10202;
+    const address = try std.net.Address.parseIp4("0.0.0.0", port); // io.listen expects address
 
-    const listener = try std.posix.socket(std.posix.AF.INET, std.posix.SOCK.STREAM, std.posix.IPPROTO.TCP);
-    errdefer std.posix.close(listener);
+    // Use IO to create the socket so it is registered with IOCP
+    const listener = try io.open_socket_tcp(std.posix.AF.INET, .{
+        .rcvbuf = 0,
+        .sndbuf = 0,
+        .keepalive = null,
+        .user_timeout_ms = 0,
+        .nodelay = true,
+    });
+    errdefer io.close_socket(listener);
 
-    // Allow address reuse
-    // Note: Windows SO_REUSEADDR behaves differently than Linux, but usually okay for restart.
-    // std.os.setsockopt ... skipping for brevity.
-
-    std.posix.bind(listener, &address.any, address.getOsSockLen()) catch |err| {
-        log.err("Failed to bind port {}: {}", .{ port, err });
-        return err;
-    };
-    try std.posix.listen(listener, 128);
+    // Bind and Listen
+    // IO.listen typically does bind + listen.
+    // Wait, reference_src/io/windows.zig: listen calls common.listen.
+    // common.listen calls bind, getsockname, listen.
+    _ = try io.listen(listener, address, .{ .backlog = 128 });
 
     log.info("S7 Service listening on port {}", .{port});
 

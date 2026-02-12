@@ -2,9 +2,9 @@ const std = @import("std");
 const vsr = @import("vsr");
 const IO = vsr.io.IO;
 const Storage = @import("storage.zig").Storage;
-const Standard = @import("protocol.zig").Standard;
-const TPKT = @import("protocol.zig").TPKT;
-const S7Header = @import("protocol.zig").S7Header;
+const proto = @import("protocol.zig");
+const TPKT = proto.TPKT;
+const S7Header = proto.S7Header;
 
 const log = std.log.scoped(.connection);
 
@@ -14,8 +14,6 @@ pub const Connection = struct {
     socket: std.posix.socket_t,
 
     // Message Buffers
-    // Max S7 PDU is usually small (240-960 bytes), but ISO-on-TCP can be up to 64KB.
-    // We'll allocate a reasonable buffer.
     rx_buffer: [4096]u8 align(4) = undefined,
     tx_buffer: [4096]u8 align(4) = undefined,
 
@@ -39,10 +37,10 @@ pub const Connection = struct {
         self.start_read_header();
     }
 
+    // ── Read pipeline ────────────────────────────────────────────────────
+
     fn start_read_header(self: *Connection) void {
         if (self.closed) return;
-
-        // Read TPKT Header (4 bytes)
         self.io.recv(
             *Connection,
             self,
@@ -67,37 +65,32 @@ pub const Connection = struct {
         }
 
         if (bytes_read < 4) {
-            // TODO: Handle fragmentation properly, for now assume complete header read.
             log.err("Incomplete TPKT header", .{});
             self.close();
             return;
         }
 
-        const tpkt = @as(*const TPKT, @ptrCast(self.rx_buffer[0..4].ptr));
-        if (tpkt.version != 3) {
+        const tpkt = std.mem.bytesToValue(TPKT, self.rx_buffer[0..@sizeOf(TPKT)]);
+        if (tpkt.version != proto.tpkt_version) {
             log.err("Invalid TPKT version: {}", .{tpkt.version});
             self.close();
             return;
         }
 
-        val_tpkt(self, std.mem.bigToNative(u16, tpkt.length));
+        self.read_body(std.mem.bigToNative(u16, tpkt.length));
     }
 
-    fn val_tpkt(self: *Connection, length: u16) void {
+    fn read_body(self: *Connection, length: u16) void {
         if (length > self.rx_buffer.len) {
             log.err("Packet too large: {}", .{length});
             self.close();
             return;
         }
-
-        // Read rest of the packet
         const remaining = length - 4;
         if (remaining == 0) {
-            // Is this possible?
             self.start_read_header();
             return;
         }
-
         self.io.recv(
             *Connection,
             self,
@@ -115,26 +108,21 @@ pub const Connection = struct {
             self.close();
             return;
         };
-
         if (bytes_read == 0) {
             self.close();
             return;
         }
 
-        // Helper to re-access length from buffer
-        const tpkt = @as(*const TPKT, @ptrCast(self.rx_buffer[0..4].ptr));
+        const tpkt = std.mem.bytesToValue(TPKT, self.rx_buffer[0..@sizeOf(TPKT)]);
         const total_len = std.mem.bigToNative(u16, tpkt.length);
 
-        // Process the PDU
+        log.info("RX: {any}", .{std.fmt.fmtSliceHexLower(self.rx_buffer[0..total_len])});
         self.process_pdu(self.rx_buffer[0..total_len]);
     }
 
-    fn process_pdu(self: *Connection, data: []u8) void {
-        // Simple Parser
-        // 0..4: TPKT
-        // 4..x: COTP
-        // x..y: S7 PDU
+    // ── COTP / S7 dispatch ───────────────────────────────────────────────
 
+    fn process_pdu(self: *Connection, data: []u8) void {
         if (data.len < 5) {
             self.close();
             return;
@@ -144,31 +132,57 @@ pub const Connection = struct {
         const pdu_offset = 5 + cotp_len;
 
         if (data.len <= pdu_offset) {
-            // Could be CR (Connect Request) which has no S7 PDU usually, or just parameters
-            // Check COTP PDU Type
+            // Short packet – might be a COTP-only message (CR, DR, …)
             const pdu_type = data[5];
-            if (pdu_type == Standard.COTP_CONNECT_REQUEST) {
+            if (pdu_type == proto.Cotp.connect_request) {
                 self.handle_connect_request(data);
                 return;
             }
-            self.close(); // Unknown or malformed
+            log.err("Unknown COTP PDU Type or short packet: 0x{x}", .{pdu_type});
+            self.close();
             return;
         }
 
-        const s7_data = data[pdu_offset..];
-        self.handle_s7(s7_data);
+        self.handle_s7(data[pdu_offset..]);
     }
+
+    // ── COTP Connection ──────────────────────────────────────────────────
 
     fn handle_connect_request(self: *Connection, data: []u8) void {
-        // Echo back a CC (Connect Confirm)
-        // Dummy implementation: Copy input and change type to CC (0xD0)
-        // Usually we need to negotiate, but let's just accept everything.
+        if (data.len < 11) {
+            self.close();
+            return;
+        }
+        const src_ref_hi = data[8];
+        const src_ref_lo = data[9];
 
-        @memcpy(self.tx_buffer[0..data.len], data);
-        self.tx_buffer[5] = Standard.COTP_CONNECT_CONFIRM;
+        var tx = &self.tx_buffer;
 
-        self.send_response(data.len);
+        // TPKT
+        tx[0] = proto.tpkt_version;
+        tx[1] = 0;
+        tx[2] = 0;
+        tx[3] = 22; // total length
+        // COTP CC
+        tx[4] = 17; // Length indicator (18 bytes – 1)
+        tx[5] = proto.Cotp.connect_confirm; // 0xD0
+        tx[6] = src_ref_hi; // Dst-Ref = client's Src-Ref
+        tx[7] = src_ref_lo;
+        tx[8] = 0x00; // Our Src-Ref
+        tx[9] = 0x01;
+        tx[10] = 0x00; // Class 0
+
+        // Copy TSAP / option parameters from CR
+        if (data.len >= 22) {
+            @memcpy(tx[11..22], data[11..22]);
+        } else {
+            @memset(tx[11..22], 0);
+        }
+
+        self.send_response(22);
     }
+
+    // ── S7 Dispatch ──────────────────────────────────────────────────────
 
     fn handle_s7(self: *Connection, data: []u8) void {
         if (data.len < 10) {
@@ -176,114 +190,283 @@ pub const Connection = struct {
             return;
         }
 
-        // Copy header to align(2) local variable
         const header = std.mem.bytesToValue(S7Header, data[0..@sizeOf(S7Header)]);
 
-        const proto_id = header.proto_id;
-        if (proto_id != 0x32) {
+        if (header.proto_id != proto.s7_proto_id) {
+            log.err("Invalid S7 proto id: 0x{x}", .{header.proto_id});
             self.close();
             return;
         }
 
         const rosctr = header.rosctr;
-        // ROSCTR: 1=Job
-        if (rosctr == 1) {
-            // Handle Job
-            // Parse Parameters
-            const param_len = std.mem.bigToNative(u16, header.param_len);
-            const data_len = std.mem.bigToNative(u16, header.data_len);
 
-            if (10 + param_len + data_len > data.len) {
-                self.close();
-                return;
-            }
-
-            const params = data[10..][0..param_len];
-
-            if (params.len > 0) {
-                const func = params[0];
-                if (func == 0xF0) { // Setup Comm
-                    self.handle_setup_comm(&header);
-                    return;
-                } else if (func == 0x04) { // Read Var
-                    self.handle_read_var(&header, params);
-                    return;
-                } else if (func == 0x05) { // Write Var
-                    self.handle_write_var(&header, params, data[10 + param_len ..][0..data_len]);
-                    return;
-                }
-            }
+        if (rosctr == proto.Rosctr.job) {
+            self.dispatch_job(&header, data);
+        } else if (rosctr == proto.Rosctr.userdata) {
+            self.dispatch_userdata(&header, data);
+        } else {
+            log.warn("Unhandled ROSCTR: {}", .{rosctr});
         }
 
-        // Fallback: Return Error? or Just Ignore
         self.start_read_header();
     }
 
-    fn handle_setup_comm(self: *Connection, req: *const S7Header) void {
-        // Respond with Ack_Data (3)
-        // We construct a simple response.
-        // TPKT + COTP + S7 Header + Param + Data
+    fn dispatch_job(self: *Connection, header: *const S7Header, data: []u8) void {
+        const param_len = std.mem.bigToNative(u16, header.param_len);
+        const data_len = std.mem.bigToNative(u16, header.data_len);
 
-        // 1. TPKT (4 bytes)
-        // 2. COTP (3 bytes: len=2, pdu=F0 (Data), LastUnit=80)
-        // 3. S7 Header (12 bytes for Ack_Data)
-        // 4. Param (Setup Comm Response = 8 bytes)
-        // 5. Data (0 bytes)
-
-        const tpkt_len = 4 + 3 + 12 + 8 + 0;
-
-        var ptr = &self.tx_buffer;
-        // TPKT
-        ptr[0] = 3;
-        ptr[1] = 0;
-        ptr[2] = @intCast((tpkt_len >> 8) & 0xFF);
-        ptr[3] = @intCast(tpkt_len & 0xFF);
-
-        // COTP (Data)
-        ptr[4] = 2; // LI
-        ptr[5] = 0xF0; // DT
-        ptr[6] = 0x80; // EOT
-
-        // S7 Header
-        ptr[7] = 0x32; // Proto
-        ptr[8] = 0x03; // ROSCTR = Ack_Data
-        ptr[9] = 0x00;
-        ptr[10] = 0x00; // Reserved
-        ptr[11] = @intCast(req.pdu_ref >> 8); // PDU Ref
-        ptr[12] = @intCast(req.pdu_ref & 0xFF);
-        ptr[13] = 0x00;
-        ptr[14] = 0x08; // Param Len = 8
-        ptr[15] = 0x00;
-        ptr[16] = 0x00; // Data Len = 0
-        ptr[17] = 0x00;
-        ptr[18] = 0x00; // Error = 0
-
-        // Setup Comm Params (Negotiated)
-        // F0 00 MaxAmqCaller MaxAmqCallee PduLength(2)
-        const params = ptr[19..];
-        params[0] = 0xF0;
-        params[1] = 0x00;
-        params[2] = 0x00;
-        params[3] = 0x01; // MaxAmqCaller
-        params[4] = 0x00;
-        params[5] = 0x01; // MaxAmqCallee
-        params[6] = 0x03;
-        params[7] = 0xC0; // PDU Length = 960 (Big Endian)
-
-        self.send_response(tpkt_len);
-    }
-
-    fn handle_read_var(self: *Connection, req: *const S7Header, params: []const u8) void {
-        const item_count = params[1];
-        // We only support reading 1 item for simplicity in this PoC
-        if (item_count < 1) {
+        if (10 + param_len + data_len > data.len) {
             self.close();
             return;
         }
 
-        // Item Request Parsing (Starts at params[2])
-        // 12 0A 10 [Unit] [Len] [DB] [Area] [Addr]
-        // 0  1  2   3      4..5  6..7  8      9..11
+        const params = data[10..][0..param_len];
+        if (params.len == 0) return;
+
+        const func: proto.Function = @enumFromInt(params[0]);
+        switch (func) {
+            .setup_comm => {
+                self.handle_setup_comm(header);
+                return;
+            },
+            .read_var => {
+                self.handle_read_var(header, params);
+                return;
+            },
+            .write_var => {
+                self.handle_write_var(header, params, data[10 + param_len ..][0..data_len]);
+                return;
+            },
+            else => {
+                log.warn("Unhandled Job function: 0x{x}", .{params[0]});
+            },
+        }
+    }
+
+    fn dispatch_userdata(self: *Connection, header: *const S7Header, data: []u8) void {
+        const param_len = std.mem.bigToNative(u16, header.param_len);
+        const data_len = std.mem.bigToNative(u16, header.data_len);
+
+        if (10 + param_len + data_len > data.len) {
+            self.close();
+            return;
+        }
+
+        const params = data[10..][0..param_len];
+        const payload = data[10 + param_len ..][0..data_len];
+
+        // Params layout: [Head(3)] [Len(1)] [Method(1)] [FuncGroup(1)] [SubFunc(1)] [Seq(1)]
+        if (params.len < 8) {
+            log.warn("Userdata params too short: {}", .{params.len});
+            return;
+        }
+
+        const func_group = params[5];
+        const sub_func = params[6];
+
+        if (func_group == proto.FunctionGroup.cpu_request) {
+            if (sub_func == proto.CpuSubfunction.read_szl) {
+                // SZL Read
+                if (payload.len >= 8) {
+                    const szl_id = std.mem.readInt(u16, payload[4..6], .big);
+                    log.info("SZL Read: id=0x{x:0>4}", .{szl_id});
+                    self.handle_szl_read(header, szl_id);
+                    return;
+                }
+            }
+        } else if (func_group == proto.FunctionGroup.time_request) {
+            if (sub_func == proto.TimeSubfunction.read_clock) {
+                log.info("Time Read request", .{});
+                self.handle_time_read(header);
+                return;
+            }
+        }
+
+        log.warn("Unknown Userdata: group=0x{x} sub=0x{x}", .{ func_group, sub_func });
+    }
+
+    // ── Setup Communication ──────────────────────────────────────────────
+
+    fn handle_setup_comm(self: *Connection, req: *const S7Header) void {
+        // TPKT(4) + COTP(3) + S7 Header(12) + Param(8) = 27
+        const tpkt_len: u16 = 4 + 3 + 12 + 8;
+        var tx = &self.tx_buffer;
+
+        proto.writeTpktCotpDT(tx, tpkt_len);
+        proto.writeS7Header(tx, 7, proto.Rosctr.ack_data, req.pdu_ref, 8, 0, 0);
+
+        // Setup Comm response params: F0 00 [AmqCall(2)] [AmqCalled(2)] [PduLen(2)]
+        const p = tx[19..];
+        p[0] = @intFromEnum(proto.Function.setup_comm); // 0xF0
+        p[1] = 0x00;
+        proto.writeBE16(p, 2, 1); // MaxAmQ calling
+        proto.writeBE16(p, 4, 1); // MaxAmQ called
+        proto.writeBE16(p, 6, 960); // PDU length
+
+        self.send_response(tpkt_len);
+    }
+
+    // ── SZL Read (Userdata Response) ─────────────────────────────────────
+    // Based on snap7-rs build_cpu_state_response pattern.
+
+    fn handle_szl_read(self: *Connection, req: *const S7Header, szl_id: u16) void {
+        var szl_buf: [256]u8 = undefined;
+        var szl_len: usize = 0;
+
+        if (szl_id == proto.SzlId.cpu_id) {
+            // ── CPU Info (0x001C) ────────────────────────────────────
+            // pystep7 read_cpu_info expects:
+            //   skip 4 bytes (ID+Index), then  SectionLen(2) Count(2)
+            //   then records of Index(2)+Name(32) = 34 bytes each.
+            //
+            // Build:  ID(2) Index(2) SectionLen(2) Count(2) Record(34) + pad(2)
+            //       = 44 bytes total SZL payload.
+
+            const record_len: u16 = 34;
+            const record_count: u16 = 1;
+
+            // SZL ID
+            proto.writeBE16(&szl_buf, 0, proto.SzlId.cpu_id);
+            // SZL Index
+            proto.writeBE16(&szl_buf, 2, 0x0000);
+            // Section length & count
+            proto.writeBE16(&szl_buf, 4, record_len);
+            proto.writeBE16(&szl_buf, 6, record_count);
+
+            // Record: Index(2) + Name(32) = 34 bytes
+            @memset(szl_buf[8..][0..34], 0);
+            proto.writeBE16(&szl_buf, 8, 0x0001); // index = 1 → systemName
+            // Name must parse as "S7<model>/<name>" so controller = int("300")
+            const name = "S7300/TigerBeetle";
+            @memcpy(szl_buf[10..][0..name.len], name);
+
+            szl_len = 8 + 34; // 42
+        } else if (szl_id == proto.SzlId.cpu_status) {
+            // ── CPU Status (0x0424) ──────────────────────────────────
+            // Mirrors snap7-rs build_cpu_state_response.
+            // SZL payload: ID(2) Index(2) Len(2) Count(2) Record(4) = 12
+
+            proto.writeBE16(&szl_buf, 0, 0x0000); // SZL ID
+            proto.writeBE16(&szl_buf, 2, 0x0001); // Index
+            proto.writeBE16(&szl_buf, 4, 4); // SZL length
+            proto.writeBE16(&szl_buf, 6, 1); // Count
+            szl_buf[8] = proto.CpuStatus.run;
+            szl_buf[9] = 0x00;
+            szl_buf[10] = 0x00;
+            szl_buf[11] = 0x00;
+
+            szl_len = 12;
+        } else {
+            // ── Fallback for any other SZL ID ────────────────────────
+            proto.writeBE16(&szl_buf, 0, szl_id);
+            proto.writeBE16(&szl_buf, 2, 0x0000);
+            proto.writeBE16(&szl_buf, 4, 0); // length 0
+            proto.writeBE16(&szl_buf, 6, 0); // count  0
+            szl_len = 8;
+        }
+
+        // ── Wrap in Data Header + Params + S7 Header + COTP + TPKT ───
+
+        const data_payload_len: u16 = @intCast(szl_len);
+        const data_total_len: u16 = 4 + data_payload_len; // DataHeader(4) + payload
+        const param_len: u16 = 12; // Response params are 12 bytes
+        // TPKT(4) + COTP(3) + S7Header(10) + Params(12) + Data
+        const tpkt_len: u16 = 4 + 3 + 10 + param_len + data_total_len;
+
+        var tx = &self.tx_buffer;
+
+        proto.writeTpktCotpDT(tx, tpkt_len);
+        // Userdata uses 10-byte S7 header (no error field)
+        proto.writeS7HeaderShort(tx, 7, proto.Rosctr.userdata, req.pdu_ref, param_len, data_total_len);
+
+        // Params (12 bytes at offset 17 = 7 + 10)
+        proto.writeUserdataParams(
+            tx,
+            17,
+            proto.ParamMethod.response,
+            proto.FunctionGroup.cpu_response,
+            proto.CpuSubfunction.read_szl,
+            0x00,
+        );
+
+        // Data header (4 bytes at offset 29 = 17 + 12)
+        proto.writeDataHeader(
+            tx,
+            29,
+            @intFromEnum(proto.ReturnCode.success),
+            @intFromEnum(proto.TransportSize.octet_string),
+            data_payload_len,
+        );
+
+        // SZL payload at offset 33 = 29 + 4
+        @memcpy(tx[33..][0..szl_len], szl_buf[0..szl_len]);
+
+        self.send_response(tpkt_len);
+    }
+
+    // ── Time Read (Userdata Response) ────────────────────────────────────
+    // Responds with a hardcoded timestamp.
+
+    fn handle_time_read(self: *Connection, req: *const S7Header) void {
+        // Time payload: 10 bytes (BCD encoded S7 DateTime)
+        //   [reserved] [year_hi] [year_lo] [month] [day] [hour] [min] [sec] [ms_hi] [ms_lo_dow]
+        const time_payload = [10]u8{
+            0x00, // reserved
+            0x19, // Year hi (20xx)
+            0x26, // Year lo (26)
+            0x02, // Month 02
+            0x13, // Day 13
+            0x00, // Hour 00
+            0x00, // Min 00
+            0x00, // Sec 00
+            0x00, // ms hi
+            0x01, // ms lo + DOW (Friday=6 → but just 1 for now)
+        };
+
+        const data_payload_len: u16 = time_payload.len;
+        const data_total_len: u16 = 4 + data_payload_len;
+        const param_len: u16 = 12; // Response params are 12 bytes
+        // TPKT(4) + COTP(3) + S7Header(10) + Params(12) + Data
+        const tpkt_len: u16 = 4 + 3 + 10 + param_len + data_total_len;
+
+        var tx = &self.tx_buffer;
+
+        proto.writeTpktCotpDT(tx, tpkt_len);
+        proto.writeS7HeaderShort(tx, 7, proto.Rosctr.userdata, req.pdu_ref, param_len, data_total_len);
+
+        // Params (12 bytes at offset 17)
+        proto.writeUserdataParams(
+            tx,
+            17,
+            proto.ParamMethod.response,
+            proto.FunctionGroup.time_response,
+            proto.TimeSubfunction.read_clock,
+            0x00,
+        );
+
+        // Data header (4 bytes at offset 29)
+        proto.writeDataHeader(
+            tx,
+            29,
+            @intFromEnum(proto.ReturnCode.success),
+            @intFromEnum(proto.TransportSize.octet_string),
+            data_payload_len,
+        );
+
+        // Time payload at offset 33
+        @memcpy(tx[33..][0..time_payload.len], &time_payload);
+
+        self.send_response(tpkt_len);
+    }
+
+    // ── Read Variable ────────────────────────────────────────────────────
+
+    fn handle_read_var(self: *Connection, req: *const S7Header, params: []const u8) void {
+        const item_count = params[1];
+        if (item_count < 1) {
+            self.close();
+            return;
+        }
         if (params.len < 14) {
             self.close();
             return;
@@ -295,96 +478,56 @@ pub const Connection = struct {
         const len_header = std.mem.readInt(u16, params[offset + 4 .. offset + 6], .big);
         const addr_bytes = params[offset + 9 .. offset + 12];
         const addr = (@as(u32, addr_bytes[0]) << 16) | (@as(u32, addr_bytes[1]) << 8) | @as(u32, addr_bytes[2]);
-
-        // Byte address
         const start_byte = addr >> 3;
 
-        // Read from Storage
-        // TODO: Handle types/lengths correctly. Assuming byte access for simplicity.
         var data_buffer: [1024]u8 = undefined;
         const read_slice = self.storage.get_address(area, db, start_byte, len_header) catch {
-            // Send Error Code
-            // TODO: Construct error response
-            self.close(); // For now fail hard
+            self.close();
             return;
         };
         @memcpy(data_buffer[0..read_slice.len], read_slice);
 
-        // Construct Read Var Response
         // TPKT(4) + COTP(3) + Header(12) + Param(2) + DataHeader(4) + Data(N)
-        // Param: 04 [ItemCount]
-        // DataItem: FF 04 [Len*8] [Data]
+        const data_item_len: u16 = @intCast(4 + read_slice.len);
+        const tpkt_len: u16 = 4 + 3 + 12 + 2 + data_item_len;
 
-        const data_len: u16 = @intCast(4 + read_slice.len);
-        const tpkt_len = 4 + 3 + 12 + 2 + data_len;
+        var tx = &self.tx_buffer;
+        proto.writeTpktCotpDT(tx, tpkt_len);
+        proto.writeS7Header(tx, 7, proto.Rosctr.ack_data, req.pdu_ref, 2, data_item_len, 0);
 
-        var ptr = &self.tx_buffer;
-        // TPKT...
-        ptr[0] = 3;
-        ptr[1] = 0;
-        ptr[2] = @intCast((tpkt_len >> 8) & 0xFF);
-        ptr[3] = @intCast(tpkt_len & 0xFF);
+        // Param: function + item count
+        tx[19] = @intFromEnum(proto.Function.read_var);
+        tx[20] = 0x01;
 
-        // COTP
-        ptr[4] = 2;
-        ptr[5] = 0xF0;
-        ptr[6] = 0x80;
-
-        // Header
-        ptr[7] = 0x32;
-        ptr[8] = 0x03;
-        ptr[9] = 0x00;
-        ptr[10] = 0x00;
-        ptr[11] = @intCast(req.pdu_ref >> 8);
-        ptr[12] = @intCast(req.pdu_ref & 0xFF);
-        ptr[13] = 0x00;
-        ptr[14] = 0x02; // ParamLen=2
-        ptr[15] = @intCast(data_len >> 8);
-        ptr[16] = @intCast(data_len & 0xFF);
-        ptr[17] = 0x00;
-        ptr[18] = 0x00; // No Error
-
-        // Param
-        ptr[19] = 0x04;
-        ptr[20] = 0x01;
-
-        // Data Item
-        ptr[21] = 0xFF; // Return Code = Success
-        ptr[22] = 0x04; // Transport = Octet
-        // Length in Bits
-        const bits = read_slice.len * 8;
-        ptr[23] = @intCast((bits >> 8) & 0xFF);
-        ptr[24] = @intCast(bits & 0xFF);
-
-        @memcpy(ptr[25..][0..read_slice.len], read_slice);
+        // Data item
+        tx[21] = @intFromEnum(proto.ReturnCode.success);
+        tx[22] = @intFromEnum(proto.TransportSize.byte_word_dword);
+        const bits: u16 = @intCast(read_slice.len * 8);
+        proto.writeBE16(tx, 23, bits);
+        @memcpy(tx[25..][0..read_slice.len], read_slice);
 
         self.send_response(tpkt_len);
     }
 
+    // ── Write Variable ───────────────────────────────────────────────────
+
     fn handle_write_var(self: *Connection, req: *const S7Header, params: []const u8, data: []const u8) void {
-        // Parsing params similar to Read
-        const offset = 2;
         if (params.len < 14) {
             self.close();
             return;
         }
 
+        const offset = 2;
         const db = std.mem.readInt(u16, params[offset + 6 .. offset + 8], .big);
         const area = params[offset + 8];
-        // const len_header = std.mem.readInt(u16, params[offset+4..offset+6], .big); // Length in elements
         const addr_bytes = params[offset + 9 .. offset + 12];
         const addr = (@as(u32, addr_bytes[0]) << 16) | (@as(u32, addr_bytes[1]) << 8) | @as(u32, addr_bytes[2]);
         const start_byte = addr >> 3;
 
-        // Parsing Data Payload
         if (data.len < 4) {
             self.close();
             return;
         }
-        const return_code = data[0];
-        _ = return_code;
-        const transport_size = data[1]; // 04=Byte
-        _ = transport_size;
         const length_bits = std.mem.readInt(u16, data[2..4], .big);
         const length_bytes = length_bits / 8;
 
@@ -394,8 +537,7 @@ pub const Connection = struct {
         }
         const write_data = data[4..][0..length_bytes];
 
-        // Write to Storage
-        self.storage.lock() catch {}; // Try lock
+        self.storage.lock() catch {};
         defer self.storage.unlock();
 
         const target_slice = self.storage.get_address(area, db, start_byte, @intCast(length_bytes)) catch {
@@ -404,40 +546,24 @@ pub const Connection = struct {
         };
         @memcpy(target_slice, write_data);
 
-        // Construct Write Response (Empty Data, just confirm)
-        // Header + Param(04 01) + Data(FF)
+        // TPKT(4) + COTP(3) + Header(12) + Param(2) + Data(1) = 22
+        const tpkt_len: u16 = 4 + 3 + 12 + 2 + 1;
+        var tx = &self.tx_buffer;
 
-        const tpkt_len = 4 + 3 + 12 + 2 + 1;
-        var ptr = &self.tx_buffer;
-        // Same Header as Read...
-        // Just minimal response for PoC
-        ptr[0] = 3;
-        ptr[1] = 0;
-        ptr[2] = @intCast((tpkt_len >> 8) & 0xFF);
-        ptr[3] = @intCast(tpkt_len & 0xFF);
-        ptr[4] = 2;
-        ptr[5] = 0xF0;
-        ptr[6] = 0x80;
-        ptr[7] = 0x32;
-        ptr[8] = 0x03;
-        ptr[9] = 0x00;
-        ptr[10] = 0x00;
-        ptr[11] = @intCast(req.pdu_ref >> 8);
-        ptr[12] = @intCast(req.pdu_ref & 0xFF);
-        ptr[13] = 0x00;
-        ptr[14] = 0x02;
-        ptr[15] = 0x00;
-        ptr[16] = 0x01; // Data Len = 1 (Result code)
-        ptr[17] = 0x00;
-        ptr[18] = 0x00;
-        ptr[19] = 0x05;
-        ptr[20] = 0x01; // Write Var (1 item)
-        ptr[21] = 0xFF; // Success Code for Item 1
+        proto.writeTpktCotpDT(tx, tpkt_len);
+        proto.writeS7Header(tx, 7, proto.Rosctr.ack_data, req.pdu_ref, 2, 1, 0);
+
+        tx[19] = @intFromEnum(proto.Function.write_var);
+        tx[20] = 0x01;
+        tx[21] = @intFromEnum(proto.ReturnCode.success);
 
         self.send_response(tpkt_len);
     }
 
+    // ── Send / Close ─────────────────────────────────────────────────────
+
     fn send_response(self: *Connection, len: usize) void {
+        log.info("TX: {any}", .{std.fmt.fmtSliceHexLower(self.tx_buffer[0..len])});
         self.io.send(
             *Connection,
             self,
@@ -455,18 +581,12 @@ pub const Connection = struct {
             self.close();
             return;
         };
-
-        // Loop back to read next request
         self.start_read_header();
     }
 
     pub fn close(self: *Connection) void {
         if (self.closed) return;
         self.closed = true;
-        // Close socket via IO if IO has a close method, or posix
-        // IO.close uses queue but passing socket_t.
-        // Or directly close using posix if not using io completions for close.
-        // vsr.io usually has clean shutdown.
         std.posix.close(self.socket);
     }
 };
