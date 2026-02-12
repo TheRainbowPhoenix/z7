@@ -279,6 +279,10 @@ pub const Connection = struct {
                 log.info("Time Read request", .{});
                 self.handle_time_read(header);
                 return;
+            } else if (sub_func == proto.TimeSubfunction.set_clock) {
+                log.info("Time Set request", .{});
+                self.handle_time_set(header);
+                return;
             }
         }
 
@@ -340,7 +344,11 @@ pub const Connection = struct {
             const name = "S7300/TigerBeetle";
             @memcpy(szl_buf[10..][0..name.len], name);
 
-            szl_len = 8 + 34; // 42
+            // Add 2 bytes padding to work around pystep7 off-by-one
+            // (their check is `offset + 34 >= totalLength` instead of `>`)
+            szl_buf[42] = 0;
+            szl_buf[43] = 0;
+            szl_len = 8 + 34 + 2; // 44
         } else if (szl_id == proto.SzlId.cpu_status) {
             // ── CPU Status (0x0424) ──────────────────────────────────
             // Mirrors snap7-rs build_cpu_state_response.
@@ -455,6 +463,41 @@ pub const Connection = struct {
 
         // Time payload at offset 33
         @memcpy(tx[33..][0..time_payload.len], &time_payload);
+
+        self.send_response(tpkt_len);
+    }
+
+    // ── Time Set (Userdata Response) ─────────────────────────────────────
+    // Simple ACK for set_plc_time.
+
+    fn handle_time_set(self: *Connection, req: *const S7Header) void {
+        // Client expects: length > 30 and param_error_code (at offset 27) == 0.
+        // Minimal response: TPKT(4) + COTP(3) + S7(10) + Params(12) + DataHeader(4) = 33
+        const data_total_len: u16 = 4; // Just data header, no payload
+        const param_len: u16 = 12;
+        const tpkt_len: u16 = 4 + 3 + 10 + param_len + data_total_len;
+
+        const tx = &self.tx_buffer;
+
+        proto.writeTpktCotpDT(tx, tpkt_len);
+        proto.writeS7HeaderShort(tx, 7, proto.Rosctr.userdata, req.pdu_ref, param_len, data_total_len);
+
+        proto.writeUserdataParams(
+            tx,
+            17,
+            proto.ParamMethod.response,
+            proto.FunctionGroup.time_response,
+            proto.TimeSubfunction.set_clock,
+            0x00,
+        );
+
+        proto.writeDataHeader(
+            tx,
+            29,
+            @intFromEnum(proto.ReturnCode.success),
+            @intFromEnum(proto.TransportSize.octet_string),
+            0, // no payload
+        );
 
         self.send_response(tpkt_len);
     }
