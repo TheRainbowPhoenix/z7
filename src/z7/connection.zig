@@ -3,6 +3,7 @@ const vsr = @import("vsr");
 const IO = vsr.io.IO;
 const Storage = @import("storage.zig").Storage;
 const proto = @import("protocol.zig");
+const firmware = @import("firmware.zig");
 const TPKT = proto.TPKT;
 const S7Header = proto.S7Header;
 
@@ -247,34 +248,49 @@ pub const Connection = struct {
         const param_len = std.mem.bigToNative(u16, header.param_len);
         const data_len = std.mem.bigToNative(u16, header.data_len);
 
-        if (10 + param_len + data_len > data.len) {
+        // Our S7Header is 10 bytes. Some clients (e.g. raw scripts) may send
+        // a 12-byte header with an extra 2-byte error/reserved field.
+        // We detect this by checking for the params head marker (00 01 12)
+        // at offset 10 (standard) and offset 12 (extended header).
+        var params_off: usize = 10;
+        if (data.len >= 15 and data[10] == 0x00 and data[11] == 0x01 and data[12] == 0x12) {
+            params_off = 10;
+        } else if (data.len >= 17 and data[12] == 0x00 and data[13] == 0x01 and data[14] == 0x12) {
+            // Client sent 12-byte S7 header — params shifted by 2
+            params_off = 12;
+        }
+
+        if (params_off + param_len + data_len > data.len) {
             self.close();
             return;
         }
 
-        const params = data[10..][0..param_len];
-        const payload = data[10 + param_len ..][0..data_len];
+        const params = data[params_off..][0..param_len];
+        const payload = data[params_off + param_len ..][0..data_len];
 
-        // Params layout: [Head(3)] [Len(1)] [Method(1)] [FuncGroup(1)] [SubFunc(1)] [Seq(1)]
+        // Params layout: [Head(3)] [Len(1)] [Method(1)] [Tg(1)] [SubFunc(1)] [Seq(1)]
+        // Tg byte = (type << 4 | group) — e.g. 0x44 = type 4 (request) + group 4 (SZL)
         if (params.len < 8) {
             log.warn("Userdata params too short: {}", .{params.len});
             return;
         }
 
-        const func_group = params[5];
+        const tg = params[5]; // type_group combined byte
         const sub_func = params[6];
+        const func_group = tg & 0x0F; // lower nibble = group
 
-        if (func_group == proto.FunctionGroup.cpu_request) {
+        if (func_group == 0x04) { // SZL (CPU functions)  proto.FunctionGroup.cpu_request
             if (sub_func == proto.CpuSubfunction.read_szl) {
-                // SZL Read
+                // SZL Read — extract ID and Index from data payload
                 if (payload.len >= 8) {
                     const szl_id = std.mem.readInt(u16, payload[4..6], .big);
-                    log.info("SZL Read: id=0x{x:0>4}", .{szl_id});
-                    self.handle_szl_read(header, szl_id);
+                    const szl_index = std.mem.readInt(u16, payload[6..8], .big);
+                    log.info("SZL Read: id=0x{x:0>4} index=0x{x:0>4}", .{ szl_id, szl_index });
+                    self.handle_szl_read(header, szl_id, szl_index);
                     return;
                 }
             }
-        } else if (func_group == proto.FunctionGroup.time_request) {
+        } else if (func_group == 0x07) { // Time proto.FunctionGroup.time_request
             if (sub_func == proto.TimeSubfunction.read_clock) {
                 log.info("Time Read request", .{});
                 self.handle_time_read(header);
@@ -284,9 +300,17 @@ pub const Connection = struct {
                 self.handle_time_set(header);
                 return;
             }
+        } else if (func_group == 0x05) { // Security (password)
+            log.info("Security request: sub=0x{x}", .{sub_func});
+            self.handle_security(header, sub_func);
+            return;
+        } else if (func_group == 0x03) { // Block info
+            log.info("Block info request: sub=0x{x}", .{sub_func});
+            self.handle_block_info(header, sub_func, payload);
+            return;
         }
 
-        log.warn("Unknown Userdata: group=0x{x} sub=0x{x}", .{ func_group, sub_func });
+        log.warn("Unknown Userdata: tg=0x{x:0>2} group=0x{x} sub=0x{x}", .{ tg, func_group, sub_func });
     }
 
     // ── Setup Communication ──────────────────────────────────────────────
@@ -311,81 +335,23 @@ pub const Connection = struct {
     }
 
     // ── SZL Read (Userdata Response) ─────────────────────────────────────
-    // Based on snap7-rs build_cpu_state_response pattern.
+    // Uses firmware.lookup() for table-driven SZL response data.
 
-    fn handle_szl_read(self: *Connection, req: *const S7Header, szl_id: u16) void {
-        var szl_buf: [256]u8 = undefined;
-        var szl_len: usize = 0;
+    fn handle_szl_read(self: *Connection, req: *const S7Header, szl_id: u16, szl_index: u16) void {
+        // Look up pre-built firmware data for this SZL ID + Index.
+        // The blob already contains: ReturnCode(1) TransportSize(1) DataLen(2) + SZL payload.
+        const blob = firmware.lookup(szl_id, szl_index);
+        const blob_len: u16 = @intCast(blob.len);
 
-        if (szl_id == proto.SzlId.cpu_id) {
-            // ── CPU Info (0x001C) ────────────────────────────────────
-            // pystep7 read_cpu_info expects:
-            //   skip 4 bytes (ID+Index), then  SectionLen(2) Count(2)
-            //   then records of Index(2)+Name(32) = 34 bytes each.
-            //
-            // Build:  ID(2) Index(2) SectionLen(2) Count(2) Record(34) + pad(2)
-            //       = 44 bytes total SZL payload.
-
-            const record_len: u16 = 34;
-            const record_count: u16 = 1;
-
-            // SZL ID
-            proto.writeBE16(&szl_buf, 0, proto.SzlId.cpu_id);
-            // SZL Index
-            proto.writeBE16(&szl_buf, 2, 0x0000);
-            // Section length & count
-            proto.writeBE16(&szl_buf, 4, record_len);
-            proto.writeBE16(&szl_buf, 6, record_count);
-
-            // Record: Index(2) + Name(32) = 34 bytes
-            @memset(szl_buf[8..][0..34], 0);
-            proto.writeBE16(&szl_buf, 8, 0x0001); // index = 1 → systemName
-            // Name must parse as "S7<model>/<name>" so controller = int("300")
-            const name = "S7300/TigerBeetle";
-            @memcpy(szl_buf[10..][0..name.len], name);
-
-            // Add 2 bytes padding to work around pystep7 off-by-one
-            // (their check is `offset + 34 >= totalLength` instead of `>`)
-            szl_buf[42] = 0;
-            szl_buf[43] = 0;
-            szl_len = 8 + 34 + 2; // 44
-        } else if (szl_id == proto.SzlId.cpu_status) {
-            // ── CPU Status (0x0424) ──────────────────────────────────
-            // Mirrors snap7-rs build_cpu_state_response.
-            // SZL payload: ID(2) Index(2) Len(2) Count(2) Record(4) = 12
-
-            proto.writeBE16(&szl_buf, 0, 0x0000); // SZL ID
-            proto.writeBE16(&szl_buf, 2, 0x0001); // Index
-            proto.writeBE16(&szl_buf, 4, 4); // SZL length
-            proto.writeBE16(&szl_buf, 6, 1); // Count
-            szl_buf[8] = proto.CpuStatus.run;
-            szl_buf[9] = 0x00;
-            szl_buf[10] = 0x00;
-            szl_buf[11] = 0x00;
-
-            szl_len = 12;
-        } else {
-            // ── Fallback for any other SZL ID ────────────────────────
-            proto.writeBE16(&szl_buf, 0, szl_id);
-            proto.writeBE16(&szl_buf, 2, 0x0000);
-            proto.writeBE16(&szl_buf, 4, 0); // length 0
-            proto.writeBE16(&szl_buf, 6, 0); // count  0
-            szl_len = 8;
-        }
-
-        // ── Wrap in Data Header + Params + S7 Header + COTP + TPKT ───
-
-        const data_payload_len: u16 = @intCast(szl_len);
-        const data_total_len: u16 = 4 + data_payload_len; // DataHeader(4) + payload
         const param_len: u16 = 12; // Response params are 12 bytes
-        // TPKT(4) + COTP(3) + S7Header(10) + Params(12) + Data
-        const tpkt_len: u16 = 4 + 3 + 10 + param_len + data_total_len;
+        // TPKT(4) + COTP(3) + S7Header(10) + Params(12) + Blob
+        const tpkt_len: u16 = 4 + 3 + 10 + param_len + blob_len;
 
-        var tx = &self.tx_buffer;
+        const tx = &self.tx_buffer;
 
         proto.writeTpktCotpDT(tx, tpkt_len);
         // Userdata uses 10-byte S7 header (no error field)
-        proto.writeS7HeaderShort(tx, 7, proto.Rosctr.userdata, req.pdu_ref, param_len, data_total_len);
+        proto.writeS7HeaderShort(tx, 7, proto.Rosctr.userdata, req.pdu_ref, param_len, blob_len);
 
         // Params (12 bytes at offset 17 = 7 + 10)
         proto.writeUserdataParams(
@@ -397,17 +363,77 @@ pub const Connection = struct {
             0x00,
         );
 
-        // Data header (4 bytes at offset 29 = 17 + 12)
+        // Firmware blob at offset 29 = 17 + 12
+        // (blob includes data header: ReturnCode + TransportSize + DataLen + SZL payload)
+        @memcpy(tx[29..][0..blob.len], blob);
+
+        self.send_response(tpkt_len);
+    }
+
+    // ── Security (Password) ──────────────────────────────────────────────
+    // Simple ACK for enter/cancel password.
+
+    fn handle_security(self: *Connection, req: *const S7Header, sub_func: u8) void {
+        const data_total_len: u16 = 4; // Just data header, no payload
+        const param_len: u16 = 12;
+        const tpkt_len: u16 = 4 + 3 + 10 + param_len + data_total_len;
+
+        const tx = &self.tx_buffer;
+
+        proto.writeTpktCotpDT(tx, tpkt_len);
+        proto.writeS7HeaderShort(tx, 7, proto.Rosctr.userdata, req.pdu_ref, param_len, data_total_len);
+
+        proto.writeUserdataParams(
+            tx,
+            17,
+            proto.ParamMethod.response,
+            0x85, // security response = 0x85
+            sub_func,
+            0x00,
+        );
+
         proto.writeDataHeader(
             tx,
             29,
             @intFromEnum(proto.ReturnCode.success),
             @intFromEnum(proto.TransportSize.octet_string),
-            data_payload_len,
+            0,
         );
 
-        // SZL payload at offset 33 = 29 + 4
-        @memcpy(tx[33..][0..szl_len], szl_buf[0..szl_len]);
+        self.send_response(tpkt_len);
+    }
+
+    // ── Block Info ───────────────────────────────────────────────────────
+    // Stub for block list/info requests.
+
+    fn handle_block_info(self: *Connection, req: *const S7Header, sub_func: u8, payload: []const u8) void {
+        _ = payload;
+        // Return empty block list for now
+        const data_total_len: u16 = 4;
+        const param_len: u16 = 12;
+        const tpkt_len: u16 = 4 + 3 + 10 + param_len + data_total_len;
+
+        const tx = &self.tx_buffer;
+
+        proto.writeTpktCotpDT(tx, tpkt_len);
+        proto.writeS7HeaderShort(tx, 7, proto.Rosctr.userdata, req.pdu_ref, param_len, data_total_len);
+
+        proto.writeUserdataParams(
+            tx,
+            17,
+            proto.ParamMethod.response,
+            0x83, // block info response = 0x83
+            sub_func,
+            0x00,
+        );
+
+        proto.writeDataHeader(
+            tx,
+            29,
+            @intFromEnum(proto.ReturnCode.success),
+            @intFromEnum(proto.TransportSize.octet_string),
+            0,
+        );
 
         self.send_response(tpkt_len);
     }
