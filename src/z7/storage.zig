@@ -1,11 +1,11 @@
 const std = @import("std");
-const windows = std.os.windows;
-
+const builtin = @import("builtin");
+const windows = if (builtin.os.tag == .windows) std.os.windows else struct {};
+const posix = std.posix;
 pub const Storage = struct {
-    ptr: [*]u8,
-    len: usize,
+    ptr: []align(std.heap.page_size_min) u8,
     // Keep file handle for locking
-    file_handle: windows.HANDLE,
+    handle: if (builtin.os.tag == .windows) windows.HANDLE else posix.fd_t,
 
     // Offsets
     pub const OFFSET_INPUTS: usize = 0;
@@ -70,83 +70,116 @@ pub const Storage = struct {
     const FILE_MAP_ALL_ACCESS: windows.DWORD = 0xF001F;
 
     pub fn init(name: []const u8) !Storage {
-        // Shared memory name in Windows requires "Global\" prefix sometimes for services,
-        // but for user session it's fine.
-        const name_w = try std.unicode.utf8ToUtf16LeAllocZ(std.heap.page_allocator, name);
-        defer std.heap.page_allocator.free(name_w);
+        if (builtin.os.tag == .windows) {
+            const name_w = try std.unicode.utf8ToUtf16LeAllocZ(std.heap.page_allocator, name);
+            defer std.heap.page_allocator.free(name_w);
 
-        const hFile = CreateFileW(
-            // Use invalid handle value to create page-file backed shared memory (system memory),
-            // OR use a file path to map a real file.
-            // But the user code used "s7_plc_shm" as a filename in CreateFileW?
-            // Wait, CreateFileW expects a path. If "s7_plc_shm" is passed, it creates a file in current dir.
-            // The Python script: open("s7_plc_shm", "wb")
-            name_w.ptr,
-            windows.GENERIC_READ | windows.GENERIC_WRITE,
-            windows.FILE_SHARE_READ | windows.FILE_SHARE_WRITE | windows.FILE_SHARE_DELETE,
-            null,
-            windows.OPEN_ALWAYS,
-            windows.FILE_ATTRIBUTE_NORMAL,
-            null,
-        );
+            const hFile = CreateFileW(
+                // Use invalid handle value to create page-file backed shared memory (system memory),
+                // OR use a file path to map a real file.
+                // But the user code used "s7_plc_shm" as a filename in CreateFileW?
+                // Wait, CreateFileW expects a path. If "s7_plc_shm" is passed, it creates a file in current dir.
+                // The Python script: open("s7_plc_shm", "wb")
+                name_w.ptr,
+                windows.GENERIC_READ | windows.GENERIC_WRITE,
+                windows.FILE_SHARE_READ | windows.FILE_SHARE_WRITE | windows.FILE_SHARE_DELETE,
+                null,
+                windows.OPEN_ALWAYS,
+                windows.FILE_ATTRIBUTE_NORMAL,
+                null,
+            );
 
-        if (hFile == windows.INVALID_HANDLE_VALUE) return error.OpenFileFailed;
-        errdefer _ = CloseHandle(hFile);
+            if (hFile == windows.INVALID_HANDLE_VALUE) return error.OpenFileFailed;
+            errdefer _ = CloseHandle(hFile);
 
-        const hMap = CreateFileMappingW(hFile, null, windows.PAGE_READWRITE, 0, @as(u32, @intCast(TOTAL_SIZE)), null) orelse return error.CreateMappingFailed;
+            const hMap = CreateFileMappingW(hFile, null, windows.PAGE_READWRITE, 0, @as(u32, @intCast(TOTAL_SIZE)), null) orelse return error.CreateMappingFailed;
 
-        // We can close the mapping handle after mapping view, but we might want to keep it if we were sharing strictly via handle.
-        // But for named SHM, the name keeps it alive if we passed a name to CreateFileMapping.
-        // Here we passed NULL name to CreateFileMapping?
-        // Wait, the user passed `lpName` in his snippet.
-        // I passed `null`.
+            // We can close the mapping handle after mapping view, but we might want to keep it if we were sharing strictly via handle.
+            // But for named SHM, the name keeps it alive if we passed a name to CreateFileMapping.
+            // Here we passed NULL name to CreateFileMapping?
+            // Wait, the user passed `lpName` in his snippet.
+            // I passed `null`.
 
-        // Python `mmap` uses the file handle.
-        // If I want other processes to see it via *file*, I don't need a named mapping, just the file.
-        // If I want *named shared memory* backed by paging file, I use INVALID_HANDLE_VALUE and a name.
-        // The user's Python script: "Use file-backed mmap... open(filename)... mmap(fileno)".
-        // So it is FILE BACKED.
+            // Python `mmap` uses the file handle.
+            // If I want other processes to see it via *file*, I don't need a named mapping, just the file.
+            // If I want *named shared memory* backed by paging file, I use INVALID_HANDLE_VALUE and a name.
+            // The user's Python script: "Use file-backed mmap... open(filename)... mmap(fileno)".
+            // So it is FILE BACKED.
 
-        defer _ = CloseHandle(hMap);
+            defer _ = CloseHandle(hMap);
 
-        const ptr = MapViewOfFile(
-            hMap,
-            FILE_MAP_ALL_ACCESS,
-            0,
-            0,
-            TOTAL_SIZE, // Map entire file
-        ) orelse return error.MapViewFailed;
+            const ptr = MapViewOfFile(
+                hMap,
+                FILE_MAP_ALL_ACCESS,
+                0,
+                0,
+                TOTAL_SIZE,
+            ) orelse return error.MapViewFailed;
 
-        return Storage{
-            .ptr = @ptrCast(ptr),
-            .len = TOTAL_SIZE,
-            .file_handle = hFile,
-        };
+            const slice: [*]align(std.heap.page_size_min) u8 = @ptrCast(@alignCast(ptr));
+            return Storage{
+                .ptr = slice[0..TOTAL_SIZE],
+                .handle = hFile,
+            };
+        } else {
+            // Linux implementation
+            const fd = try posix.open(name, .{ .ACCMODE = .RDWR, .CREAT = true }, 0o666);
+            errdefer posix.close(fd);
+
+            // Ensure file is big enough
+            const file = std.fs.File{ .handle = fd };
+            try file.setEndPos(TOTAL_SIZE);
+
+            const ptr = try posix.mmap(
+                null,
+                TOTAL_SIZE,
+                posix.PROT.READ | posix.PROT.WRITE,
+                .{ .TYPE = .SHARED },
+                fd,
+                0,
+            );
+
+            return Storage{
+                .ptr = ptr,
+                .handle = fd,
+            };
+        }
     }
 
     pub fn deinit(self: *Storage) void {
-        _ = UnmapViewOfFile(self.ptr);
-        _ = CloseHandle(self.file_handle);
+        if (builtin.os.tag == .windows) {
+            _ = UnmapViewOfFile(self.ptr.ptr);
+            _ = CloseHandle(self.handle);
+        } else {
+            posix.munmap(self.ptr);
+            posix.close(self.handle);
+        }
     }
 
     pub fn lock(self: *Storage) !void {
-        var overlapped = std.mem.zeroes(windows.OVERLAPPED);
-        // LockFileEx(handle, flags, reserved, len_low, len_high, overlapped)
-        // LOCKFILE_EXCLUSIVE_LOCK = 2
-        const flags = 2;
-        if (LockFileEx(self.file_handle, flags, 0, @as(u32, @intCast(self.len)), 0, &overlapped) == 0) {
-            return error.LockFailed;
+        if (builtin.os.tag == .windows) {
+            var overlapped = std.mem.zeroes(windows.OVERLAPPED);
+            const flags = 2; // LOCKFILE_EXCLUSIVE_LOCK
+            if (LockFileEx(self.handle, flags, 0, @as(u32, @intCast(self.ptr.len)), 0, &overlapped) == 0) {
+                return error.LockFailed;
+            }
+        } else {
+            try posix.flock(self.handle, posix.LOCK.EX);
         }
     }
 
     pub fn unlock(self: *Storage) void {
-        var overlapped = std.mem.zeroes(windows.OVERLAPPED);
-        _ = UnlockFileEx(self.file_handle, 0, @as(u32, @intCast(self.len)), 0, &overlapped);
+        if (builtin.os.tag == .windows) {
+            var overlapped = std.mem.zeroes(windows.OVERLAPPED);
+            _ = UnlockFileEx(self.handle, 0, @as(u32, @intCast(self.ptr.len)), 0, &overlapped);
+        } else {
+            posix.flock(self.handle, posix.LOCK.UN) catch {};
+        }
     }
 
     pub fn get_slice(self: *Storage, offset: usize, len: usize) ![]u8 {
-        if (offset >= self.len) return self.ptr[0..0];
-        const actual_len = @min(len, self.len - offset);
+        if (offset >= self.ptr.len) return self.ptr[0..0];
+        const actual_len = @min(len, self.ptr.len - offset);
         return self.ptr[offset..][0..actual_len];
     }
 

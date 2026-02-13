@@ -1,8 +1,28 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const vsr = @import("vsr");
 const IO = vsr.io.IO;
 const Storage = @import("storage.zig").Storage;
 const Connection = @import("connection.zig").Connection;
+
+var current_log_level: std.log.Level = .warn;
+
+pub const std_options: std.Options = .{
+    .log_level = .debug,
+    .logFn = myLog,
+};
+
+pub fn myLog(
+    comptime level: std.log.Level,
+    comptime scope: @TypeOf(.enum_literal),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    if (@intFromEnum(level) > @intFromEnum(current_log_level)) return;
+
+    const stderr = std.io.getStdErr().writer();
+    nosuspend stderr.print("[" ++ @tagName(level) ++ "] (" ++ @tagName(scope) ++ "): " ++ format ++ "\n", args) catch return;
+}
 
 const log = std.log.scoped(.z7);
 
@@ -37,7 +57,7 @@ const Server = struct {
         // Find free slot
         var found_slot: ?*Connection = null;
         for (self.connections) |*conn| {
-            if (conn.closed) {
+            if (conn.closed and conn.pending_ops == 0) {
                 found_slot = conn;
                 break;
             }
@@ -45,12 +65,16 @@ const Server = struct {
 
         if (found_slot) |conn| {
             log.info("Client connected! Socket: {}", .{client_socket});
-            // Re-initialize the connection slot
-            conn.* = Connection.init(self.io, self.storage, client_socket);
+            // Re-initialize the connection slot safely
+            conn.reset(client_socket);
             conn.start();
         } else {
             log.warn("Max connections reached, dropping client.", .{});
-            std.posix.close(client_socket);
+            if (builtin.os.tag == .windows) {
+                _ = std.os.windows.ws2_32.closesocket(client_socket);
+            } else {
+                std.posix.close(client_socket);
+            }
         }
 
         // Always continue accepting
@@ -69,18 +93,28 @@ pub fn main() !void {
     };
     defer storage.deinit();
 
-    // 4095 entries (u12 max), 0 flags
-    var io = IO.init(4095, 0) catch |err| {
-        log.err("Failed to init IO: {}", .{err});
-        return err;
-    };
+    // Parse port
+    var port: u16 = 102;
+    var args = try std.process.argsWithAllocator(allocator);
+    defer args.deinit();
+    _ = args.next(); // skip exe name
+    while (args.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--port")) {
+            if (args.next()) |p| {
+                port = try std.fmt.parseInt(u16, p, 10);
+            }
+        } else if (std.mem.eql(u8, arg, "--verbose")) {
+            current_log_level = .info;
+        } else if (std.mem.eql(u8, arg, "--debug")) {
+            current_log_level = .debug;
+        }
+    }
+
+    log.info("S7 Service starting on port {}", .{port});
+
+    var io = try IO.init(4095, 0);
     defer io.deinit();
 
-    // Bind Port 102
-    // On Windows/Linux we need root/admin for ports < 1024 often.
-    // S7 uses 102.
-    // S7 uses 102 (or 10202 for testing).
-    const port = 10202;
     const address = try std.net.Address.parseIp4("0.0.0.0", port); // io.listen expects address
 
     // Use IO to create the socket so it is registered with IOCP
@@ -104,11 +138,12 @@ pub fn main() !void {
     const connections = try allocator.alloc(Connection, MAX_CONNECTIONS);
     defer allocator.free(connections);
 
+    const invalid_socket = if (builtin.os.tag == .windows) std.os.windows.ws2_32.INVALID_SOCKET else -1;
+
     // Initialize as closed with safe defaults
     for (connections) |*c| {
         // We use dummy values for io/storage because closed=true prevents usage
-        c.* = Connection.init(&io, &storage, std.os.windows.ws2_32.INVALID_SOCKET);
-        c.closed = true;
+        c.* = Connection.init(&io, &storage, invalid_socket);
     }
 
     var server = Server{

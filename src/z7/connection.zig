@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const vsr = @import("vsr");
 const IO = vsr.io.IO;
 const Storage = @import("storage.zig").Storage;
@@ -26,13 +27,22 @@ pub const Connection = struct {
 
     // State
     closed: bool = false,
+    pending_ops: usize = 0,
 
     pub fn init(io: *IO, storage: *Storage, socket: std.posix.socket_t) Connection {
         return .{
             .io = io,
             .storage = storage,
             .socket = socket,
+            .closed = true,
         };
+    }
+
+    pub fn reset(self: *Connection, socket: std.posix.socket_t) void {
+        self.socket = socket;
+        self.closed = false;
+        self.pending_ops = 0;
+        // Completions are reused and will be overwritten by submit()
     }
 
     pub fn start(self: *Connection) void {
@@ -43,6 +53,7 @@ pub const Connection = struct {
 
     fn start_read_header(self: *Connection) void {
         if (self.closed) return;
+        self.pending_ops += 1;
         self.io.recv(
             *Connection,
             self,
@@ -55,6 +66,7 @@ pub const Connection = struct {
 
     fn on_read_header(self: *Connection, completion: *IO.Completion, result: IO.RecvError!usize) void {
         _ = completion;
+        self.pending_ops -= 1;
         const bytes_read = result catch |err| {
             log.err("Receive error: {}", .{err});
             self.close();
@@ -93,6 +105,7 @@ pub const Connection = struct {
             self.start_read_header();
             return;
         }
+        self.pending_ops += 1;
         self.io.recv(
             *Connection,
             self,
@@ -105,6 +118,7 @@ pub const Connection = struct {
 
     fn on_read_body(self: *Connection, completion: *IO.Completion, result: IO.RecvError!usize) void {
         _ = completion;
+        self.pending_ops -= 1;
         const bytes_read = result catch |err| {
             log.err("Body receive error: {}", .{err});
             self.close();
@@ -729,6 +743,7 @@ pub const Connection = struct {
 
     fn send_response(self: *Connection, len: usize) void {
         log.info("TX: {any}", .{std.fmt.fmtSliceHexLower(self.tx_buffer[0..len])});
+        self.pending_ops += 1;
         self.io.send(
             *Connection,
             self,
@@ -741,6 +756,7 @@ pub const Connection = struct {
 
     fn on_send(self: *Connection, completion: *IO.Completion, result: IO.SendError!usize) void {
         _ = completion;
+        self.pending_ops -= 1;
         _ = result catch |err| {
             log.err("Send error: {}", .{err});
             self.close();
@@ -752,6 +768,10 @@ pub const Connection = struct {
     pub fn close(self: *Connection) void {
         if (self.closed) return;
         self.closed = true;
-        std.posix.close(self.socket);
+        if (builtin.os.tag == .windows) {
+            _ = std.os.windows.ws2_32.closesocket(self.socket);
+        } else {
+            std.posix.close(self.socket);
+        }
     }
 };
