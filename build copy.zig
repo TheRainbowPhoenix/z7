@@ -6,9 +6,9 @@ pub fn build(b: *std.Build) void {
 
     // --- Modules ---
 
-    const stdx_module = b.addModule("stdx", .{
-        .root_source_file = b.path("src/common/stdx/stdx.zig"),
-    });
+    // const stdx_module = b.addModule("stdx", .{
+    //     .root_source_file = b.path("src/tigerbeetle/stdx/stdx.zig"),
+    // });
 
     const zCom_options = b.addOptions();
     // Default options for zCom module to compile
@@ -20,8 +20,8 @@ pub fn build(b: *std.Build) void {
     const zCom_module = b.addModule("zCom", .{
         .root_source_file = b.path("src/common/zCom.zig"),
     });
-    zCom_module.addImport("stdx", stdx_module);
-    zCom_module.addOptions("zCom_options", zCom_options); // Keep option name as vsr_options if code expects it
+    // zCom_module.addImport("stdx", stdx_module);
+    zCom_module.addOptions("zCom_options", zCom_options);
 
     // --- z7 Executable ---
 
@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    z7.root_module.addImport("stdx", stdx_module);
+    // z7.root_module.addImport("stdx", stdx_module);
     z7.root_module.addImport("zCom", zCom_module);
 
     // Link against system libraries if needed by IO (e.g. ntdll on Windows is usually handled by zig std,

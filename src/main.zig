@@ -287,7 +287,7 @@ pub fn main() !void {
     var store = try Storage.init();
     std.debug.print("Storage Engine Ready. Size: {} bytes\n", .{store.len});
 
-    const port = 10200;
+    const port = 102;
     const address = try net.Address.parseIp4("0.0.0.0", port);
     var server = try address.listen(.{ .reuse_address = true });
     defer server.deinit();

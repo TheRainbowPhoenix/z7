@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const vsr = @import("vsr");
-const IO = vsr.io.IO;
+const zCom = @import("../common/zCom.zig");
+const IO = zCom.io.IO;
 const Storage = @import("storage.zig").Storage;
 const Connection = @import("connection.zig").Connection;
 
