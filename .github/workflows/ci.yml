@@ -95,7 +95,7 @@ jobs:
       matrix:
         include:
           - { os: 'ubuntu-latest' }
-          - { os: 'windows-latest' }
+          # - { os: 'windows-latest' } # Windows skipped: CI runners have localhost networking issues
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
