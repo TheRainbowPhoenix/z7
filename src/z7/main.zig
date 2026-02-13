@@ -5,7 +5,7 @@ const IO = zCom.io.IO;
 const Storage = @import("storage.zig").Storage;
 const Connection = @import("connection.zig").Connection;
 
-var current_log_level: std.log.Level = .warn;
+var current_log_level: std.log.Level = .info;
 
 pub const std_options: std.Options = .{
     .log_level = .debug,

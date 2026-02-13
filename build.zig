@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
     // --- Modules ---
 
     const stdx_module = b.addModule("stdx", .{
-        .root_source_file = b.path("src/common/stdx/stdx.zig"),
+        .root_source_file = b.path("src/common/stdx.zig"),
     });
 
     const zCom_options = b.addOptions();

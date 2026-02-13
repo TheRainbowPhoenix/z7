@@ -32,3 +32,96 @@ comptime {
 pub fn maybe(ok: bool) void {
     assert(ok or !ok);
 }
+
+pub fn parse_dirty_semver(dirty_release: []const u8) !std.SemanticVersion {
+    const release = blk: {
+        var last_valid_version_character_index: usize = 0;
+        var dots_found: u8 = 0;
+        for (dirty_release) |c| {
+            if (c == '.') dots_found += 1;
+            if (dots_found == 3) {
+                break;
+            }
+
+            if (c == '.' or (c >= '0' and c <= '9')) {
+                last_valid_version_character_index += 1;
+                continue;
+            }
+
+            break;
+        }
+
+        break :blk dirty_release[0..last_valid_version_character_index];
+    };
+
+    return std.SemanticVersion.parse(release);
+}
+
+const log = std.log.scoped(.stdx);
+
+pub fn unexpected_errno(label: []const u8, err: std.posix.system.E) std.posix.UnexpectedError {
+    log.err("unexpected errno: {s}: code={d} name={?s}", .{
+        label,
+        @intFromEnum(err),
+        std.enums.tagName(std.posix.system.E, err),
+    });
+
+    if (builtin.mode == .Debug) {
+        std.debug.dumpCurrentStackTrace(null);
+    }
+    return error.Unexpected;
+}
+
+pub fn array_print(
+    comptime n: usize,
+    buffer: *[n]u8,
+    comptime fmt: []const u8,
+    args: anytype,
+) []const u8 {
+    const Args = @TypeOf(args);
+    const ArgsStruct = @typeInfo(Args).@"struct";
+    comptime assert(ArgsStruct.is_tuple);
+
+    comptime {
+        // We only support integer arguments for now to calculate worst-case buffer size.
+        // If needed, extend to check types.
+    }
+
+    return std.fmt.bufPrint(buffer, fmt, args) catch |err| switch (err) {
+        error.NoSpaceLeft => unreachable,
+    };
+}
+
+const linux_bits = if (builtin.target.os.tag == .linux) struct {
+    const fsblkcnt64_t = u64;
+    const fsfilcnt64_t = u64;
+    const fsword_t = i64;
+    const fsid_t = u64;
+
+    pub const TmpfsMagic = 0x01021994;
+
+    pub const StatFs = extern struct {
+        f_type: fsword_t,
+        f_bsize: fsword_t,
+        f_blocks: fsblkcnt64_t,
+        f_bfree: fsblkcnt64_t,
+        f_bavail: fsblkcnt64_t,
+        f_files: fsfilcnt64_t,
+        f_ffree: fsfilcnt64_t,
+        f_fsid: fsid_t,
+        f_namelen: fsword_t,
+        f_frsize: fsword_t,
+        f_flags: fsword_t,
+        f_spare: [4]fsword_t,
+    };
+
+    pub fn fstatfs(fd: i32, statfs_buf: *StatFs) usize {
+        return std.os.linux.syscall2(
+            if (@hasField(std.os.linux.SYS, "fstatfs64")) .fstatfs64 else .fstatfs,
+            @as(usize, @bitCast(@as(isize, fd))),
+            @intFromPtr(statfs_buf),
+        );
+    }
+} else struct {};
+
+pub usingnamespace linux_bits;
