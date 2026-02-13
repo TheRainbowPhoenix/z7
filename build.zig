@@ -23,6 +23,19 @@ pub fn build(b: *std.Build) void {
     zCom_module.addImport("stdx", stdx_module);
     zCom_module.addOptions("zCom_options", zCom_options); // Keep option name as vsr_options if code expects it
 
+    // --- z7 Library ---
+    const z7_lib = b.addSharedLibrary(.{
+        .name = "z7",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/z7/exports.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    z7_lib.root_module.addImport("stdx", stdx_module);
+    z7_lib.root_module.addImport("zCom", zCom_module);
+    b.installArtifact(z7_lib);
+
     // --- z7 Executable ---
 
     const z7 = b.addExecutable(.{

@@ -26,9 +26,9 @@ pub fn myLog(
 
 const log = std.log.scoped(.z7);
 
-const MAX_CONNECTIONS = 100;
+pub const MAX_CONNECTIONS = 100;
 
-const Server = struct {
+pub const Server = struct {
     io: *IO,
     storage: *Storage,
     listener: std.posix.socket_t,
