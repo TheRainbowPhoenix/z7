@@ -72,7 +72,23 @@ pub const Server = struct {
         }
 
         if (found_slot) |conn| {
-            log.info("Client connected! Socket: {}", .{client_socket});
+            if (builtin.os.tag == .windows) {
+                // SO_UPDATE_ACCEPT_CONTEXT is required for getpeername to work with AcceptEx
+                const SO_UPDATE_ACCEPT_CONTEXT = 0x700B;
+                _ = std.posix.setsockopt(
+                    client_socket,
+                    std.posix.SOL.SOCKET,
+                    SO_UPDATE_ACCEPT_CONTEXT,
+                    std.mem.asBytes(&self.listener),
+                ) catch {};
+            }
+            var address: std.net.Address = undefined;
+            var address_len: std.posix.socklen_t = @sizeOf(std.net.Address);
+            if (std.posix.getpeername(client_socket, &address.any, &address_len) catch null) |_| {
+                log.info("Client connected! {}", .{address});
+            } else {
+                log.info("Client connected! Socket: {}", .{client_socket});
+            }
             // Re-initialize the connection slot safely
             conn.reset(client_socket);
             conn.start();

@@ -367,3 +367,113 @@ pub fn writeErrorResponse(buf: []u8, pdu_ref: u16, func: u8, error_code: u16) vo
     writeS7Header(buf, 7, Rosctr.ack_data, pdu_ref, 1, 0, error_code);
     buf[19] = func;
 }
+
+/// Writes a Setup Communication response (Negotiate).
+/// TPKT(4) + COTP(3) + S7(12) + Param(8) = 27 bytes.
+pub fn writeSetupCommResponse(
+    buf: []u8,
+    pdu_ref: u16,
+    max_amq_calling: u16,
+    max_amq_called: u16,
+    pdu_length: u16,
+) void {
+    const tpkt_len: u16 = 27;
+    writeTpktCotpDT(buf, tpkt_len);
+    writeS7Header(buf, 7, Rosctr.ack_data, pdu_ref, 8, 0, 0);
+
+    // Params: F0 00 [AmqCall(2)] [AmqCalled(2)] [PduLen(2)]
+    // Params start at offset 19 (4 + 3 + 12 = 19)
+    const p = buf[19..];
+    p[0] = @intFromEnum(Function.setup_comm);
+    p[1] = 0x00; // reserved
+    writeBE16(p, 2, max_amq_calling);
+    writeBE16(p, 4, max_amq_called);
+    writeBE16(p, 6, pdu_length);
+}
+
+/// Writes a Write Variable response (Ack_Data).
+/// TPKT(4) + COTP(3) + S7(12) + Param(2) + Data(1) = 22 bytes.
+pub fn writeWriteVarResponse(
+    buf: []u8,
+    pdu_ref: u16,
+    item_count: u8,
+    return_code: u8,
+) void {
+    const tpkt_len: u16 = 22;
+    writeTpktCotpDT(buf, tpkt_len);
+    writeS7Header(buf, 7, Rosctr.ack_data, pdu_ref, 2, 1, 0);
+
+    // Params: [Func(1)] [Count(1)]
+    buf[19] = @intFromEnum(Function.write_var);
+    buf[20] = item_count;
+
+    // Data: [ReturnCode(1)]
+    buf[21] = return_code;
+}
+
+test "writeSetupCommResponse" {
+    var buf: [32]u8 = undefined;
+    writeSetupCommResponse(&buf, 1, 1, 1, 480);
+
+    // Check TPKT
+    try std.testing.expectEqual(@as(u8, 3), buf[0]);
+    try std.testing.expectEqual(@as(u16, 27), std.mem.readInt(u16, buf[2..4], .big));
+
+    // Check S7 Header
+    try std.testing.expectEqual(@as(u8, 0x32), buf[7]); // Proto
+    try std.testing.expectEqual(@as(u8, 0x03), buf[8]); // Ack_Data
+    try std.testing.expectEqual(@as(u16, 1), std.mem.readInt(u16, buf[11..13], .big)); // PDU Ref
+
+    // Check Params
+    try std.testing.expectEqual(@as(u8, 0xF0), buf[19]);
+    try std.testing.expectEqual(@as(u16, 480), std.mem.readInt(u16, buf[25..27], .big));
+}
+
+test "writeWriteVarResponse" {
+    var buf: [32]u8 = undefined;
+    writeWriteVarResponse(&buf, 1, 1, 0xFF);
+
+    // Check TPKT
+    try std.testing.expectEqual(@as(u8, 3), buf[0]);
+    try std.testing.expectEqual(@as(u16, 22), std.mem.readInt(u16, buf[2..4], .big));
+
+    // Check S7 Header
+    try std.testing.expectEqual(@as(u8, 0x32), buf[7]);
+
+    // Check Params
+    try std.testing.expectEqual(@as(u8, 0x05), buf[19]);
+    try std.testing.expectEqual(@as(u8, 0x01), buf[20]);
+
+    // Check Data
+    try std.testing.expectEqual(@as(u8, 0xFF), buf[21]);
+}
+
+test "writeReadVarResponse checks" {
+    // We don't have a single helper for Read, but let's test the building blocks
+    var buf: [64]u8 = undefined;
+    const data = "1234"; // 4 bytes
+
+    // Manual construction similar to handle_read_var
+    const tpkt_len: u16 = 4 + 3 + 12 + 2 + 4 + 4; // TPKT+COTP+S7+Param(2)+DataHdr(4)+Data(4) = 29
+    writeTpktCotpDT(&buf, tpkt_len);
+    writeS7Header(&buf, 7, Rosctr.ack_data, 1, 2, 8, 0); // Data len = 4 header + 4 payload = 8?
+    // Wait, WriteDataHeader puts 4 bytes.
+    // In handle_read_var:
+    // S7Header(..., data_len, ...)
+    // data_len = 4 + actual_len
+
+    // Param
+    buf[19] = @intFromEnum(Function.read_var);
+    buf[20] = 1;
+
+    // Data Item
+    writeDataHeader(&buf, 21, @intFromEnum(ReturnCode.success), @intFromEnum(TransportSize.byte_word_dword), 32); // 32 bits
+    @memcpy(buf[25..29], data);
+
+    // Verify
+    try std.testing.expectEqual(@as(u8, 3), buf[0]);
+    try std.testing.expectEqual(@as(u16, 29), std.mem.readInt(u16, buf[2..4], .big));
+    try std.testing.expectEqual(@as(u8, 0xFF), buf[21]); // ReturnCode
+    try std.testing.expectEqual(@as(u8, 0x04), buf[22]); // TransportSize
+    try std.testing.expectEqual(@as(u16, 32), std.mem.readInt(u16, buf[23..25], .big)); // Length bits
+}

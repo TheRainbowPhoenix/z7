@@ -353,22 +353,9 @@ pub const Connection = struct {
     // Setup Communication
 
     fn handle_setup_comm(self: *Connection, req: *const S7Header) void {
-        // TPKT(4) + COTP(3) + S7 Header(12) + Param(8) = 27
-        const tpkt_len: u16 = 4 + 3 + 12 + 8;
-        var tx = &self.tx_buffer;
-
-        proto.writeTpktCotpDT(tx, tpkt_len);
-        proto.writeS7Header(tx, 7, proto.Rosctr.ack_data, req.pdu_ref, 8, 0, 0);
-
-        // Setup Comm response params: F0 00 [AmqCall(2)] [AmqCalled(2)] [PduLen(2)]
-        const p = tx[19..];
-        p[0] = @intFromEnum(proto.Function.setup_comm); // 0xF0
-        p[1] = 0x00;
-        proto.writeBE16(p, 2, 1); // MaxAmQ calling
-        proto.writeBE16(p, 4, 1); // MaxAmQ called
-        proto.writeBE16(p, 6, 960); // PDU length
-
-        self.send_response(tpkt_len);
+        const tx = &self.tx_buffer;
+        proto.writeSetupCommResponse(tx, req.pdu_ref, 1, 1, 960);
+        self.send_response(27);
     }
 
     // SZL Read (Userdata Response)
@@ -733,17 +720,9 @@ pub const Connection = struct {
         @memcpy(target_slice, write_data);
 
         // TPKT(4) + COTP(3) + Header(12) + Param(2) + Data(1) = 22
-        const tpkt_len: u16 = 4 + 3 + 12 + 2 + 1;
-        var tx = &self.tx_buffer;
-
-        proto.writeTpktCotpDT(tx, tpkt_len);
-        proto.writeS7Header(tx, 7, proto.Rosctr.ack_data, req.pdu_ref, 2, 1, 0);
-
-        tx[19] = @intFromEnum(proto.Function.write_var);
-        tx[20] = 0x01;
-        tx[21] = @intFromEnum(proto.ReturnCode.success);
-
-        self.send_response(tpkt_len);
+        const tx = &self.tx_buffer;
+        proto.writeWriteVarResponse(tx, req.pdu_ref, 0x01, @intFromEnum(proto.ReturnCode.success));
+        self.send_response(22);
     }
 
     // Send / Close
