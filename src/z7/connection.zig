@@ -4,6 +4,8 @@ const zCom = @import("zCom");
 const IO = zCom.io.IO;
 const Storage = @import("storage.zig").Storage;
 const proto = @import("protocol.zig");
+const constants = @import("constants.zig");
+const ErrorCode = constants.ErrorCode;
 const firmware = @import("firmware.zig");
 const types = @import("types.zig");
 const TPKT = proto.TPKT;
@@ -272,7 +274,7 @@ pub const Connection = struct {
             },
             else => {
                 log.warn("Unhandled Job function: 0x{x}", .{params[0]});
-                self.handle_error_response(header, params[0], 0x8104);
+                self.handle_error_response(header, params[0], @intFromEnum(ErrorCode.SERVICE_NOT_IMPLEMENTED_OR_FRAME_ERROR));
                 return true;
             },
         }
@@ -646,7 +648,7 @@ pub const Connection = struct {
             var data_buffer: [8192]u8 = undefined;
             const read_slice = self.storage.get_address(area, db, start_byte, len_header) catch |err| {
                 log.debug("Storage read failed for item {}: {}", .{ i, err });
-                self.ptr_fill_error(tx, &tx_ptr, 0x05); // Invalid address or similar
+                self.ptr_fill_error(tx, &tx_ptr, @intFromEnum(proto.ReturnCode.invalid_address)); // Invalid address or similar
                 param_ptr += 12;
                 continue;
             };
