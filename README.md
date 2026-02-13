@@ -45,3 +45,10 @@ Read QB0: 0x42
 Read QB0: 0x99
 PASS: Mirror Register Logic Verified!
 ```
+
+## Code test
+
+```
+zig test src/z7/storage.zig
+./z7 --max-dbs 500
+```

@@ -22,7 +22,7 @@ jobs:
       - run: shellcheck ./zig/download.sh
       - shell: pwsh
         run: Invoke-ScriptAnalyzer -Path zig/download.win.ps1 -Severity Error,Warning,Information -EnableExit
-      - run: ./zig/download.ps1 && ./zig/zig build ci -- smoke
+      - run: sh ./zig/download.ps1 && ./zig/zig build ci -- smoke
 
   test:
     strategy:
@@ -42,7 +42,13 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - uses: actions/checkout@v4
         with: { fetch-depth: 2147483647 } # Fetch full history for tidy.
-      - run: ./zig/download.ps1 && ./zig/zig build ci -- test
+      - name: Download Zig (Unix)
+        if: runner.os != 'Windows'
+        run: sh ./zig/download.ps1
+      - name: Download Zig (Windows)
+        if: runner.os == 'Windows'
+        run: pwsh ./zig/download.win.ps1
+      - run: ./zig/zig build ci -- test
 
   z7:
     strategy:
@@ -54,7 +60,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - run: ./zig/download.ps1
+      - name: Download Zig (Unix)
+        if: runner.os != 'Windows'
+        run: sh ./zig/download.ps1
+      - name: Download Zig (Windows)
+        if: runner.os == 'Windows'
+        run: pwsh ./zig/download.win.ps1
       - name: Build
         run: ./zig/zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSafe
       - name: Test
