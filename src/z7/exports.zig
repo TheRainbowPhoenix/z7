@@ -9,6 +9,9 @@ const main = @import("main.zig");
 // Global log callback
 var log_callback: ?*const fn (level: u8, msg_ptr: [*c]const u8, msg_len: usize) callconv(.C) void = null;
 
+// Runtime log level (matches std.log.Level: 0=err, 1=warn, 2=info, 3=debug)
+var dll_log_level: u8 = 2; // default: info
+
 // Global event callback: event_type (1=plc_stop_request, 2=plc_start_request, 3=client_connected, 4=client_disconnected)
 pub var event_callback: ?*const fn (event_type: u8, detail_ptr: [*c]const u8, detail_len: usize) callconv(.C) void = null;
 
@@ -19,6 +22,8 @@ fn myLog(
     args: anytype,
 ) void {
     const level_int = @intFromEnum(level);
+    // Filter by runtime log level
+    if (level_int > dll_log_level) return;
     if (log_callback) |cb| {
         var buf: [1024]u8 = undefined;
         // Format: [level] (scope): message
@@ -52,6 +57,11 @@ export fn z7_set_log_callback(cb: ?*const fn (u8, [*c]const u8, usize) callconv(
 
 export fn z7_set_event_callback(cb: ?*const fn (u8, [*c]const u8, usize) callconv(.C) void) void {
     event_callback = cb;
+}
+
+/// Set runtime log level: 0=err, 1=warn, 2=info, 3=debug
+export fn z7_set_log_level(level: u8) void {
+    dll_log_level = if (level > 3) 3 else level;
 }
 
 /// Returns 1 if running, 0 if stopped

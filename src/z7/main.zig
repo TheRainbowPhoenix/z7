@@ -85,8 +85,20 @@ pub const Server = struct {
             }
             var address: std.net.Address = undefined;
             var address_len: std.posix.socklen_t = @sizeOf(std.net.Address);
+            var addr_buf: [64]u8 = undefined;
+            var addr_detail: []const u8 = "client_connected";
             if (std.posix.getpeername(client_socket, &address.any, &address_len) catch null) |_| {
                 log.info("Client connected! {}", .{address});
+                // Format address for the event detail
+                if (address.any.family == std.posix.AF.INET) {
+                    const ip4 = @as(*const std.posix.sockaddr.in, @ptrCast(@alignCast(&address.any)));
+                    const bytes = @as(*const [4]u8, @ptrCast(&ip4.addr));
+                    const detail_slice = std.fmt.bufPrint(&addr_buf, "{}.{}.{}.{}:{}", .{
+                        bytes[0],                           bytes[1], bytes[2], bytes[3],
+                        std.mem.bigToNative(u16, ip4.port),
+                    }) catch "";
+                    if (detail_slice.len > 0) addr_detail = detail_slice;
+                }
             } else {
                 log.info("Client connected! Socket: {}", .{client_socket});
             }
@@ -95,7 +107,7 @@ pub const Server = struct {
             conn.start();
             // Fire event for Python
             if (exports.event_callback) |cb| {
-                cb(3, "client_connected", 16);
+                cb(3, addr_detail.ptr, addr_detail.len);
             }
         } else {
             log.warn("Max connections reached, dropping client.", .{});

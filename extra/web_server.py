@@ -41,6 +41,7 @@ EVENT_NAMES = {
 }
 
 LOG_LEVELS = {0: "ERROR", 1: "WARN", 2: "INFO", 3: "DEBUG"}
+LOG_LEVEL_MAP = {"ERROR": 0, "WARN": 1, "INFO": 2, "DEBUG": 3}
 
 class Z7Client:
     """Enhanced Z7 DLL wrapper with event and log callbacks."""
@@ -56,6 +57,8 @@ class Z7Client:
         self.event_queue = queue.Queue(maxsize=500)
         self._mode = "STOP"
         self._clients_connected = 0
+        self._client_list = []  # list of {"ip": "...", "ts": "..."}
+        self._log_level = "INFO"
         self._lock = threading.Lock()
 
         # Install callbacks (prevent GC)
@@ -81,6 +84,9 @@ class Z7Client:
         self.lib.z7_set_log_callback.restype = None
         self.lib.z7_set_event_callback.argtypes = [CB]
         self.lib.z7_set_event_callback.restype = None
+
+        self.lib.z7_set_log_level.argtypes = [ctypes.c_uint8]
+        self.lib.z7_set_log_level.restype = None
 
         self.lib.z7_init.argtypes = [ctypes.c_uint16, ctypes.c_char_p]
         self.lib.z7_init.restype = ctypes.POINTER(Context)
@@ -138,8 +144,17 @@ class Z7Client:
                 self._mode = "RUN"
             elif event_type == EVT_CLIENT_CONNECTED:
                 self._clients_connected += 1
+                self._client_list.append({
+                    "ip": detail,
+                    "ts": datetime.now().isoformat(timespec="milliseconds"),
+                })
             elif event_type == EVT_CLIENT_DISCONNECTED:
                 self._clients_connected = max(0, self._clients_connected - 1)
+                # Remove first matching client (FIFO)
+                for i, c in enumerate(self._client_list):
+                    if c["ip"] == detail or detail == "client_disconnected":
+                        self._client_list.pop(i)
+                        break
 
         evt = {"type": "event", "data": {"event": name, "detail": detail,
                "ts": datetime.now().isoformat(timespec="milliseconds")}}
@@ -218,6 +233,23 @@ class Z7Client:
     def get_logs(self):
         return list(self.log_buffer)
 
+    def set_log_level(self, level_name):
+        """Set Zig DLL log level. level_name: ERROR/WARN/INFO/DEBUG"""
+        level_int = LOG_LEVEL_MAP.get(level_name.upper(), 2)
+        self.lib.z7_set_log_level(level_int)
+        with self._lock:
+            self._log_level = level_name.upper()
+
+    @property
+    def log_level(self):
+        with self._lock:
+            return self._log_level
+
+    @property
+    def client_list(self):
+        with self._lock:
+            return list(self._client_list)
+
 
 # ---------------------------------------------------------------------------
 # Flask App
@@ -250,6 +282,7 @@ def api_status():
         "running": CLIENT.is_running,
         "leds": CLIENT.leds,
         "clients": CLIENT._clients_connected,
+        "log_level": CLIENT.log_level,
     })
 
 
@@ -263,6 +296,21 @@ def api_start():
 def api_stop():
     CLIENT.stop()
     return jsonify({"status": "ok", "mode": "STOP"})
+
+
+@app.route("/api/loglevel", methods=["POST"])
+def api_loglevel():
+    data = request.get_json(force=True)
+    level = data.get("level", "INFO").upper()
+    if level not in LOG_LEVEL_MAP:
+        return jsonify({"error": f"Invalid level: {level}"}), 400
+    CLIENT.set_log_level(level)
+    return jsonify({"status": "ok", "level": level})
+
+
+@app.route("/api/clients")
+def api_clients():
+    return jsonify(CLIENT.client_list)
 
 
 # -- Logs -------------------------------------------------------------------
@@ -294,6 +342,66 @@ def api_monitor():
         val = _read_address(addr, fmt)
         results.append({"address": addr, "value": val, "format": fmt})
     return jsonify(results)
+
+
+@app.route("/api/write", methods=["POST"])
+def api_write():
+    """Write a value to an S7 address. JSON: {address, value, format?}"""
+    data = request.get_json(force=True)
+    addr = data.get("address", "")
+    value = data.get("value", 0)
+    fmt = data.get("format", "DEC")
+    try:
+        _write_address(addr, value, fmt)
+        return jsonify({"status": "ok", "address": addr})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def _write_address(address: str, value, fmt: str = "DEC"):
+    """Parse an S7-style address and write a value."""
+    # Parse the value based on format
+    if isinstance(value, str):
+        value = value.strip()
+        if value.startswith("0x") or value.startswith("0X"):
+            value = int(value, 16)
+        elif value.startswith("0b") or value.startswith("0B"):
+            value = int(value, 2)
+        else:
+            value = int(value)
+    value = int(value)
+
+    a = address.upper()
+    if a.startswith("DB"):
+        parts = address.split(".")
+        db_num = int(parts[0][2:])
+        var = parts[1].upper() if len(parts) > 1 else "DBB0"
+        if var.startswith("DBD"):
+            off = int(var[3:])
+            CLIENT.write(0x84, db_num, off, list(struct.pack(">I", value & 0xFFFFFFFF)))
+        elif var.startswith("DBW"):
+            off = int(var[3:])
+            CLIENT.write(0x84, db_num, off, list(struct.pack(">H", value & 0xFFFF)))
+        elif var.startswith("DBB"):
+            off = int(var[3:])
+            CLIENT.write(0x84, db_num, off, [value & 0xFF])
+    elif a.startswith("MW"):
+        off = int(a[2:])
+        CLIENT.write(0x83, 0, off, list(struct.pack(">H", value & 0xFFFF)))
+    elif a.startswith("MB"):
+        off = int(a[2:])
+        CLIENT.write(0x83, 0, off, [value & 0xFF])
+    elif a.startswith("MD"):
+        off = int(a[2:])
+        CLIENT.write(0x83, 0, off, list(struct.pack(">I", value & 0xFFFFFFFF)))
+    elif a.startswith("IB"):
+        off = int(a[2:])
+        CLIENT.write(0x81, 0, off, [value & 0xFF])
+    elif a.startswith("QB"):
+        off = int(a[2:])
+        CLIENT.write(0x82, 0, off, [value & 0xFF])
+    else:
+        raise ValueError(f"Unknown address: {address}")
 
 
 def _read_address(address: str, fmt: str = "DEC"):
