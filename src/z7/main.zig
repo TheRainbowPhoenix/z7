@@ -6,6 +6,7 @@ const Storage = @import("storage.zig").Storage;
 const Connection = @import("connection.zig").Connection;
 
 var current_log_level: std.log.Level = .info;
+var log_file: ?std.fs.File = null;
 
 pub const std_options: std.Options = .{
     .log_level = .debug,
@@ -20,8 +21,15 @@ pub fn myLog(
 ) void {
     if (@intFromEnum(level) > @intFromEnum(current_log_level)) return;
 
-    const stderr = std.io.getStdErr().writer();
-    nosuspend stderr.print("[" ++ @tagName(level) ++ "] (" ++ @tagName(scope) ++ "): " ++ format ++ "\n", args) catch return;
+    if (log_file) |file| {
+        // Use a persistent writer if possible, but for now getting it each time is safe enough given file is open.
+        // We use nosuspend because logFn context is restrictive.
+        // TODO: Mutex if multi-threaded.
+        file.writer().print("[" ++ @tagName(level) ++ "] (" ++ @tagName(scope) ++ "): " ++ format ++ "\n", args) catch return;
+    } else {
+        const stderr = std.io.getStdErr().writer();
+        nosuspend stderr.print("[" ++ @tagName(level) ++ "] (" ++ @tagName(scope) ++ "): " ++ format ++ "\n", args) catch return;
+    }
 }
 
 const log = std.log.scoped(.z7);
@@ -87,14 +95,10 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var storage = Storage.init("s7_plc_shm") catch |err| {
-        log.err("Failed to init storage: {}", .{err});
-        return err;
-    };
-    defer storage.deinit();
-
-    // Parse port
+    // Parse args
     var port: u16 = 102;
+    var max_dbs: usize = Storage.MAX_DBS_DEFAULT;
+
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
     _ = args.next(); // skip exe name
@@ -103,14 +107,35 @@ pub fn main() !void {
             if (args.next()) |p| {
                 port = try std.fmt.parseInt(u16, p, 10);
             }
+        } else if (std.mem.eql(u8, arg, "--max-dbs")) {
+            if (args.next()) |d| {
+                max_dbs = try std.fmt.parseInt(usize, d, 10);
+            }
+        } else if (std.mem.eql(u8, arg, "--errors")) {
+            current_log_level = .err;
         } else if (std.mem.eql(u8, arg, "--verbose")) {
             current_log_level = .info;
         } else if (std.mem.eql(u8, arg, "--debug")) {
             current_log_level = .debug;
+        } else if (std.mem.eql(u8, arg, "--log-file")) {
+            if (args.next()) |path| {
+                log_file = try std.fs.cwd().createFile(path, .{ .truncate = false });
+                try log_file.?.seekFromEnd(0);
+            }
         }
     }
 
-    log.info("S7 Service starting on port {}", .{port});
+    if (log_file) |_| {
+        log.info("Logging to file enabled", .{});
+    }
+
+    var storage = Storage.init("s7_plc_shm", max_dbs) catch |err| {
+        log.err("Failed to init storage: {}", .{err});
+        return err;
+    };
+    defer storage.deinit();
+
+    log.info("S7 Service starting on port {} with {} DBs", .{ port, max_dbs });
 
     var io = try IO.init(2048, 0);
     defer io.deinit();

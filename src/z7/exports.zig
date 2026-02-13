@@ -55,7 +55,7 @@ export fn z7_init(port: u16, storage_path: [*c]const u8) ?*Context {
     // Storage path conversion
     const path_span: []const u8 = if (storage_path) |s| std.mem.span(s) else "s7_plc_shm";
 
-    ctx.storage = Storage.init(path_span) catch {
+    ctx.storage = Storage.init(path_span, Storage.MAX_DBS_DEFAULT) catch {
         std.log.err("Failed to init storage", .{});
         std.heap.page_allocator.destroy(ctx);
         return null;

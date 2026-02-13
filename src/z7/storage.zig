@@ -6,6 +6,7 @@ pub const Storage = struct {
     ptr: []align(std.heap.page_size_min) u8,
     // Keep file handle for locking
     handle: if (builtin.os.tag == .windows) windows.HANDLE else posix.fd_t,
+    max_dbs: usize,
 
     // Offsets
     pub const OFFSET_INPUTS: usize = 0;
@@ -15,9 +16,7 @@ pub const Storage = struct {
     pub const OFFSET_COUNTERS: usize = 262144;
     pub const OFFSET_DB_START: usize = 327680;
     pub const DB_SIZE: usize = 65536;
-    pub const MAX_DBS: usize = 128;
-    // Total size fits in u32
-    pub const TOTAL_SIZE: usize = OFFSET_DB_START + (MAX_DBS * DB_SIZE);
+    pub const MAX_DBS_DEFAULT: usize = 2048;
 
     extern "kernel32" fn CreateFileW(
         lpFileName: [*:0]const u16,
@@ -69,7 +68,9 @@ pub const Storage = struct {
     // Windows Constants
     const FILE_MAP_ALL_ACCESS: windows.DWORD = 0xF001F;
 
-    pub fn init(name: []const u8) !Storage {
+    pub fn init(name: []const u8, max_dbs: usize) !Storage {
+        const total_size = OFFSET_DB_START + (max_dbs * DB_SIZE);
+
         if (builtin.os.tag == .windows) {
             const name_w = try std.unicode.utf8ToUtf16LeAllocZ(std.heap.page_allocator, name);
             defer std.heap.page_allocator.free(name_w);
@@ -77,9 +78,6 @@ pub const Storage = struct {
             const hFile = CreateFileW(
                 // Use invalid handle value to create page-file backed shared memory (system memory),
                 // OR use a file path to map a real file.
-                // But the user code used "s7_plc_shm" as a filename in CreateFileW?
-                // Wait, CreateFileW expects a path. If "s7_plc_shm" is passed, it creates a file in current dir.
-                // The Python script: open("s7_plc_shm", "wb")
                 name_w.ptr,
                 windows.GENERIC_READ | windows.GENERIC_WRITE,
                 windows.FILE_SHARE_READ | windows.FILE_SHARE_WRITE | windows.FILE_SHARE_DELETE,
@@ -92,19 +90,7 @@ pub const Storage = struct {
             if (hFile == windows.INVALID_HANDLE_VALUE) return error.OpenFileFailed;
             errdefer _ = CloseHandle(hFile);
 
-            const hMap = CreateFileMappingW(hFile, null, windows.PAGE_READWRITE, 0, @as(u32, @intCast(TOTAL_SIZE)), null) orelse return error.CreateMappingFailed;
-
-            // We can close the mapping handle after mapping view, but we might want to keep it if we were sharing strictly via handle.
-            // But for named SHM, the name keeps it alive if we passed a name to CreateFileMapping.
-            // Here we passed NULL name to CreateFileMapping?
-            // Wait, the user passed `lpName` in his snippet.
-            // I passed `null`.
-
-            // Python `mmap` uses the file handle.
-            // If I want other processes to see it via *file*, I don't need a named mapping, just the file.
-            // If I want *named shared memory* backed by paging file, I use INVALID_HANDLE_VALUE and a name.
-            // The user's Python script: "Use file-backed mmap... open(filename)... mmap(fileno)".
-            // So it is FILE BACKED.
+            const hMap = CreateFileMappingW(hFile, null, windows.PAGE_READWRITE, 0, @as(u32, @intCast(total_size)), null) orelse return error.CreateMappingFailed;
 
             defer _ = CloseHandle(hMap);
 
@@ -113,13 +99,14 @@ pub const Storage = struct {
                 FILE_MAP_ALL_ACCESS,
                 0,
                 0,
-                TOTAL_SIZE,
+                total_size,
             ) orelse return error.MapViewFailed;
 
             const slice: [*]align(std.heap.page_size_min) u8 = @ptrCast(@alignCast(ptr));
             return Storage{
-                .ptr = slice[0..TOTAL_SIZE],
+                .ptr = slice[0..total_size],
                 .handle = hFile,
+                .max_dbs = max_dbs,
             };
         } else {
             // Linux implementation
@@ -128,11 +115,11 @@ pub const Storage = struct {
 
             // Ensure file is big enough
             const file = std.fs.File{ .handle = fd };
-            try file.setEndPos(TOTAL_SIZE);
+            try file.setEndPos(total_size);
 
             const ptr = try posix.mmap(
                 null,
-                TOTAL_SIZE,
+                total_size,
                 posix.PROT.READ | posix.PROT.WRITE,
                 .{ .TYPE = .SHARED },
                 fd,
@@ -142,6 +129,7 @@ pub const Storage = struct {
             return Storage{
                 .ptr = ptr,
                 .handle = fd,
+                .max_dbs = max_dbs,
             };
         }
     }
@@ -190,7 +178,7 @@ pub const Storage = struct {
             0x82 => base = OFFSET_OUTPUTS,
             0x83 => base = OFFSET_MERKERS,
             0x84 => {
-                if (db_num >= MAX_DBS) return error.OutOfBounds;
+                if (db_num >= self.max_dbs) return error.OutOfBounds;
                 base = OFFSET_DB_START + (@as(usize, db_num) * DB_SIZE);
             },
             0x1C => base = OFFSET_COUNTERS,
@@ -200,3 +188,25 @@ pub const Storage = struct {
         return self.get_slice(base + start_byte, len_bytes);
     }
 };
+
+test "Storage max_dbs" {
+    // defaults
+    var storage = try Storage.init("test_shm_defaults", Storage.MAX_DBS_DEFAULT);
+    defer storage.deinit();
+
+    // Should succeed for DB 0
+    _ = try storage.get_address(0x84, 0, 0, 4);
+
+    // Should fail for DB 128
+    try std.testing.expectError(error.OutOfBounds, storage.get_address(0x84, 128, 0, 4));
+
+    // custom limit
+    var storage2 = try Storage.init("test_shm_large", 300);
+    defer storage2.deinit();
+
+    // Should succeed for DB 200
+    _ = try storage2.get_address(0x84, 200, 0, 4);
+
+    // Should fail for DB 300
+    try std.testing.expectError(error.OutOfBounds, storage2.get_address(0x84, 300, 0, 4));
+}
