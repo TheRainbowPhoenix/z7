@@ -56,9 +56,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - { target: 'x86_64-windows-msvc', os: 'windows-latest' }
-          - { target: 'x86_64-linux-musl',    os: 'ubuntu-latest' }
-          - { target: 'x86_64-linux-gnu',     os: 'ubuntu-latest' }
+          - { target: 'x86_64-windows-msvc', os: 'windows-latest', optimize: 'Debug' }
+          - { target: 'x86_64-windows-msvc', os: 'windows-latest', optimize: 'ReleaseSafe' }
+          - { target: 'x86_64-linux-musl',   os: 'ubuntu-latest',  optimize: 'Debug' }
+          - { target: 'x86_64-linux-musl',   os: 'ubuntu-latest',  optimize: 'ReleaseSafe' }
+          - { target: 'x86_64-linux-gnu',    os: 'ubuntu-latest',  optimize: 'Debug' }
+          - { target: 'x86_64-linux-gnu',    os: 'ubuntu-latest',  optimize: 'ReleaseSafe' }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -70,18 +73,21 @@ jobs:
       - name: Download Zig (Windows)
         if: runner.os == 'Windows'
         run: pwsh ./zig/download.win.ps1
-      - name: Build
-        run: ./zig/zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSafe
+      - name: Build (${{ matrix.optimize }})
+        run: ./zig/zig build -Dtarget=${{ matrix.target }} -Doptimize=${{ matrix.optimize }}
       - name: Test
-        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-linux-gnu'
+        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-linux-gnu' && matrix.optimize == 'Debug'
         run: ./zig/zig build test -Dtarget=${{ matrix.target }}
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: z7-${{ matrix.target }}
+          name: z7-${{ matrix.target }}-${{ matrix.optimize }}
           path: |
             zig-out/bin/z7
             zig-out/bin/z7.exe
+            zig-out/bin/z7.dll
+            zig-out/bin/z7.pdb
+            zig-out/lib/libz7.so
           if-no-files-found: ignore
 
   integration-test:

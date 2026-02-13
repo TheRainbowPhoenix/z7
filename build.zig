@@ -29,7 +29,7 @@ pub fn build(b: *std.Build) void {
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/z7/exports.zig"),
             .target = target,
-            .optimize = .Debug, // or .optimize // Force debug for DLL so panics show full stack traces,
+            .optimize = optimize,
         }),
     });
     z7_lib.root_module.addImport("stdx", stdx_module);
