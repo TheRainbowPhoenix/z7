@@ -1,6 +1,6 @@
 #!/bin/sh
 echo `# <#`
-./zig/download.sh
+sh ./zig/download.sh
 exit
 #> > $null
-./zig/download.win.ps1
+pwsh ./zig/download.win.ps1
