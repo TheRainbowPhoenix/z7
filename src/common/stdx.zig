@@ -7,6 +7,8 @@ pub const windows = @import("stdx/windows.zig");
 pub const Instant = @import("stdx/time_units.zig").Instant;
 pub const Duration = @import("stdx/time_units.zig").Duration;
 pub const InstantUnix = @import("stdx/time_units.zig").InstantUnix;
+pub const PRNG = @import("stdx/prng.zig");
+pub const parse_flag_value_fuzz = @import("stdx/flags.zig").parse_flag_value_fuzz;
 
 // Import these as `const GiB = stdx.GiB;`
 pub const KiB = 1 << 10;
@@ -31,6 +33,19 @@ comptime {
 /// coverage.
 pub fn maybe(ok: bool) void {
     assert(ok or !ok);
+}
+
+/// Splits the `haystack` around the first occurrence of `needle`, returning parts before and after.
+pub fn cut(haystack: []const u8, needle: []const u8) ?struct { []const u8, []const u8 } {
+    const index = std.mem.indexOf(u8, haystack, needle) orelse return null;
+    return .{ haystack[0..index], haystack[index + needle.len ..] };
+}
+
+pub fn cut_prefix(haystack: []const u8, needle: []const u8) ?[]const u8 {
+    if (std.mem.startsWith(u8, haystack, needle)) {
+        return haystack[needle.len..];
+    }
+    return null;
 }
 
 pub fn parse_dirty_semver(dirty_release: []const u8) !std.SemanticVersion {

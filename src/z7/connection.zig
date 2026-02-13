@@ -132,7 +132,7 @@ pub const Connection = struct {
         const tpkt = std.mem.bytesToValue(TPKT, self.rx_buffer[0..@sizeOf(TPKT)]);
         const total_len = std.mem.bigToNative(u16, tpkt.length);
 
-        log.info("RX: {any}", .{std.fmt.fmtSliceHexLower(self.rx_buffer[0..total_len])});
+        log.debug("RX: {any}", .{std.fmt.fmtSliceHexLower(self.rx_buffer[0..total_len])});
         self.process_pdu(self.rx_buffer[0..total_len]);
     }
 
@@ -616,7 +616,7 @@ pub const Connection = struct {
 
     fn handle_read_var(self: *Connection, req: *const S7Header, params: []const u8) void {
         const item_count = params[1];
-        log.info("Read Var: {} items", .{item_count});
+        log.debug("Read Var: {} items", .{item_count});
 
         var tx = &self.tx_buffer;
         // S7 Header (12 bytes for ack_data) + Param Header (2 bytes: function, count) = 14
@@ -641,11 +641,11 @@ pub const Connection = struct {
             const addr = (@as(u32, addr_bytes[0]) << 16) | (@as(u32, addr_bytes[1]) << 8) | @as(u32, addr_bytes[2]);
             const start_byte = addr >> 3;
 
-            log.info("  Item {}: area=0x{x} db={} start={} len={}", .{ i, area, db, start_byte, len_header });
+            log.debug("  Item {}: area=0x{x} db={} start={} len={}", .{ i, area, db, start_byte, len_header });
 
             var data_buffer: [8192]u8 = undefined;
             const read_slice = self.storage.get_address(area, db, start_byte, len_header) catch |err| {
-                log.err("Storage read failed for item {}: {}", .{ i, err });
+                log.debug("Storage read failed for item {}: {}", .{ i, err });
                 self.ptr_fill_error(tx, &tx_ptr, 0x05); // Invalid address or similar
                 param_ptr += 12;
                 continue;
@@ -747,7 +747,7 @@ pub const Connection = struct {
     // Send / Close
 
     fn send_response(self: *Connection, len: usize) void {
-        log.info("TX: {any}", .{std.fmt.fmtSliceHexLower(self.tx_buffer[0..len])});
+        log.debug("TX: {any}", .{std.fmt.fmtSliceHexLower(self.tx_buffer[0..len])});
         self.pending_ops += 1;
         self.io.send(
             *Connection,
