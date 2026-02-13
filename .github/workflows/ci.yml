@@ -115,18 +115,40 @@ jobs:
       - name: Start z7 server (Unix)
         if: runner.os != 'Windows'
         run: |
-          ./zig-out/bin/z7 --port 1102 &
-          sleep 3
+          ./zig-out/bin/z7 --port 1102 > /tmp/z7.log 2>&1 &
+          echo "Waiting for server..."
+          for i in $(seq 1 10); do
+            if nc -z 127.0.0.1 1102 2>/dev/null; then echo "Server ready!"; break; fi
+            sleep 1
+          done
       - name: Start z7 server (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Start-Process -FilePath ".\zig-out\bin\z7.exe" -ArgumentList "--port","1102" -NoNewWindow -PassThru | Set-Variable -Name "z7proc"
-          Start-Sleep -Seconds 3
+          Start-Process -FilePath ".\zig-out\bin\z7.exe" -ArgumentList "--port","1102" -RedirectStandardOutput "z7_stdout.log" -RedirectStandardError "z7_stderr.log"
+          Write-Host "Waiting for server..."
+          for ($i = 0; $i -lt 15; $i++) {
+            try {
+              $tcp = New-Object System.Net.Sockets.TcpClient
+              $tcp.Connect("127.0.0.1", 1102)
+              $tcp.Close()
+              Write-Host "Server ready!"
+              break
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
       - name: Run pystep7 integration test
         working-directory: TESTS/pystep7-main
         run: python test1.py
         timeout-minutes: 1
+      - name: Show server logs
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path z7_stdout.log) { Get-Content z7_stdout.log }
+          if (Test-Path z7_stderr.log) { Get-Content z7_stderr.log }
+          if (Test-Path /tmp/z7.log) { Get-Content /tmp/z7.log }
       - name: Stop z7 server (Unix)
         if: always() && runner.os != 'Windows'
         run: pkill -f "z7.*--port" || true
