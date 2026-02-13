@@ -1,9 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const zCom = @import("../common/zCom.zig");
+const zCom = @import("zCom");
 const IO = zCom.io.IO;
 const Storage = @import("storage.zig").Storage;
 const Connection = @import("connection.zig").Connection;
+const exports = @import("exports.zig");
 
 var current_log_level: std.log.Level = .info;
 var log_file: ?std.fs.File = null;
@@ -92,6 +93,10 @@ pub const Server = struct {
             // Re-initialize the connection slot safely
             conn.reset(client_socket);
             conn.start();
+            // Fire event for Python
+            if (exports.event_callback) |cb| {
+                cb(3, "client_connected", 16);
+            }
         } else {
             log.warn("Max connections reached, dropping client.", .{});
             if (builtin.os.tag == .windows) {

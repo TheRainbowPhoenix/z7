@@ -115,7 +115,7 @@ __WTAGS2 = [
     
 
 __HOST = '127.0.0.1' # REQUIRED
-__PORT = 10202          # OPTIONAL: default is 102
+__PORT = 1102           # OPTIONAL: default is 102
 __RACK = 0              # OPTIONAL: default is 0
 __SLOT = 0              # OPTIONAL: default is 0
 

@@ -11,7 +11,15 @@ const types = @import("types.zig");
 const TPKT = proto.TPKT;
 const S7Header = proto.S7Header;
 
+const exports = @import("exports.zig");
+
 const log = std.log.scoped(.connection);
+
+fn fire_event(event_type: u8, detail: []const u8) void {
+    if (exports.event_callback) |cb| {
+        cb(event_type, detail.ptr, detail.len);
+    }
+}
 
 pub const Connection = struct {
     io: *IO,
@@ -264,11 +272,13 @@ pub const Connection = struct {
             },
             .plc_stop => {
                 log.info("PLC Stop request", .{});
+                fire_event(1, "plc_stop_request");
                 self.handle_plc_control(header, @intFromEnum(proto.Function.plc_stop));
                 return true;
             },
             .plc_control => {
                 log.info("PLC Control request (start)", .{});
+                fire_event(2, "plc_start_request");
                 self.handle_plc_control(header, @intFromEnum(proto.Function.plc_control));
                 return true;
             },
@@ -370,8 +380,19 @@ pub const Connection = struct {
             return;
         }
 
-        const szl_id = std.mem.readInt(u16, data[0..2], .big);
-        const szl_index = std.mem.readInt(u16, data[2..4], .big);
+        // Standard S7 clients (e.g. pystep7) send a 4-byte data header before the
+        // SZL request: ReturnCode(1) + TransportSize(1) + DataLength(2), then SZL ID + Index.
+        // Raw scripts may send just the 4-byte SZL ID + Index directly.
+        // Detect: if first byte is 0xFF (success return code) and data is >= 8 bytes,
+        // skip the 4-byte data header.
+        const szl_off: usize = if (data.len >= 8 and data[0] == 0xFF) 4 else 0;
+        if (szl_off + 4 > data.len) {
+            log.warn("SZL Request data too short after header skip", .{});
+            return;
+        }
+
+        const szl_id = std.mem.readInt(u16, data[szl_off..][0..2], .big);
+        const szl_index = std.mem.readInt(u16, data[szl_off + 2 ..][0..2], .big);
         log.info("SZL Read: id=0x{x:0>4} index=0x{x:0>4}", .{ szl_id, szl_index });
 
         // Lookup prepared data blob (includes Data Header + SZL Payload)
@@ -762,6 +783,7 @@ pub const Connection = struct {
     pub fn close(self: *Connection) void {
         if (self.closed) return;
         self.closed = true;
+        fire_event(4, "client_disconnected");
         if (builtin.os.tag == .windows) {
             _ = std.os.windows.ws2_32.closesocket(self.socket);
         } else {

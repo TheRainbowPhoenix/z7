@@ -484,6 +484,7 @@ class Client:
 
         totalLength = len(data)
         if totalLength < 34:
+            print(totalLength)
             return cpuInfo(error="Invalid PDU Length")
 
         offset = 4

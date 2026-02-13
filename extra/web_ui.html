@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Z7 PLC Simulator</title>
+  <meta name="description" content="Web control panel for the Z7 S7-compatible PLC simulator">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    :root {
+      --bg: #0c0e14;
+      --bg2: #131620;
+      --bg3: #1a1e2e;
+      --bg4: #242a3d;
+      --tx: #e0e4f0;
+      --tx2: #8b93a8;
+      --tx3: #5a6178;
+      --accent: #00d4aa;
+      --accent2: #00b894;
+      --accent-glow: rgba(0, 212, 170, .15);
+      --red: #ff6b6b;
+      --yellow: #ffd93d;
+      --blue: #4dabf7;
+      --border: #2a2f42;
+      --radius: 12px;
+    }
+
+    html,
+    body {
+      height: 100%;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--tx)
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none
+    }
+
+    /* Layout */
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100vh
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 24px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border)
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -.5px
+    }
+
+    .header h1 span {
+      color: var(--accent);
+      font-weight: 700
+    }
+
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--tx2)
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .5px
+    }
+
+    .status-pill.run {
+      background: rgba(0, 212, 170, .12);
+      color: var(--accent)
+    }
+
+    .status-pill.stop {
+      background: rgba(255, 107, 107, .12);
+      color: var(--red)
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      overflow: hidden
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto
+    }
+
+    .sidebar-section {
+      padding: 16px
+    }
+
+    .sidebar-section h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--tx3);
+      margin-bottom: 12px
+    }
+
+    /* PLC Graphic */
+    .plc-card {
+      background: var(--bg3);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+      position: relative;
+      overflow: hidden
+    }
+
+    .plc-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--blue))
+    }
+
+    .plc-vis {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px
+    }
+
+    .plc-box {
+      width: 80px;
+      height: 96px;
+      background: linear-gradient(135deg, #536270, #617485);
+      border-radius: 4px;
+      position: relative;
+      flex-shrink: 0
+    }
+
+    .leds {
+      position: absolute;
+      left: 6px;
+      top: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px
+    }
+
+    .led {
+      width: 7px;
+      height: 7px;
+      border-radius: 2px;
+      transition: all .3s
+    }
+
+    .led.green {
+      background: #0f0;
+      box-shadow: 0 0 8px #0f0
+    }
+
+    .led.red {
+      background: #f00;
+      box-shadow: 0 0 8px #f00
+    }
+
+    .led.yellow {
+      background: #ff0;
+      box-shadow: 0 0 8px #ff0
+    }
+
+    .led.off {
+      background: #333;
+      box-shadow: none
+    }
+
+    .plc-info {
+      font-size: 12px;
+      color: var(--tx2);
+      line-height: 1.6
+    }
+
+    .plc-info strong {
+      color: var(--tx);
+      font-weight: 500
+    }
+
+    /* Buttons */
+    .btn-row {
+      display: flex;
+      gap: 8px
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      transition: all .15s
+    }
+
+    .btn-start {
+      background: var(--accent);
+      color: #0c0e14
+    }
+
+    .btn-start:hover {
+      background: #00e6b6;
+      transform: translateY(-1px)
+    }
+
+    .btn-stop {
+      background: var(--red);
+      color: #fff
+    }
+
+    .btn-stop:hover {
+      background: #ff8787;
+      transform: translateY(-1px)
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 6px
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--tx2)
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--tx3);
+      color: var(--tx)
+    }
+
+    .btn-accent {
+      background: var(--accent-glow);
+      border: 1px solid rgba(0, 212, 170, .3);
+      color: var(--accent)
+    }
+
+    .btn-accent:hover {
+      background: rgba(0, 212, 170, .25)
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2)
+    }
+
+    .tab {
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--tx2);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all .15s
+    }
+
+    .tab:hover {
+      color: var(--tx)
+    }
+
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent)
+    }
+
+    /* Content */
+    .content {
+      overflow: hidden;
+      display: flex;
+      flex-direction: column
+    }
+
+    .panel {
+      display: none;
+      flex: 1;
+      overflow: auto;
+      padding: 20px
+    }
+
+    .panel.active {
+      display: flex;
+      flex-direction: column
+    }
+
+    /* Logs */
+    .log-container {
+      flex: 1;
+      background: var(--bg3);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column
+    }
+
+    .log-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg4)
+    }
+
+    .log-toolbar input {
+      flex: 1;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      color: var(--tx);
+      font-size: 12px;
+      font-family: inherit
+    }
+
+    .log-toolbar input::placeholder {
+      color: var(--tx3)
+    }
+
+    .log-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.7
+    }
+
+    .log-line {
+      padding: 1px 12px;
+      display: flex;
+      gap: 8px;
+      transition: background .1s
+    }
+
+    .log-line:hover {
+      background: rgba(255, 255, 255, .03)
+    }
+
+    .log-ts {
+      color: var(--tx3);
+      flex-shrink: 0;
+      min-width: 90px
+    }
+
+    .log-lvl {
+      flex-shrink: 0;
+      min-width: 50px;
+      font-weight: 600
+    }
+
+    .log-lvl.ERROR {
+      color: var(--red)
+    }
+
+    .log-lvl.WARN {
+      color: var(--yellow)
+    }
+
+    .log-lvl.INFO {
+      color: var(--accent)
+    }
+
+    .log-lvl.DEBUG {
+      color: var(--tx3)
+    }
+
+    .log-msg {
+      color: var(--tx);
+      word-break: break-all
+    }
+
+    .log-empty {
+      text-align: center;
+      color: var(--tx3);
+      padding: 40px
+    }
+
+    /* Monitor */
+    .monitor-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+      margin-top: 12px
+    }
+
+    .var-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      position: relative
+    }
+
+    .var-card .addr {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 500
+    }
+
+    .var-card .val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 22px;
+      font-weight: 600;
+      margin: 8px 0 4px;
+      transition: color .2s
+    }
+
+    .var-card .val.changed {
+      color: var(--yellow)
+    }
+
+    .var-card .fmt {
+      font-size: 11px;
+      color: var(--tx3)
+    }
+
+    .var-card .remove {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: none;
+      border: none;
+      color: var(--tx3);
+      cursor: pointer;
+      font-size: 16px
+    }
+
+    .var-card .remove:hover {
+      color: var(--red)
+    }
+
+    .add-var-row {
+      display: flex;
+      gap: 8px;
+      align-items: center
+    }
+
+    .add-var-row input {
+      flex: 1;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--tx);
+      font-size: 13px;
+      font-family: inherit
+    }
+
+    .add-var-row select {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      color: var(--tx);
+      font-size: 13px
+    }
+
+    /* Memory */
+    .mem-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center
+    }
+
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      text-align: center;
+      color: var(--tx3);
+      cursor: pointer;
+      transition: all .2s;
+      margin-top: 16px
+    }
+
+    .upload-zone:hover {
+      border-color: var(--accent);
+      color: var(--tx);
+      background: var(--accent-glow)
+    }
+
+    .upload-zone input {
+      display: none
+    }
+
+    /* Events toast */
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px
+    }
+
+    .toast {
+      padding: 10px 16px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      animation: slideIn .3s ease;
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
+
+    .toast .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(20px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0)
+      }
+    }
+
+    @keyframes fadeOut {
+      to {
+        opacity: 0;
+        transform: translateX(20px)
+      }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <div class="header">
+      <h1><span>Z7</span> PLC Simulator</h1>
+      <div class="header-right">
+        <span id="hdr-clients" style="font-size:12px">0 clients</span>
+        <span id="hdr-status" class="status-pill stop">STOP</span>
+      </div>
+    </div>
+    <div class="main">
+      <div class="sidebar">
+        <div class="sidebar-section">
+          <div class="plc-card">
+            <div class="plc-vis">
+              <div class="plc-box">
+                <div class="leds">
+                  <div id="led-run" class="led off" title="RUN"></div>
+                  <div id="led-error" class="led off" title="ERROR"></div>
+                  <div id="led-maint" class="led off" title="MAINT"></div>
+                </div>
+              </div>
+              <div class="plc-info">
+                <strong id="plc-name">Z7-PLC</strong><br>
+                <span style="font-size:11px;color:var(--tx3)">S7-Compatible</span><br>
+                Mode: <strong id="plc-mode">---</strong>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-start btn-sm" style="flex:1" onclick="plcStart()" id="btn-start">▶ START</button>
+              <button class="btn btn-stop btn-sm" style="flex:1" onclick="plcStop()" id="btn-stop">■ STOP</button>
+            </div>
+          </div>
+        </div>
+        <div class="sidebar-section" style="border-top:1px solid var(--border)">
+          <h3>Memory</h3>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="dumpMemory()" style="width:100%">⬇ Download Dump
+              (.gz)</button>
+            <label class="btn btn-ghost btn-sm" style="width:100%;text-align:center;cursor:pointer">
+              ⬆ Load Dump
+              <input type="file" accept=".gz,.bin" onchange="loadMemory(event)" style="display:none">
+            </label>
+          </div>
+        </div>
+        <div class="sidebar-section" style="border-top:1px solid var(--border);margin-top:auto">
+          <div style="font-size:11px;color:var(--tx3);line-height:1.6">
+            <div>IP: <span style="color:var(--tx)">127.0.0.1</span></div>
+            <div>Uptime: <span id="uptime" style="color:var(--tx)">--</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="tabs">
+          <div class="tab active" data-panel="logs" onclick="switchTab(this)">Logs</div>
+          <div class="tab" data-panel="monitor" onclick="switchTab(this)">Monitor</div>
+        </div>
+        <!-- LOGS -->
+        <div id="panel-logs" class="panel active">
+          <div class="log-container">
+            <div class="log-toolbar">
+              <input type="text" id="log-filter" placeholder="Filter logs..." oninput="scheduleFilterRebuild()">
+              <button class="btn btn-ghost btn-sm" onclick="clearLogs()">Clear</button>
+              <button class="btn btn-ghost btn-sm" onclick="downloadLogs()">Download</button>
+              <span id="log-count" style="font-size:11px;color:var(--tx3);margin-left:auto">0 lines</span>
+            </div>
+            <div class="log-scroll" id="log-scroll">
+              <div class="log-empty" id="log-empty">No log entries yet. Start the PLC to see output.</div>
+            </div>
+          </div>
+        </div>
+        <!-- MONITOR -->
+        <div id="panel-monitor" class="panel">
+          <div class="add-var-row">
+            <input type="text" id="mon-addr" placeholder="Address (e.g. DB1.DBW0, MW0, IB0)"
+              onkeydown="if(event.key==='Enter')addWatch()">
+            <select id="mon-fmt">
+              <option>DEC</option>
+              <option>HEX</option>
+              <option>BIN</option>
+            </select>
+            <button class="btn btn-accent btn-sm" onclick="addWatch()">+ Add</button>
+          </div>
+          <div class="monitor-grid" id="monitor-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="toast-container" id="toasts"></div>
+
+  <script>
+    // =========================================================================
+    // Constants — tune these to control memory and render pressure
+    // =========================================================================
+    const MAX_RING_SIZE = 2000;  // max entries kept in JS memory
+    const MAX_DOM_LINES = 500;   // max <div> nodes in the log panel
+    const FLUSH_INTERVAL = 250;   // ms between render ticks
+    const FLUSH_BATCH = 50;    // max lines rendered per tick
+
+    // =========================================================================
+    // State
+    // =========================================================================
+    // Ring buffer: circular array of log entries (newest at tail)
+    let ring = [];            // capped at MAX_RING_SIZE
+    // Pending queue: entries waiting to be flushed to DOM
+    let pending = [];         // drained by the renderer
+    let watches = JSON.parse(localStorage.getItem('z7_watches') || '[]');
+    let prevValues = {};
+    const startTime = Date.now();
+    let currentFilter = '';
+    let filterRebuildTimer = null;
+
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    function makeLogNode(entry) {
+      const div = document.createElement('div');
+      div.className = 'log-line';
+      const ts = entry.ts ? entry.ts.split('T')[1] || entry.ts : '';
+      div.innerHTML = `<span class="log-ts">${ts}</span><span class="log-lvl ${entry.level}">${entry.level}</span><span class="log-msg">${escHtml(entry.msg)}</span>`;
+      return div;
+    }
+
+    function matchesFilter(entry, filter) {
+      if (!filter) return true;
+      return entry.msg.toLowerCase().includes(filter) || entry.level.toLowerCase().includes(filter);
+    }
+
+    // =========================================================================
+    // Log ingestion — called from SSE and initial load, never touches DOM
+    // =========================================================================
+    function ingestLog(entry) {
+      // Push to ring buffer, evict oldest if full
+      ring.push(entry);
+      if (ring.length > MAX_RING_SIZE) ring.shift();
+
+      // Push to pending queue for the renderer (only if it matches filter)
+      if (matchesFilter(entry, currentFilter)) {
+        pending.push(entry);
+        // Cap pending too so we never queue millions
+        if (pending.length > MAX_DOM_LINES) pending.shift();
+      }
+    }
+
+    // =========================================================================
+    // Fixed-interval renderer — flushes pending → DOM, prunes old nodes
+    // =========================================================================
+    function flushLogs() {
+      if (pending.length === 0) return;
+
+      const scroll = document.getElementById('log-scroll');
+      const empty = document.getElementById('log-empty');
+      if (empty) empty.remove();
+
+      // Take up to FLUSH_BATCH from pending
+      const batch = pending.splice(0, FLUSH_BATCH);
+
+      // Build a DocumentFragment (single reflow)
+      const frag = document.createDocumentFragment();
+      for (const entry of batch) {
+        frag.appendChild(makeLogNode(entry));
+      }
+      scroll.appendChild(frag);
+
+      // Prune oldest DOM nodes if over limit
+      while (scroll.childElementCount > MAX_DOM_LINES) {
+        scroll.removeChild(scroll.firstElementChild);
+      }
+
+      // Update counter
+      document.getElementById('log-count').textContent = ring.length + ' lines';
+    }
+
+    // Start the render loop
+    setInterval(flushLogs, FLUSH_INTERVAL);
+
+    // =========================================================================
+    // Filter — debounced rebuild from ring buffer
+    // =========================================================================
+    function scheduleFilterRebuild() {
+      clearTimeout(filterRebuildTimer);
+      filterRebuildTimer = setTimeout(rebuildFromRing, 200);
+    }
+
+    function rebuildFromRing() {
+      currentFilter = document.getElementById('log-filter').value.toLowerCase();
+      pending = []; // clear any unflushed data
+
+      const scroll = document.getElementById('log-scroll');
+      scroll.innerHTML = '';
+
+      // Pick the last MAX_DOM_LINES entries that match
+      const filtered = [];
+      for (let i = ring.length - 1; i >= 0 && filtered.length < MAX_DOM_LINES; i--) {
+        if (matchesFilter(ring[i], currentFilter)) filtered.push(ring[i]);
+      }
+      filtered.reverse();
+
+      const frag = document.createDocumentFragment();
+      for (const entry of filtered) frag.appendChild(makeLogNode(entry));
+      scroll.appendChild(frag);
+
+      document.getElementById('log-count').textContent = ring.length + ' lines';
+    }
+
+    function clearLogs() {
+      ring = [];
+      pending = [];
+      const scroll = document.getElementById('log-scroll');
+      scroll.innerHTML = '<div class="log-empty" id="log-empty">Cleared.</div>';
+      document.getElementById('log-count').textContent = '0 lines';
+    }
+    function downloadLogs() { window.open('/api/logs/download'); }
+
+    // =========================================================================
+    // Tab switching
+    // =========================================================================
+    function switchTab(el) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('panel-' + el.dataset.panel).classList.add('active');
+    }
+
+    // =========================================================================
+    // PLC Control
+    // =========================================================================
+    async function plcStart() { await fetch('/api/control/start', { method: 'POST' }); pollStatus(); }
+    async function plcStop() { await fetch('/api/control/stop', { method: 'POST' }); pollStatus(); }
+
+    // =========================================================================
+    // Status polling
+    // =========================================================================
+    async function pollStatus() {
+      try {
+        const r = await fetch('/api/status');
+        const s = await r.json();
+        const pill = document.getElementById('hdr-status');
+        pill.textContent = s.mode;
+        pill.className = 'status-pill ' + (s.mode === 'RUN' ? 'run' : 'stop');
+        document.getElementById('plc-mode').textContent = s.mode;
+        document.getElementById('plc-name').textContent = s.name || 'Z7-PLC';
+        document.getElementById('hdr-clients').textContent = (s.clients || 0) + ' client' + (s.clients !== 1 ? 's' : '');
+        const leds = s.leds || {};
+        setLed('led-run', leds.run || 'off');
+        setLed('led-error', leds.error || 'off');
+        setLed('led-maint', leds.maint || 'off');
+      } catch (e) { }
+    }
+    function setLed(id, color) {
+      const el = document.getElementById(id);
+      el.className = 'led ' + (color === 'off' ? 'off' : color);
+    }
+
+    // Uptime
+    setInterval(() => {
+      const s = Math.floor((Date.now() - startTime) / 1000);
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+      document.getElementById('uptime').textContent = `${h}h ${m}m ${sec}s`;
+    }, 1000);
+
+    // =========================================================================
+    // SSE — messages go into ring buffer, never directly to DOM
+    // =========================================================================
+    function connectSSE() {
+      const es = new EventSource('/api/events');
+      es.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'log') {
+            ingestLog(msg.data);
+          } else if (msg.type === 'event') {
+            showToast(msg.data.event, msg.data.detail);
+            pollStatus();
+          }
+        } catch (err) { }
+      };
+      es.onerror = () => { es.close(); setTimeout(connectSSE, 3000); };
+    }
+
+    // =========================================================================
+    // Toast notifications
+    // =========================================================================
+    function showToast(event, detail) {
+      const c = document.getElementById('toasts');
+      const colors = { plc_stop_request: 'var(--red)', plc_start_request: 'var(--accent)', client_connected: 'var(--blue)', client_disconnected: 'var(--yellow)' };
+      const labels = { plc_stop_request: 'PLC Stop Requested', plc_start_request: 'PLC Start Requested', client_connected: 'Client Connected', client_disconnected: 'Client Disconnected' };
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.innerHTML = `<span class="dot" style="background:${colors[event] || 'var(--tx3)'}"></span>${labels[event] || event}`;
+      c.appendChild(t);
+      setTimeout(() => { t.style.animation = 'fadeOut .3s ease forwards'; setTimeout(() => t.remove(), 300); }, 4000);
+    }
+
+    // =========================================================================
+    // Monitor
+    // =========================================================================
+    function renderWatches() {
+      const grid = document.getElementById('monitor-grid');
+      grid.innerHTML = '';
+      watches.forEach((w, i) => {
+        const card = document.createElement('div');
+        card.className = 'var-card';
+        card.id = 'watch-' + i;
+        card.innerHTML = `<div class="addr">${escHtml(w.address)}</div><div class="val" id="wval-${i}">---</div><div class="fmt">${w.format}</div><button class="remove" onclick="removeWatch(${i})">&times;</button>`;
+        grid.appendChild(card);
+      });
+      localStorage.setItem('z7_watches', JSON.stringify(watches));
+    }
+    function addWatch() {
+      const addr = document.getElementById('mon-addr').value.trim();
+      const fmt = document.getElementById('mon-fmt').value;
+      if (!addr) return;
+      watches.push({ address: addr, format: fmt });
+      document.getElementById('mon-addr').value = '';
+      renderWatches();
+    }
+    function removeWatch(i) { watches.splice(i, 1); renderWatches(); }
+    async function pollMonitor() {
+      if (!watches.length) return;
+      try {
+        const r = await fetch('/api/monitor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(watches) });
+        const results = await r.json();
+        results.forEach((res, i) => {
+          const el = document.getElementById('wval-' + i);
+          if (!el) return;
+          const prev = prevValues[res.address];
+          el.textContent = res.value;
+          if (prev !== undefined && prev !== res.value) { el.classList.add('changed'); setTimeout(() => el.classList.remove('changed'), 600); }
+          prevValues[res.address] = res.value;
+        });
+      } catch (e) { }
+    }
+
+    // =========================================================================
+    // Memory dump / load
+    // =========================================================================
+    function dumpMemory() { window.open('/api/memory/dump'); }
+    function loadMemory(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      fetch('/api/memory/load', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(d => { showToast('memory_loaded', d.status === 'ok' ? 'Memory loaded!' : d.error); })
+        .catch(err => showToast('error', String(err)));
+      e.target.value = '';
+    }
+
+    // =========================================================================
+    // Init
+    // =========================================================================
+    async function init() {
+      // Load existing logs from server into ring buffer (no DOM yet)
+      try {
+        const r = await fetch('/api/logs');
+        const logs = await r.json();
+        for (const l of logs) ingestLog(l);
+      } catch (e) { }
+      connectSSE();
+      pollStatus();
+      renderWatches();
+      setInterval(pollStatus, 3000);
+      setInterval(pollMonitor, 1000);
+    }
+    init();
+  </script>
+</body>
+
+</html>

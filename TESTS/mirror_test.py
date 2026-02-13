@@ -7,6 +7,7 @@ import socket
 import struct
 import time
 import sys
+import random
 
 HOST = '127.0.0.1'
 PORT = 10202
@@ -179,7 +180,8 @@ def main():
         sys.exit(1)
         
     # 4. Write 0x99 to IB0
-    req = build_write_byte(0x81, 0, 0, 0x99)
+    base_val = random.randint(0, 255)
+    req = build_write_byte(0x81, 0, 0, base_val)
     send_recv(s, req, "Write IB0=0x99")
     
     time.sleep(0.2)
@@ -190,7 +192,7 @@ def main():
     val = parse_read_response(resp)
     
     print(f"Read QB0: 0x{val:02X}")
-    if val != 0x99:
+    if val != base_val:
         print("FAIL: Expected 0x99")
         sys.exit(1)
         

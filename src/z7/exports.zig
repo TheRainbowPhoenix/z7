@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const zCom = @import("../common/zCom.zig");
+const zCom = @import("zCom");
 const IO = zCom.io.IO;
 const Storage = @import("storage.zig").Storage;
 const Connection = @import("connection.zig").Connection;
@@ -8,6 +8,9 @@ const main = @import("main.zig");
 
 // Global log callback
 var log_callback: ?*const fn (level: u8, msg_ptr: [*c]const u8, msg_len: usize) callconv(.C) void = null;
+
+// Global event callback: event_type (1=plc_stop_request, 2=plc_start_request, 3=client_connected, 4=client_disconnected)
+pub var event_callback: ?*const fn (event_type: u8, detail_ptr: [*c]const u8, detail_len: usize) callconv(.C) void = null;
 
 fn myLog(
     comptime level: std.log.Level,
@@ -45,6 +48,25 @@ const Context = struct {
 
 export fn z7_set_log_callback(cb: ?*const fn (u8, [*c]const u8, usize) callconv(.C) void) void {
     log_callback = cb;
+}
+
+export fn z7_set_event_callback(cb: ?*const fn (u8, [*c]const u8, usize) callconv(.C) void) void {
+    event_callback = cb;
+}
+
+/// Returns 1 if running, 0 if stopped
+export fn z7_get_status(ctx: *Context) u8 {
+    return if (ctx.running.load(.acquire)) 1 else 0;
+}
+
+/// Returns pointer to the raw storage memory
+export fn z7_get_memory_ptr(ctx: *Context) [*c]u8 {
+    return ctx.storage.ptr.ptr;
+}
+
+/// Returns total size of the storage memory
+export fn z7_get_memory_size(ctx: *Context) usize {
+    return ctx.storage.ptr.len;
 }
 
 export fn z7_init(port: u16, storage_path: [*c]const u8) ?*Context {

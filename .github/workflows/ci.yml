@@ -84,10 +84,55 @@ jobs:
             zig-out/bin/z7.exe
           if-no-files-found: ignore
 
+  integration-test:
+    strategy:
+      matrix:
+        include:
+          - { os: 'ubuntu-latest' }
+          - { os: 'windows-latest' }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Zig (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x zig/download.sh zig/download.ps1
+          ./zig/download.ps1 && chmod +x zig/zig
+      - name: Download Zig (Windows)
+        if: runner.os == 'Windows'
+        run: pwsh ./zig/download.win.ps1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build z7 server
+        run: ./zig/zig build
+      - name: Start z7 server (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          ./zig-out/bin/z7 --port 1102 &
+          sleep 3
+      - name: Start z7 server (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Start-Process -FilePath ".\zig-out\bin\z7.exe" -ArgumentList "--port","1102" -NoNewWindow -PassThru | Set-Variable -Name "z7proc"
+          Start-Sleep -Seconds 3
+      - name: Run pystep7 integration test
+        working-directory: TESTS/pystep7-main
+        run: python test1.py
+        timeout-minutes: 1
+      - name: Stop z7 server (Unix)
+        if: always() && runner.os != 'Windows'
+        run: pkill -f "z7.*--port" || true
+      - name: Stop z7 server (Windows)
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: Get-Process z7 -ErrorAction SilentlyContinue | Stop-Process -Force
+
   core-pipeline:
     if: always() && github.event_name == 'merge_group'
     runs-on: ubuntu-latest
-    needs: [smoke, test, z7]
+    needs: [smoke, test, z7, integration-test]
     steps:
       - if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
         run: exit 0
