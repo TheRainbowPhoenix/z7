@@ -145,8 +145,9 @@ pub const Storage = struct {
     }
 
     pub fn get_slice(self: *Storage, offset: usize, len: usize) ![]u8 {
-        if (offset + len > self.len) return error.OutOfBounds;
-        return self.ptr[offset..][0..len];
+        if (offset >= self.len) return self.ptr[0..0];
+        const actual_len = @min(len, self.len - offset);
+        return self.ptr[offset..][0..actual_len];
     }
 
     pub fn get_address(self: *Storage, area: u8, db_num: u16, start_byte: u32, len_bytes: u32) ![]u8 {

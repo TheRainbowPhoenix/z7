@@ -4,6 +4,7 @@ const IO = vsr.io.IO;
 const Storage = @import("storage.zig").Storage;
 const proto = @import("protocol.zig");
 const firmware = @import("firmware.zig");
+const types = @import("types.zig");
 const TPKT = proto.TPKT;
 const S7Header = proto.S7Header;
 
@@ -15,8 +16,8 @@ pub const Connection = struct {
     socket: std.posix.socket_t,
 
     // Message Buffers
-    rx_buffer: [4096]u8 align(4) = undefined,
-    tx_buffer: [4096]u8 align(4) = undefined,
+    rx_buffer: [16384]u8 align(4) = undefined,
+    tx_buffer: [16384]u8 align(4) = undefined,
 
     // IO Completions
     read_completion: IO.Completion = undefined,
@@ -191,7 +192,11 @@ pub const Connection = struct {
             return;
         }
 
-        const header = std.mem.bytesToValue(S7Header, data[0..@sizeOf(S7Header)]);
+        const raw_header = std.mem.bytesToValue(S7Header, data[0..@sizeOf(S7Header)]);
+        var header = raw_header;
+        header.pdu_ref = std.mem.bigToNative(u16, raw_header.pdu_ref);
+        header.param_len = std.mem.bigToNative(u16, raw_header.param_len);
+        header.data_len = std.mem.bigToNative(u16, raw_header.data_len);
 
         if (header.proto_id != proto.s7_proto_id) {
             log.err("Invalid S7 proto id: 0x{x}", .{header.proto_id});
@@ -213,8 +218,8 @@ pub const Connection = struct {
     }
 
     fn dispatch_job(self: *Connection, header: *const S7Header, data: []u8) void {
-        const param_len = std.mem.bigToNative(u16, header.param_len);
-        const data_len = std.mem.bigToNative(u16, header.data_len);
+        const param_len = header.param_len;
+        const data_len = header.data_len;
 
         if (10 + param_len + data_len > data.len) {
             self.close();
@@ -256,8 +261,8 @@ pub const Connection = struct {
     }
 
     fn dispatch_userdata(self: *Connection, header: *const S7Header, data: []u8) void {
-        const param_len = std.mem.bigToNative(u16, header.param_len);
-        const data_len = std.mem.bigToNative(u16, header.data_len);
+        const param_len = header.param_len;
+        const data_len = header.data_len;
 
         // Our S7Header is 10 bytes. Some clients (e.g. raw scripts) may send
         // a 12-byte header with an extra 2-byte error/reserved field.
@@ -317,7 +322,7 @@ pub const Connection = struct {
             return;
         } else if (func_group == 0x03) { // Block info
             log.info("Block info request: sub=0x{x}", .{sub_func});
-            self.handle_block_info(header, sub_func, payload);
+            self.handle_block_info(header, sub_func, params, payload);
             return;
         }
 
@@ -417,10 +422,27 @@ pub const Connection = struct {
     // ── Block Info ───────────────────────────────────────────────────────
     // Stub for block list/info requests.
 
-    fn handle_block_info(self: *Connection, req: *const S7Header, sub_func: u8, payload: []const u8) void {
-        _ = payload;
-        // Return empty block list for now
-        const data_total_len: u16 = 4;
+    fn handle_block_info(self: *Connection, req: *const S7Header, sub_func: u8, params: []const u8, payload: []const u8) void {
+        // Extract block number from ASCII in payload if available
+        // Payload format: [DataHdr(4)] [Prefix(1)] [Type(1)] [NumberASCII(5)]
+        var block_number: u16 = 1;
+        if (payload.len >= 11) {
+            const num_bytes = payload[6..11];
+            var parsed: u16 = 0;
+            for (num_bytes) |b| {
+                if (b >= '0' and b <= '9') {
+                    parsed = parsed * 10 + (b - '0');
+                }
+            }
+            if (parsed > 0) block_number = parsed;
+        }
+
+        const info = types.BlockInfo{ .number = block_number, .block_type = if (payload.len >= 6) payload[5] else 0x41 };
+
+        const record_len = 61;
+        const sub_header_len = 9;
+        const data_payload_len: u16 = sub_header_len + record_len;
+        const data_total_len: u16 = 4 + data_payload_len;
         const param_len: u16 = 12;
         const tpkt_len: u16 = 4 + 3 + 10 + param_len + data_total_len;
 
@@ -429,22 +451,34 @@ pub const Connection = struct {
         proto.writeTpktCotpDT(tx, tpkt_len);
         proto.writeS7HeaderShort(tx, 7, proto.Rosctr.userdata, req.pdu_ref, param_len, data_total_len);
 
+        const seq = if (params.len >= 8) params[7] else 0x00;
         proto.writeUserdataParams(
             tx,
             17,
             proto.ParamMethod.response,
-            0x83, // block info response = 0x83
+            0x83, // block info response group
             sub_func,
-            0x00,
+            seq,
         );
+        // Copy low byte of pdu_ref to userdata params if it's there
+        tx[17 + 8] = @intCast(req.pdu_ref & 0xFF);
 
         proto.writeDataHeader(
             tx,
             29,
             @intFromEnum(proto.ReturnCode.success),
             @intFromEnum(proto.TransportSize.octet_string),
-            0,
+            data_payload_len,
         );
+
+        // Middle sub-header (9 bytes from offset 33 to 41)
+        // [4] Cst_b (0x30) [5] BlkType [6-7] Cst_w1 [8-9] Cst_w2 [10-11] Cst_pp [12] Unknown
+        @memset(tx[33..42], 0);
+        tx[33] = 0x30; // '0'
+        tx[34] = info.block_type;
+
+        // Block record (61 bytes starting at offset 42)
+        info.write(tx[42..][0..record_len]);
 
         self.send_response(tpkt_len);
     }
@@ -563,50 +597,81 @@ pub const Connection = struct {
 
     fn handle_read_var(self: *Connection, req: *const S7Header, params: []const u8) void {
         const item_count = params[1];
-        if (item_count < 1) {
-            self.close();
-            return;
-        }
-        if (params.len < 14) {
-            self.close();
-            return;
-        }
-
-        const offset = 2;
-        const db = std.mem.readInt(u16, params[offset + 6 .. offset + 8], .big);
-        const area = params[offset + 8];
-        const len_header = std.mem.readInt(u16, params[offset + 4 .. offset + 6], .big);
-        const addr_bytes = params[offset + 9 .. offset + 12];
-        const addr = (@as(u32, addr_bytes[0]) << 16) | (@as(u32, addr_bytes[1]) << 8) | @as(u32, addr_bytes[2]);
-        const start_byte = addr >> 3;
-
-        var data_buffer: [1024]u8 = undefined;
-        const read_slice = self.storage.get_address(area, db, start_byte, len_header) catch {
-            self.close();
-            return;
-        };
-        @memcpy(data_buffer[0..read_slice.len], read_slice);
-
-        // TPKT(4) + COTP(3) + Header(12) + Param(2) + DataHeader(4) + Data(N)
-        const data_item_len: u16 = @intCast(4 + read_slice.len);
-        const tpkt_len: u16 = 4 + 3 + 12 + 2 + data_item_len;
+        log.info("Read Var: {} items", .{item_count});
 
         var tx = &self.tx_buffer;
-        proto.writeTpktCotpDT(tx, tpkt_len);
-        proto.writeS7Header(tx, 7, proto.Rosctr.ack_data, req.pdu_ref, 2, data_item_len, 0);
+        // S7 Header (12 bytes for ack_data) + Param Header (2 bytes: function, count) = 14
+        // Param Header starts at byte 19 (TPKT 4 + COTP 3 + S7 12)
 
-        // Param: function + item count
+        // Write Param Header
         tx[19] = @intFromEnum(proto.Function.read_var);
-        tx[20] = 0x01;
+        tx[20] = item_count;
 
-        // Data item
-        tx[21] = @intFromEnum(proto.ReturnCode.success);
-        tx[22] = @intFromEnum(proto.TransportSize.byte_word_dword);
-        const bits: u16 = @intCast(read_slice.len * 8);
-        proto.writeBE16(tx, 23, bits);
-        @memcpy(tx[25..][0..read_slice.len], read_slice);
+        var param_ptr: usize = 2; // skip function, count
+        var tx_ptr: usize = 21;
+
+        var i: usize = 0;
+        while (i < item_count) : (i += 1) {
+            if (param_ptr + 12 > params.len) break;
+            const item_params = params[param_ptr..][0..12];
+
+            const db = std.mem.readInt(u16, item_params[6..8], .big);
+            const area = item_params[8];
+            const len_header = std.mem.readInt(u16, item_params[4..6], .big);
+            const addr_bytes = item_params[9..12];
+            const addr = (@as(u32, addr_bytes[0]) << 16) | (@as(u32, addr_bytes[1]) << 8) | @as(u32, addr_bytes[2]);
+            const start_byte = addr >> 3;
+
+            log.info("  Item {}: area=0x{x} db={} start={} len={}", .{ i, area, db, start_byte, len_header });
+
+            var data_buffer: [8192]u8 = undefined;
+            const read_slice = self.storage.get_address(area, db, start_byte, len_header) catch |err| {
+                log.err("Storage read failed for item {}: {}", .{ i, err });
+                self.ptr_fill_error(tx, &tx_ptr, 0x05); // Invalid address or similar
+                param_ptr += 12;
+                continue;
+            };
+
+            const response_len = len_header;
+            @memset(data_buffer[0..@min(8192, response_len)], 0);
+            const actual_copy = @min(read_slice.len, response_len);
+            const safe_copy = @min(actual_copy, 8192);
+            @memcpy(data_buffer[0..safe_copy], read_slice[0..safe_copy]);
+
+            // Data Item
+            tx[tx_ptr] = @intFromEnum(proto.ReturnCode.success);
+            tx[tx_ptr + 1] = @intFromEnum(proto.TransportSize.byte_word_dword);
+            const bits: u16 = @intCast(response_len * 8);
+            proto.writeBE16(tx, tx_ptr + 2, bits);
+            @memcpy(tx[tx_ptr + 4 ..][0..response_len], data_buffer[0..response_len]);
+
+            tx_ptr += 4 + response_len;
+            param_ptr += 12;
+
+            // Align to 2 bytes if more items coming
+            if (i + 1 < item_count and tx_ptr % 2 != 0) {
+                tx[tx_ptr] = 0;
+                tx_ptr += 1;
+            }
+        }
+
+        const param_len: u16 = 2;
+        const data_len: u16 = @intCast(tx_ptr - 21);
+        const tpkt_len: u16 = 4 + 3 + 12 + param_len + data_len;
+
+        proto.writeTpktCotpDT(tx, tpkt_len);
+        proto.writeS7Header(tx, 7, proto.Rosctr.ack_data, req.pdu_ref, param_len, data_len, 0);
 
         self.send_response(tpkt_len);
+    }
+
+    fn ptr_fill_error(self: *Connection, tx: []u8, tx_ptr: *usize, code: u8) void {
+        _ = self;
+        tx[tx_ptr.*] = code;
+        tx[tx_ptr.* + 1] = 0; // transport size
+        tx[tx_ptr.* + 2] = 0; // len
+        tx[tx_ptr.* + 3] = 0; // len
+        tx_ptr.* += 4;
     }
 
     // ── Write Variable ───────────────────────────────────────────────────
