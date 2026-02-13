@@ -290,7 +290,7 @@ pub fn writeS7Header(
 }
 
 /// Writes a 10-byte S7 header (no error field) at `buf[offset..]`.
-/// Use for ROSCTR = Userdata (0x07) — error info is in the params block.
+/// Use for ROSCTR = Userdata (0x07) - error info is in the params block.
 pub fn writeS7HeaderShort(
     buf: []u8,
     offset: usize,

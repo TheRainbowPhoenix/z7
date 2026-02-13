@@ -3,13 +3,13 @@ permissions: {}
 
 concurrency:
   group: core-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 on:
   merge_group:
   pull_request:
   push:
-    branches: ["main"]
+    branches: ["master"]
 
 env:
   GH_TOKEN: ${{ github.token }}

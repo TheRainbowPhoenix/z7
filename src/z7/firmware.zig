@@ -4,17 +4,17 @@
 /// All SZL response blobs are generated at compile time from these values.
 ///
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  CONFIGURATION — Edit these to change the emulated PLC identity
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  CONFIGURATION - Edit these to change the emulated PLC identity
+// ===============================================================================
 
 pub const config = struct {
     /// System name. MUST follow "S7<model>/<name>" for pystep7 compatibility.
     /// pystep7 parses: controller = int(systemName.split("/")[0][2:])
-    pub const system_name = "S7300/TigerBeetle";
+    pub const system_name = "S71200/ZalW";
 
     /// Module name shown in CPU info (SZL 0x001C index 0x0002)
-    pub const module_name = "CPU TigerBeetle";
+    pub const module_name = "CPU ZalW";
 
     /// Module type name (SZL 0x001C index 0x0007)
     pub const module_type = "CPU 315-2 PN/DP";
@@ -35,9 +35,9 @@ pub const config = struct {
     pub const cpu_status: u8 = 0x08;
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 //  COMPTIME HELPERS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 
 fn setBE16(buf: anytype, off: usize, val: u16) void {
     buf[off] = @intCast(val >> 8);
@@ -73,10 +73,10 @@ fn writeSzlHdr(buf: anytype, szl_id: u16, index: u16, rec_len: u16, rec_count: u
     setBE16(buf, 10, rec_count);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  GENERATED: SZL 0x001C — Component Identification (10 records × 34 bytes)
+// ===============================================================================
+//  GENERATED: SZL 0x001C - Component Identification (10 records × 34 bytes)
 //  Total: 4 (data hdr) + 8 (szl hdr) + 340 (records) = 352
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 
 fn buildSzl001c() [352]u8 {
     var buf: [352]u8 = [_]u8{0} ** 352;
@@ -134,11 +134,11 @@ fn buildSzl001c() [352]u8 {
 
 pub const szl_001c = buildSzl001c();
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  GENERATED: SZL 0x0011 — Module Identification (4 records × 28 bytes)
+// ===============================================================================
+//  GENERATED: SZL 0x0011 - Module Identification (4 records × 28 bytes)
 //  Total: 4 + 8 + 112 = 124
 //  Record: Index(2) + OrderCode(20) + HWVersion(6) = 28
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 
 fn buildSzl0011() [124]u8 {
     var buf: [124]u8 = [_]u8{0} ** 124;
@@ -161,7 +161,7 @@ fn buildSzl0011() [124]u8 {
     copyStr(&buf, B + R * 1 + 2, config.order_code);
     copyBytes(&buf, B + R * 1 + 22, &hw_ver);
 
-    // Record 0x0007: (spaces — "no name")
+    // Record 0x0007: (spaces - "no name")
     setBE16(&buf, B + R * 2, 0x0007);
     {
         var i: usize = 0;
@@ -181,17 +181,17 @@ fn buildSzl0011() [124]u8 {
 
 pub const szl_0011 = buildSzl0011();
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  GENERATED: SZL 0x0424 — CPU Status (1 record × 20 bytes)
+// ===============================================================================
+//  GENERATED: SZL 0x0424 - CPU Status (1 record × 20 bytes)
 //  Total: 4 + 8 + 20 = 32
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 
 fn buildSzl0424() [32]u8 {
     var buf: [32]u8 = [_]u8{0} ** 32;
     writeDataHdr(&buf, 28);
     writeSzlHdr(&buf, 0x0424, 0x0000, 20, 1);
 
-    // Record (20 bytes) — status byte at record offset 3
+    // Record (20 bytes) - status byte at record offset 3
     buf[12] = 0x51;
     buf[13] = 0x44;
     buf[14] = 0xFF;
@@ -204,10 +204,10 @@ fn buildSzl0424() [32]u8 {
 
 pub const szl_0424 = buildSzl0424();
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 //  GENERATED: Individual SZL 0x011C records (46 bytes each)
 //  Total per record: 4 (data hdr) + 8 (szl hdr) + 34 (one record) = 46
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 
 fn buildRecord011c(comptime index: u16, comptime name: []const u8) [46]u8 {
     var buf: [46]u8 = [_]u8{0} ** 46;
@@ -223,9 +223,9 @@ pub const szl_011c_idx_0002 = buildRecord011c(0x0002, config.module_name);
 pub const szl_011c_idx_0005 = buildRecord011c(0x0005, config.serial_number);
 pub const szl_011c_idx_0007 = buildRecord011c(0x0007, config.module_type);
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 //  STATIC: Protocol/system blobs (not identity-related)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 
 /// Returned for unknown / unsupported SZL IDs
 pub const szl_not_avail = [4]u8{ 0x0A, 0x00, 0x00, 0x00 };
@@ -240,7 +240,7 @@ pub const szl_0f11 = [12]u8{
     0xFF, 0x09, 0x00, 0x08, 0x0F, 0x11, 0x00, 0x00, 0x00, 0x1C, 0x00, 0x04,
 };
 
-/// SZL 0x0131 idx 0x0001 — Comm processor general info
+/// SZL 0x0131 idx 0x0001 - Comm processor general info
 pub const szl_0131_idx_0001 = [52]u8{
     0xFF, 0x09, 0x00, 0x30, 0x01, 0x31, 0x00, 0x01, 0x00, 0x28, 0x00, 0x01,
     0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
@@ -249,7 +249,7 @@ pub const szl_0131_idx_0001 = [52]u8{
     0x00, 0x00, 0x00, 0x03,
 };
 
-/// SZL 0x0131 idx 0x0002 — Comm processor extended info
+/// SZL 0x0131 idx 0x0002 - Comm processor extended info
 pub const szl_0131_idx_0002 = [52]u8{
     0xFF, 0x09, 0x00, 0x30, 0x01, 0x31, 0x00, 0x02, 0x00, 0x28, 0x00, 0x01,
     0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x00, 0x00,
@@ -267,7 +267,7 @@ pub const szl_0131_idx_0004 = [52]u8{
     0x00, 0x00, 0x00, 0x00,
 };
 
-/// SZL 0x0232 idx 0x0004 — Protection
+/// SZL 0x0232 idx 0x0004 - Protection
 pub const szl_0232_idx_0004 = [52]u8{
     0xFF, 0x09, 0x00, 0x30, 0x02, 0x32, 0x00, 0x04, 0x00, 0x28, 0x00, 0x01,
     0x00, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00,
@@ -276,7 +276,7 @@ pub const szl_0232_idx_0004 = [52]u8{
     0x00, 0x00, 0x00, 0x00,
 };
 
-/// SZL 0x0232 idx 0x0001 — Protection
+/// SZL 0x0232 idx 0x0001 - Protection
 pub const szl_0232_idx_0001 = [52]u8{
     0xFF, 0x09, 0x00, 0x30, 0x02, 0x32, 0x00, 0x01, 0x00, 0x28, 0x00, 0x01,
     0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
@@ -285,7 +285,7 @@ pub const szl_0232_idx_0001 = [52]u8{
     0x00, 0x00, 0x00, 0x03,
 };
 
-/// SZL 0x0132 idx 0x0001 — Communication parameters
+/// SZL 0x0132 idx 0x0001 - Communication parameters
 pub const szl_0132_idx_0001 = [52]u8{
     0xFF, 0x09, 0x00, 0x30, 0x01, 0x32, 0x00, 0x01, 0x00, 0x28, 0x00, 0x01,
     0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
@@ -312,9 +312,9 @@ pub const szl_0132_idx_0004 = [52]u8{
     0x00, 0x00, 0x00, 0x00,
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 //  DISPATCH: Look up SZL data by (ID, Index)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 
 const SzlEntry = struct {
     id: u16,

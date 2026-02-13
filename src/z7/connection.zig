@@ -49,7 +49,7 @@ pub const Connection = struct {
         self.start_read_header();
     }
 
-    // ── Read pipeline ────────────────────────────────────────────────────
+    // Read pipeline
 
     fn start_read_header(self: *Connection) void {
         if (self.closed) return;
@@ -136,7 +136,7 @@ pub const Connection = struct {
         self.process_pdu(self.rx_buffer[0..total_len]);
     }
 
-    // ── COTP / S7 dispatch ───────────────────────────────────────────────
+    // COTP / S7 dispatch
 
     fn process_pdu(self: *Connection, data: []u8) void {
         if (data.len < 5) {
@@ -148,7 +148,7 @@ pub const Connection = struct {
         const pdu_offset = 5 + cotp_len;
 
         if (data.len <= pdu_offset) {
-            // Short packet – might be a COTP-only message (CR, DR, …)
+            // Short packet - might be a COTP-only message (CR, DR, …)
             const pdu_type = data[5];
             if (pdu_type == proto.Cotp.connect_request) {
                 self.handle_connect_request(data);
@@ -162,7 +162,7 @@ pub const Connection = struct {
         self.handle_s7(data[pdu_offset..]);
     }
 
-    // ── COTP Connection ──────────────────────────────────────────────────
+    // COTP Connection
 
     fn handle_connect_request(self: *Connection, data: []u8) void {
         if (data.len < 11) {
@@ -180,7 +180,7 @@ pub const Connection = struct {
         tx[2] = 0;
         tx[3] = 22; // total length
         // COTP CC
-        tx[4] = 17; // Length indicator (18 bytes – 1)
+        tx[4] = 17; // Length indicator (18 bytes - 1)
         tx[5] = proto.Cotp.connect_confirm; // 0xD0
         tx[6] = src_ref_hi; // Dst-Ref = client's Src-Ref
         tx[7] = src_ref_lo;
@@ -198,7 +198,7 @@ pub const Connection = struct {
         self.send_response(22);
     }
 
-    // ── S7 Dispatch ──────────────────────────────────────────────────────
+    // S7 Dispatch
 
     fn handle_s7(self: *Connection, data: []u8) void {
         if (data.len < 10) {
@@ -290,7 +290,7 @@ pub const Connection = struct {
         if (data.len >= 15 and data[10] == 0x00 and data[11] == 0x01 and data[12] == 0x12) {
             params_off = 10;
         } else if (data.len >= 17 and data[12] == 0x00 and data[13] == 0x01 and data[14] == 0x12) {
-            // Client sent 12-byte S7 header — params shifted by 2
+            // Client sent 12-byte S7 header - params shifted by 2
             params_off = 12;
         }
 
@@ -303,7 +303,7 @@ pub const Connection = struct {
         const payload = data[params_off + param_len ..][0..data_len];
 
         // Params layout: [Head(3)] [Len(1)] [Method(1)] [Tg(1)] [SubFunc(1)] [Seq(1)]
-        // Tg byte = (type << 4 | group) — e.g. 0x44 = type 4 (request) + group 4 (SZL)
+        // Tg byte = (type << 4 | group) - e.g. 0x44 = type 4 (request) + group 4 (SZL)
         if (params.len < 8) {
             log.warn("Userdata params too short: {}", .{params.len});
             return false;
@@ -315,7 +315,7 @@ pub const Connection = struct {
 
         if (func_group == 0x04) { // SZL (CPU functions)  proto.FunctionGroup.cpu_request
             if (sub_func == proto.CpuSubfunction.read_szl) {
-                // SZL Read — extract ID and Index from data payload
+                // SZL Read - extract ID and Index from data payload
                 if (payload.len >= 8) {
                     const szl_id = std.mem.readInt(u16, payload[4..6], .big);
                     const szl_index = std.mem.readInt(u16, payload[6..8], .big);
@@ -348,7 +348,7 @@ pub const Connection = struct {
         return false;
     }
 
-    // ── Setup Communication ──────────────────────────────────────────────
+    // Setup Communication
 
     fn handle_setup_comm(self: *Connection, req: *const S7Header) void {
         // TPKT(4) + COTP(3) + S7 Header(12) + Param(8) = 27
@@ -369,7 +369,7 @@ pub const Connection = struct {
         self.send_response(tpkt_len);
     }
 
-    // ── SZL Read (Userdata Response) ─────────────────────────────────────
+    // SZL Read (Userdata Response)
     // Uses firmware.lookup() for table-driven SZL response data.
 
     fn handle_szl_read(self: *Connection, req: *const S7Header, szl_id: u16, szl_index: u16) void {
@@ -405,7 +405,7 @@ pub const Connection = struct {
         self.send_response(tpkt_len);
     }
 
-    // ── Security (Password) ──────────────────────────────────────────────
+    // Security (Password)
     // Simple ACK for enter/cancel password.
 
     fn handle_security(self: *Connection, req: *const S7Header, sub_func: u8) void {
@@ -438,7 +438,7 @@ pub const Connection = struct {
         self.send_response(tpkt_len);
     }
 
-    // ── Block Info ───────────────────────────────────────────────────────
+    // Block Info
     // Stub for block list/info requests.
 
     fn handle_block_info(self: *Connection, req: *const S7Header, sub_func: u8, params: []const u8, payload: []const u8) void {
@@ -502,7 +502,7 @@ pub const Connection = struct {
         self.send_response(tpkt_len);
     }
 
-    // ── PLC Control (Stop / Start) ──────────────────────────────────────
+    // PLC Control (Stop / Start)
     // ACK for plc_stop (0x29) and plc_control (0x28, start).
     // Response: TPKT(4) + COTP(3) + S7Header(12) + Param(1) = 20.
 
@@ -512,7 +512,7 @@ pub const Connection = struct {
         self.send_response(20);
     }
 
-    // ── Error Response ──────────────────────────────────────────────────
+    // Error Response
     // Sent for unsupported/unknown Job function codes.
     // Error 0x8104 = "function not available".
 
@@ -522,7 +522,7 @@ pub const Connection = struct {
         self.send_response(20);
     }
 
-    // ── Time Read (Userdata Response) ────────────────────────────────────
+    // Time Read (Userdata Response)
     // Responds with a hardcoded timestamp.
 
     fn handle_time_read(self: *Connection, req: *const S7Header) void {
@@ -577,7 +577,7 @@ pub const Connection = struct {
         self.send_response(tpkt_len);
     }
 
-    // ── Time Set (Userdata Response) ─────────────────────────────────────
+    // Time Set (Userdata Response)
     // Simple ACK for set_plc_time.
 
     fn handle_time_set(self: *Connection, req: *const S7Header) void {
@@ -612,7 +612,7 @@ pub const Connection = struct {
         self.send_response(tpkt_len);
     }
 
-    // ── Read Variable ────────────────────────────────────────────────────
+    // Read Variable
 
     fn handle_read_var(self: *Connection, req: *const S7Header, params: []const u8) void {
         const item_count = params[1];
@@ -693,7 +693,7 @@ pub const Connection = struct {
         tx_ptr.* += 4;
     }
 
-    // ── Write Variable ───────────────────────────────────────────────────
+    // Write Variable
 
     fn handle_write_var(self: *Connection, req: *const S7Header, params: []const u8, data: []const u8) void {
         if (params.len < 14) {
@@ -744,7 +744,7 @@ pub const Connection = struct {
         self.send_response(tpkt_len);
     }
 
-    // ── Send / Close ─────────────────────────────────────────────────────
+    // Send / Close
 
     fn send_response(self: *Connection, len: usize) void {
         log.info("TX: {any}", .{std.fmt.fmtSliceHexLower(self.tx_buffer[0..len])});
