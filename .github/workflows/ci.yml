@@ -33,8 +33,6 @@ jobs:
           - { os: 'ubuntu-latest' }
           - { os: 'ubuntu-latest-arm64' }
           - { os: 'windows-latest' }
-          - { os: 'macos-latest' }
-          - { os: 'macos-15-intel' }
     runs-on: ${{ matrix.os }}
     steps:
       - run: git config --global core.autocrlf false
