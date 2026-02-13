@@ -238,8 +238,19 @@ pub const Connection = struct {
                 self.handle_write_var(header, params, data[10 + param_len ..][0..data_len]);
                 return;
             },
+            .plc_stop => {
+                log.info("PLC Stop request", .{});
+                self.handle_plc_control(header, @intFromEnum(proto.Function.plc_stop));
+                return;
+            },
+            .plc_control => {
+                log.info("PLC Control request (start)", .{});
+                self.handle_plc_control(header, @intFromEnum(proto.Function.plc_control));
+                return;
+            },
             else => {
                 log.warn("Unhandled Job function: 0x{x}", .{params[0]});
+                self.handle_error_response(header, params[0], 0x8104);
             },
         }
     }
@@ -436,6 +447,26 @@ pub const Connection = struct {
         );
 
         self.send_response(tpkt_len);
+    }
+
+    // ── PLC Control (Stop / Start) ──────────────────────────────────────
+    // ACK for plc_stop (0x29) and plc_control (0x28, start).
+    // Response: TPKT(4) + COTP(3) + S7Header(12) + Param(1) = 20.
+
+    fn handle_plc_control(self: *Connection, req: *const S7Header, func: u8) void {
+        const tx = &self.tx_buffer;
+        proto.writePlcControlResponse(tx, req.pdu_ref, func);
+        self.send_response(20);
+    }
+
+    // ── Error Response ──────────────────────────────────────────────────
+    // Sent for unsupported/unknown Job function codes.
+    // Error 0x8104 = "function not available".
+
+    fn handle_error_response(self: *Connection, req: *const S7Header, func: u8, error_code: u16) void {
+        const tx = &self.tx_buffer;
+        proto.writeErrorResponse(tx, req.pdu_ref, func, error_code);
+        self.send_response(20);
     }
 
     // ── Time Read (Userdata Response) ────────────────────────────────────

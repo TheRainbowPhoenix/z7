@@ -347,3 +347,23 @@ pub fn writeDataHeader(
     buf[offset + 1] = transport_size;
     writeBE16(buf, offset + 2, length);
 }
+
+/// Write a PLC control response (ACK for plc_control/plc_stop).
+/// Uses 12-byte S7 header (Ack_Data) + 1-byte param (function code).
+/// Total: TPKT(4) + COTP(3) + S7Header(12) + Param(1) = 20 bytes.
+pub fn writePlcControlResponse(buf: []u8, pdu_ref: u16, func: u8) void {
+    const tpkt_len: u16 = 20;
+    writeTpktCotpDT(buf, tpkt_len);
+    writeS7Header(buf, 7, Rosctr.ack_data, pdu_ref, 1, 0, 0);
+    buf[19] = func; // param: the function code being acknowledged
+}
+
+/// Write an error response for unsupported Job functions.
+/// Same structure as PLC control response but with a non-zero error code.
+/// Total: TPKT(4) + COTP(3) + S7Header(12) + Param(1) = 20 bytes.
+pub fn writeErrorResponse(buf: []u8, pdu_ref: u16, func: u8, error_code: u16) void {
+    const tpkt_len: u16 = 20;
+    writeTpktCotpDT(buf, tpkt_len);
+    writeS7Header(buf, 7, Rosctr.ack_data, pdu_ref, 1, 0, error_code);
+    buf[19] = func;
+}
