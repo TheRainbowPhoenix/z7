@@ -668,7 +668,7 @@ pub const Connection = struct {
             param_ptr += 12;
 
             // Align to 2 bytes if more items coming
-            if (i + 1 < item_count and tx_ptr % 2 != 0) {
+            if (i + 1 < item_count and tx_ptr % 2 == 0) {
                 tx[tx_ptr] = 0;
                 tx_ptr += 1;
             }
