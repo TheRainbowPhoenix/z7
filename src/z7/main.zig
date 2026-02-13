@@ -112,7 +112,7 @@ pub fn main() !void {
 
     log.info("S7 Service starting on port {}", .{port});
 
-    var io = try IO.init(4095, 0);
+    var io = try IO.init(2048, 0);
     defer io.deinit();
 
     const address = try std.net.Address.parseIp4("0.0.0.0", port); // io.listen expects address

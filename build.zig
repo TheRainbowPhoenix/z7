@@ -27,9 +27,11 @@ pub fn build(b: *std.Build) void {
 
     const z7 = b.addExecutable(.{
         .name = "z7",
-        .root_source_file = b.path("src/z7/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/z7/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     z7.root_module.addImport("stdx", stdx_module);
@@ -40,6 +42,9 @@ pub fn build(b: *std.Build) void {
     // let's assume standard Zig library handling covers it for now).
 
     b.installArtifact(z7);
+
+    const check_step = b.step("check", "Check if z7 compiles");
+    check_step.dependOn(&z7.step);
 
     const run_cmd = b.addRunArtifact(z7);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -52,12 +57,54 @@ pub fn build(b: *std.Build) void {
 
     // --- Tests ---
     const unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/z7/packet.zig"),
-        .target = target,
-        .optimize = optimize,
+        .name = "test",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/z7/packet.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_unit_tests.step);
+
+    const run_fmt = b.addFmt(.{ .paths = &.{"."}, .check = true });
+    const fmt_step = b.step("test:fmt", "Check formatting");
+    fmt_step.dependOn(&run_fmt.step);
+
+    // --- CI ---
+    const ci_step = b.step("ci", "Run CI checks");
+    const CIMode = enum { @"test", smoke, default };
+    const ci_mode = if (b.args) |args| mode: {
+        if (args.len > 0) {
+            break :mode std.meta.stringToEnum(CIMode, args[0]) orelse .default;
+        }
+        break :mode .default;
+    } else .default;
+
+    if (ci_mode == .smoke or ci_mode == .default) {
+        ci_step.dependOn(fmt_step);
+        ci_step.dependOn(check_step);
+    }
+    if (ci_mode == .@"test" or ci_mode == .default) {
+        ci_step.dependOn(test_step);
+        // reference_build.zig also does check in smoke, and test usually implies smoke or depends on it.
+        // For simplicity we follow the logic:
+        if (ci_mode == .@"test") {
+            ci_step.dependOn(check_step);
+        }
+    }
+
+    if (ci_mode == .default) {
+        // TODO: ...
+    } else {
+        // unit tests support filters if not running ci modes that consume the arg
+        // but wait, if it's 'test' or 'smoke', args[0] is the mode.
+        if (b.args) |args| {
+            if (args.len > 1) {
+                unit_tests.filters = args[1..];
+            }
+        }
+    }
 }

@@ -221,60 +221,64 @@ pub const Connection = struct {
         const rosctr = header.rosctr;
 
         if (rosctr == proto.Rosctr.job) {
-            self.dispatch_job(&header, data);
+            if (!self.dispatch_job(&header, data)) {
+                self.start_read_header();
+            }
         } else if (rosctr == proto.Rosctr.userdata) {
-            self.dispatch_userdata(&header, data);
+            if (!self.dispatch_userdata(&header, data)) {
+                self.start_read_header();
+            }
         } else {
             log.warn("Unhandled ROSCTR: {}", .{rosctr});
+            self.start_read_header();
         }
-
-        self.start_read_header();
     }
 
-    fn dispatch_job(self: *Connection, header: *const S7Header, data: []u8) void {
+    fn dispatch_job(self: *Connection, header: *const S7Header, data: []u8) bool {
         const param_len = header.param_len;
         const data_len = header.data_len;
 
         if (10 + param_len + data_len > data.len) {
             self.close();
-            return;
+            return false; // considered handled as we closed, but no response was sent
         }
 
         const params = data[10..][0..param_len];
-        if (params.len == 0) return;
+        if (params.len == 0) return false;
 
         const func: proto.Function = @enumFromInt(params[0]);
         switch (func) {
             .setup_comm => {
                 self.handle_setup_comm(header);
-                return;
+                return true;
             },
             .read_var => {
                 self.handle_read_var(header, params);
-                return;
+                return true;
             },
             .write_var => {
                 self.handle_write_var(header, params, data[10 + param_len ..][0..data_len]);
-                return;
+                return true;
             },
             .plc_stop => {
                 log.info("PLC Stop request", .{});
                 self.handle_plc_control(header, @intFromEnum(proto.Function.plc_stop));
-                return;
+                return true;
             },
             .plc_control => {
                 log.info("PLC Control request (start)", .{});
                 self.handle_plc_control(header, @intFromEnum(proto.Function.plc_control));
-                return;
+                return true;
             },
             else => {
                 log.warn("Unhandled Job function: 0x{x}", .{params[0]});
                 self.handle_error_response(header, params[0], 0x8104);
+                return true;
             },
         }
     }
 
-    fn dispatch_userdata(self: *Connection, header: *const S7Header, data: []u8) void {
+    fn dispatch_userdata(self: *Connection, header: *const S7Header, data: []u8) bool {
         const param_len = header.param_len;
         const data_len = header.data_len;
 
@@ -292,7 +296,7 @@ pub const Connection = struct {
 
         if (params_off + param_len + data_len > data.len) {
             self.close();
-            return;
+            return true;
         }
 
         const params = data[params_off..][0..param_len];
@@ -302,7 +306,7 @@ pub const Connection = struct {
         // Tg byte = (type << 4 | group) — e.g. 0x44 = type 4 (request) + group 4 (SZL)
         if (params.len < 8) {
             log.warn("Userdata params too short: {}", .{params.len});
-            return;
+            return false;
         }
 
         const tg = params[5]; // type_group combined byte
@@ -317,30 +321,31 @@ pub const Connection = struct {
                     const szl_index = std.mem.readInt(u16, payload[6..8], .big);
                     log.info("SZL Read: id=0x{x:0>4} index=0x{x:0>4}", .{ szl_id, szl_index });
                     self.handle_szl_read(header, szl_id, szl_index);
-                    return;
+                    return true;
                 }
             }
         } else if (func_group == 0x07) { // Time proto.FunctionGroup.time_request
             if (sub_func == proto.TimeSubfunction.read_clock) {
                 log.info("Time Read request", .{});
                 self.handle_time_read(header);
-                return;
+                return true;
             } else if (sub_func == proto.TimeSubfunction.set_clock) {
                 log.info("Time Set request", .{});
                 self.handle_time_set(header);
-                return;
+                return true;
             }
         } else if (func_group == 0x05) { // Security (password)
             log.info("Security request: sub=0x{x}", .{sub_func});
             self.handle_security(header, sub_func);
-            return;
+            return true;
         } else if (func_group == 0x03) { // Block info
             log.info("Block info request: sub=0x{x}", .{sub_func});
             self.handle_block_info(header, sub_func, params, payload);
-            return;
+            return true;
         }
 
         log.warn("Unknown Userdata: tg=0x{x:0>2} group=0x{x} sub=0x{x}", .{ tg, func_group, sub_func });
+        return false;
     }
 
     // ── Setup Communication ──────────────────────────────────────────────
