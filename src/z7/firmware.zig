@@ -74,6 +74,24 @@ fn writeSzlHdr(buf: anytype, szl_id: u16, index: u16, rec_len: u16, rec_count: u
 }
 
 // ===============================================================================
+//  GENERATED: SZL 0x0000 - List of supported SZL IDs
+// ===============================================================================
+
+fn buildSzl0000() [22]u8 {
+    var buf: [22]u8 = [_]u8{0} ** 22;
+    writeDataHdr(&buf, 18);
+    writeSzlHdr(&buf, 0x0000, 0x0000, 2, 5);
+    setBE16(&buf, 12, 0x0011);
+    setBE16(&buf, 14, 0x001C);
+    setBE16(&buf, 16, 0x0131);
+    setBE16(&buf, 18, 0x0132);
+    setBE16(&buf, 20, 0x0424);
+    return buf;
+}
+
+pub const szl_0000 = buildSzl0000();
+
+// ===============================================================================
 //  GENERATED: SZL 0x001C - Component Identification (10 records × 34 bytes)
 //  Total: 4 (data hdr) + 8 (szl hdr) + 340 (records) = 352
 // ===============================================================================
@@ -324,6 +342,7 @@ const SzlEntry = struct {
 
 const szl_table = [_]SzlEntry{
     // Generated blobs (any index)
+    .{ .id = 0x0000, .data = &szl_0000 },
     .{ .id = 0x0011, .data = &szl_0011 },
     .{ .id = 0x001C, .data = &szl_001c },
     .{ .id = 0x0424, .data = &szl_0424 },

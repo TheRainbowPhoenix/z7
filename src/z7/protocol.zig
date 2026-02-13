@@ -4,7 +4,7 @@
 /// ported from pystep7 constants.py and snap7-rs protocol.rs.
 const std = @import("std");
 
-// ─── Wire-level packed structs ───────────────────────────────────────────────
+// Wire-level packed structs
 
 pub const TPKT = extern struct {
     version: u8,
@@ -24,12 +24,12 @@ pub const S7Header = extern struct {
     data_len: u16, // Big-Endian
 };
 
-// ─── TPKT ────────────────────────────────────────────────────────────────────
+// TPKT
 
 pub const tpkt_version: u8 = 3;
 pub const tpkt_header_len: u16 = @sizeOf(TPKT); // 4
 
-// ─── COTP PDU Types ──────────────────────────────────────────────────────────
+// COTP PDU Types
 
 pub const Cotp = struct {
     pub const nop: u8 = 0x00;
@@ -48,11 +48,11 @@ pub const Cotp = struct {
     pub const eot: u8 = 0x80;
 };
 
-// ─── S7 Protocol ID ──────────────────────────────────────────────────────────
+// S7 Protocol ID
 
 pub const s7_proto_id: u8 = 0x32;
 
-// ─── ROSCTR (Remote Operating Service Control) ───────────────────────────────
+// ROSCTR (Remote Operating Service Control)
 
 pub const Rosctr = struct {
     pub const job: u8 = 0x01;
@@ -61,7 +61,7 @@ pub const Rosctr = struct {
     pub const userdata: u8 = 0x07;
 };
 
-// ─── S7 Functions (first byte of the Parameter block for ROSCTR Job/Ack) ─────
+// S7 Functions (first byte of the Parameter block for ROSCTR Job/Ack)
 
 pub const Function = enum(u8) {
     cpu_services = 0x00,
@@ -79,7 +79,7 @@ pub const Function = enum(u8) {
     _,
 };
 
-// ─── Userdata Function Groups ────────────────────────────────────────────────
+// Userdata Function Groups
 // These appear at params[5] in a Userdata request/response.
 
 pub const FunctionGroup = struct {
@@ -87,11 +87,13 @@ pub const FunctionGroup = struct {
     pub const block_response: u8 = 0x83;
     pub const cpu_request: u8 = 0x44;
     pub const cpu_response: u8 = 0x84;
+    pub const security_request: u8 = 0x45;
+    pub const security_response: u8 = 0x85;
     pub const time_request: u8 = 0x47;
     pub const time_response: u8 = 0x87;
 };
 
-// ─── Userdata Sub-functions ──────────────────────────────────────────────────
+// Userdata Sub-functions
 // These appear at params[6] in a Userdata request/response.
 
 pub const CpuSubfunction = struct {
@@ -111,14 +113,14 @@ pub const TimeSubfunction = struct {
     pub const set_clock_2: u8 = 0x04;
 };
 
-// ─── Param Method ────────────────────────────────────────────────────────────
+// Param Method
 
 pub const ParamMethod = struct {
     pub const request: u8 = 0x11;
     pub const response: u8 = 0x12;
 };
 
-// ─── Transport Sizes ─────────────────────────────────────────────────────────
+// Transport Sizes
 
 pub const TransportSize = enum(u8) {
     null = 0x00,
@@ -133,7 +135,7 @@ pub const TransportSize = enum(u8) {
     _,
 };
 
-// ─── Return Codes ────────────────────────────────────────────────────────────
+// Return Codes
 
 pub const ReturnCode = enum(u8) {
     reserved = 0x00,
@@ -147,7 +149,7 @@ pub const ReturnCode = enum(u8) {
     _,
 };
 
-// ─── Area Identifiers ────────────────────────────────────────────────────────
+// Area Identifiers
 
 pub const Area = enum(u8) {
     data_record = 0x01,
@@ -169,7 +171,7 @@ pub const Area = enum(u8) {
     _,
 };
 
-// ─── Error Classes ───────────────────────────────────────────────────────────
+// Error Classes
 
 pub const ErrorClass = struct {
     pub const no_error: u8 = 0x00;
@@ -181,7 +183,7 @@ pub const ErrorClass = struct {
     pub const access_error: u8 = 0x87;
 };
 
-// ─── CPU Status ──────────────────────────────────────────────────────────────
+// CPU Status
 
 pub const CpuStatus = struct {
     pub const unknown: u8 = 0x00;
@@ -189,7 +191,7 @@ pub const CpuStatus = struct {
     pub const run: u8 = 0x08;
 };
 
-// ─── System State List (SZL) IDs ─────────────────────────────────────────────
+// System State List (SZL) IDs
 
 pub const SzlId = struct {
     pub const catalog_code: u16 = 0x0011;
@@ -201,7 +203,7 @@ pub const SzlId = struct {
     pub const cpu_status: u16 = 0x0424;
 };
 
-// ─── Data Types ──────────────────────────────────────────────────────────────
+// Data Types
 
 pub const DataType = enum(u8) {
     none = 0x00,
@@ -227,7 +229,7 @@ pub const DataType = enum(u8) {
     _,
 };
 
-// ─── Syntax ID ───────────────────────────────────────────────────────────────
+// Syntax ID
 
 pub const SyntaxId = struct {
     pub const s7_any: u8 = 0x10;
@@ -243,14 +245,14 @@ pub const SyntaxId = struct {
     pub const s7_1200_sym: u8 = 0xB2;
 };
 
-// ─── Helper: write a big-endian u16 into a buffer at a position ──────────────
+// Helper: write a big-endian u16 into a buffer at a position
 
 pub fn writeBE16(buf: []u8, pos: usize, val: u16) void {
     buf[pos] = @intCast((val >> 8) & 0xFF);
     buf[pos + 1] = @intCast(val & 0xFF);
 }
 
-// ─── Packet builder helpers (inspired by snap7-rs protocol.rs) ───────────────
+// Packet builder helpers (inspired by snap7-rs protocol.rs)
 // These build complete S7 PDUs (without TPKT+COTP wrapping) into a provided
 // buffer and return the number of bytes written.
 
@@ -457,7 +459,7 @@ test "writeReadVarResponse checks" {
     const tpkt_len: u16 = 4 + 3 + 12 + 2 + 4 + 4; // TPKT+COTP+S7+Param(2)+DataHdr(4)+Data(4) = 29
     writeTpktCotpDT(&buf, tpkt_len);
     writeS7Header(&buf, 7, Rosctr.ack_data, 1, 2, 8, 0); // Data len = 4 header + 4 payload = 8?
-    // Wait, WriteDataHeader puts 4 bytes.
+    // WriteDataHeader puts 4 bytes.
     // In handle_read_var:
     // S7Header(..., data_len, ...)
     // data_len = 4 + actual_len

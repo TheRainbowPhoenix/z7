@@ -272,6 +272,11 @@ pub const Connection = struct {
                 self.handle_plc_control(header, @intFromEnum(proto.Function.plc_control));
                 return true;
             },
+            .request_download, .download, .download_end, .start_upload, .upload, .end_upload => {
+                // Return "Need Password" error to avoid hanging
+                self.handle_error_response(header, params[0], @intFromEnum(ErrorCode.INCORRECT_PASSWORD_2)); // 0xD602
+                return true;
+            },
             else => {
                 log.warn("Unhandled Job function: 0x{x}", .{params[0]});
                 self.handle_error_response(header, params[0], @intFromEnum(ErrorCode.SERVICE_NOT_IMPLEMENTED_OR_FRAME_ERROR));
@@ -318,11 +323,9 @@ pub const Connection = struct {
         if (func_group == 0x04) { // SZL (CPU functions)  proto.FunctionGroup.cpu_request
             if (sub_func == proto.CpuSubfunction.read_szl) {
                 // SZL Read - extract ID and Index from data payload
-                if (payload.len >= 8) {
-                    const szl_id = std.mem.readInt(u16, payload[4..6], .big);
-                    const szl_index = std.mem.readInt(u16, payload[6..8], .big);
-                    log.info("SZL Read: id=0x{x:0>4} index=0x{x:0>4}", .{ szl_id, szl_index });
-                    self.handle_szl_read(header, szl_id, szl_index);
+                if (payload.len >= 4) {
+                    // Pass full params to handle_read_szl_request so it can echo seq
+                    self.handle_read_szl_request(header, params, payload);
                     return true;
                 }
             }
@@ -359,36 +362,41 @@ pub const Connection = struct {
     }
 
     // SZL Read (Userdata Response)
-    // Uses firmware.lookup() for table-driven SZL response data.
+    // TPKT(4) + COTP(3) + S7 Header(10 or 12) + Param(12) + Data(4+Payload)
 
-    fn handle_szl_read(self: *Connection, req: *const S7Header, szl_id: u16, szl_index: u16) void {
-        // Look up pre-built firmware data for this SZL ID + Index.
-        // The blob already contains: ReturnCode(1) TransportSize(1) DataLen(2) + SZL payload.
+    fn handle_read_szl_request(self: *Connection, req: *const S7Header, params: []const u8, data: []const u8) void {
+        if (data.len < 4) {
+            log.warn("SZL Request data too short", .{});
+            return;
+        }
+
+        const szl_id = std.mem.readInt(u16, data[0..2], .big);
+        const szl_index = std.mem.readInt(u16, data[2..4], .big);
+        log.info("SZL Read: id=0x{x:0>4} index=0x{x:0>4}", .{ szl_id, szl_index });
+
+        // Lookup prepared data blob (includes Data Header + SZL Payload)
         const blob = firmware.lookup(szl_id, szl_index);
         const blob_len: u16 = @intCast(blob.len);
 
-        const param_len: u16 = 12; // Response params are 12 bytes
-        // TPKT(4) + COTP(3) + S7Header(10) + Params(12) + Blob
-        const tpkt_len: u16 = 4 + 3 + 10 + param_len + blob_len;
+        // TPKT(4) + COTP(3) + S7 Header(10) + Param(12) + Data(blob_len)
+        const tpkt_len: u16 = 4 + 3 + 10 + 12 + blob_len;
 
-        const tx = &self.tx_buffer;
+        var tx = &self.tx_buffer;
 
         proto.writeTpktCotpDT(tx, tpkt_len);
-        // Userdata uses 10-byte S7 header (no error field)
-        proto.writeS7HeaderShort(tx, 7, proto.Rosctr.userdata, req.pdu_ref, param_len, blob_len);
+        proto.writeS7HeaderShort(tx, 7, proto.Rosctr.userdata, req.pdu_ref, 12, blob_len);
 
-        // Params (12 bytes at offset 17 = 7 + 10)
-        proto.writeUserdataParams(
-            tx,
-            17,
-            proto.ParamMethod.response,
-            proto.FunctionGroup.cpu_response,
-            proto.CpuSubfunction.read_szl,
-            0x00,
-        );
+        // Params
+        // Echo sequence from request params if available.
+        // req params: [Head(3)] [Len(1)] [Method(1)] [Tg(1)] [Sub(1)] [Seq(1)]
+        // So params[7] is seq.
+        // We can safely access params[7] because dispatch_userdata ensures params.len >= 8.
+        const seq = if (params.len >= 8) params[7] else 0x00;
 
-        // Firmware blob at offset 29 = 17 + 12
-        // (blob includes data header: ReturnCode + TransportSize + DataLen + SZL payload)
+        proto.writeUserdataParams(tx, 17, proto.ParamMethod.response, // 0x12
+            proto.FunctionGroup.cpu_response, proto.CpuSubfunction.read_szl, seq);
+
+        // Data (blob)
         @memcpy(tx[29..][0..blob.len], blob);
 
         self.send_response(tpkt_len);
