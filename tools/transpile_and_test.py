@@ -146,10 +146,14 @@ if __name__ == '__main__':
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 tools/transpile_and_test.py <scl_file_or_dir>")
+        print("Usage: python3 tools/transpile_and_test.py <scl_file_or_dir> [log_file]")
         sys.exit(1)
 
     target = sys.argv[1]
+    log_file = "scl_test_results.txt"
+    if len(sys.argv) > 2:
+        log_file = sys.argv[2]
+
     scl_files = []
 
     if os.path.isfile(target):
@@ -173,30 +177,73 @@ def main():
     passed = 0
     failed = 0
 
+    with open(log_file, 'w') as log:
+        log.write(f"Test Run Start: {target}\n")
+        log.write("==================================================\n\n")
+
     for scl_file in scl_files:
         print(f"Processing {scl_file}...")
+
+        with open(log_file, 'a') as log:
+            log.write(f"TEST: {scl_file}\n")
+            log.write("--------------------------------------------------\n")
+            log.write("Expectation: Transpilation and Unit Test should pass.\n")
+            log.write(f"SCL File: {scl_file}\n")
+            # Try to read first few lines
+            try:
+                with open(scl_file, 'r', encoding='utf-8-sig') as f:
+                    head = [next(f) for _ in range(5)]
+                log.write("SCL Header:\n")
+                log.writelines(head)
+                log.write("...\n")
+            except StopIteration:
+                pass
+            except Exception as e:
+                log.write(f"(Could not read SCL file content: {e})\n")
+            log.write("\nTest Output:\n")
+
         module_name, program, success = transpile_file(scl_file, output_dir)
-        if success:
-            test_path = generate_test(module_name, program, test_dir)
-            if test_path:
-                # Run the test
-                res = os.system(f"python3 {test_path} > test_output.log 2>&1")
-                if res == 0:
-                    print(f"Test PASSED: {scl_file}")
-                    passed += 1
+
+        with open(log_file, 'a') as log:
+            if success:
+                log.write(f"Transpilation: SUCCESS\n")
+                test_path = generate_test(module_name, program, test_dir)
+                if test_path:
+                    # Run the test
+                    import subprocess
+                    try:
+                        result = subprocess.run(['python3', test_path], capture_output=True, text=True, timeout=5)
+                        log.write(result.stdout)
+                        log.write(result.stderr)
+
+                        if result.returncode == 0:
+                            log.write("\nRESULT: PASSED\n")
+                            print(f"Test PASSED: {scl_file}")
+                            passed += 1
+                        else:
+                            log.write("\nRESULT: FAILED\n")
+                            print(f"Test FAILED: {scl_file}")
+                            failed += 1
+                    except subprocess.TimeoutExpired:
+                        log.write("\nRESULT: TIMEOUT\n")
+                        print(f"Test TIMEOUT: {scl_file}")
+                        failed += 1
+                    except Exception as e:
+                        log.write(f"\nRESULT: EXECUTION ERROR ({e})\n")
+                        print(f"Test ERROR: {scl_file}")
+                        failed += 1
                 else:
-                    print(f"Test FAILED: {scl_file}")
-                    print("--- Test Output ---")
-                    os.system(f"cat test_output.log")
-                    print("-------------------")
+                    log.write("Test Generation: FAILED (Could not generate test wrapper)\n")
+                    print(f"Test Generation Failed: {scl_file}")
                     failed += 1
             else:
-                print(f"Test Generation Failed: {scl_file}")
+                log.write(f"Transpilation: FAILED\n")
+                print(f"Transpilation Failed: {scl_file}")
                 failed += 1
-        else:
-            print(f"Transpilation Failed: {scl_file}")
-            failed += 1
+            log.write("\n==================================================\n\n")
 
+    with open(log_file, 'a') as log:
+        log.write(f"Summary: {passed} Passed, {failed} Failed.\n")
     print(f"\nSummary: {passed} Passed, {failed} Failed.")
 
 if __name__ == '__main__':
