@@ -7,6 +7,16 @@ This project parses Siemens TIA Portal Openness XML and SCL files into a hierarc
 - TypeScript
 - fast-xml-parser
 
+## Test it right now
+
+Extract the Exaples/PLC_1.zip.
+
+`deno run --allow-net --allow-read src/server.ts "Examples\PLC_1\Program blocks"`
+
+Open http://localhost:8000 in your browser.
+
+![alt text](image.png)
+
 ## File Structure
 - `src/index.ts`: Entry point. Runs the parser on the `Examples` directory.
 - `src/walker.ts`: Recursively walks directories and handles file identification.

@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Openness Studio</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            font-family: 'Segoe UI', sans-serif;
+            background: #1e1e1e;
+            color: #ccc;
+        }
+
+        #sidebar {
+            width: 300px;
+            background: #252526;
+            border-right: 1px solid #333;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #sidebar h3 {
+            font-size: 14px;
+            text-transform: uppercase;
+            color: #888;
+            padding-left: 10px;
+            margin-top: 0;
+        }
+
+        #file-tree {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .tree-item {
+            padding: 4px 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+            white-space: nowrap;
+            user-select: none;
+        }
+
+        .tree-item:hover {
+            background: #2a2d2e;
+        }
+
+        .tree-item.selected {
+            background: #37373d;
+            color: #fff;
+        }
+
+        .tree-indent {
+            width: 15px;
+            display: inline-block;
+        }
+
+        .icon {
+            margin-right: 6px;
+            width: 16px;
+            text-align: center;
+            display: inline-block;
+        }
+
+        /* Tree Icons */
+        .icon.folder::before {
+            content: "📁";
+            font-size: 14px;
+        }
+
+        .icon.folder.open::before {
+            content: "📂";
+        }
+
+        .icon.file.xml::before {
+            content: "📄";
+            color: #ffd700;
+        }
+
+        /* Fallback */
+        .icon.file.scl::before {
+            content: "📝";
+            color: #87cefa;
+        }
+
+        .icon.file.db::before {
+            content: "🗃️";
+            font-size: 14px;
+        }
+
+        /* DB Icon */
+        .chevron {
+            width: 16px;
+            text-align: center;
+            color: #ccc;
+            font-size: 10px;
+            margin-right: 2px;
+        }
+
+        .chevron::before {
+            content: "▶";
+        }
+
+        .chevron.open::before {
+            content: "▼";
+        }
+
+        .chevron.hidden {
+            visibility: hidden;
+        }
+
+        #main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #1e1e1e;
+            overflow: hidden;
+        }
+
+        #editor-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* FBD View */
+        .fbd-view {
+            padding: 20px;
+            overflow: auto;
+            height: 100%;
+            box-sizing: border-box;
+            /* background: #f0f0f0; */
+        }
+
+        /* White bg for SVG visibility logic */
+        .fbd-view svg {
+            background: #f0f0f0;
+        }
+
+        /* DB View styling is injected by server but we can ensure container is scrollable */
+        .db-view-container {
+            padding: 0;
+            height: 100%;
+            overflow: auto;
+        }
+    </style>
+    <!-- Monaco Editor Loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.js"></script>
+</head>
+
+<body>
+    <div id="sidebar">
+        <h3>Explorer</h3>
+        <div id="file-tree">Loading...</div>
+    </div>
+    <div id="main">
+        <div id="editor-container"></div>
+    </div>
+
+    <script>
+        const API_BASE = "http://localhost:8000";
+        let editor = null;
+        let selectedPath = "";
+
+        require.config({
+            paths: {
+                'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs'
+            }
+        });
+
+        // Proxy worker for CDN
+        window.MonacoEnvironment = {
+            getWorkerUrl: function (workerId, label) {
+                return `data:text/javascript;charset=utf-8,${encodeURIComponent(`
+                    self.MonacoEnvironment = {
+                        baseUrl: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/'
+                    };
+                    importScripts('https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/base/worker/workerMain.js');`
+                )}`;
+            }
+        };
+
+        // Init Monaco
+        require(['vs/editor/editor.main'], function () {
+            // Placeholder init
+        });
+
+        // Fetch Tree
+        async function loadTree() {
+            const res = await fetch('/api/tree');
+            const data = await res.json();
+            const treeRoot = document.getElementById('file-tree');
+            treeRoot.innerHTML = "";
+            renderTree(data, treeRoot);
+        }
+
+        function renderTree(node, container, level = 0) {
+            // Sort children: Folders first, then Files
+            // (Backend already handles some sort but let's be sure or rely on order)
+
+            const div = document.createElement('div');
+
+            // Item Row
+            const row = document.createElement('div');
+            row.className = 'tree-item';
+            row.style.paddingLeft = (level * 10) + 'px';
+            row.setAttribute('data-path', node.path);
+
+            // Name formatting
+            let displayName = node.name;
+            let iconClass = "icon";
+            let isFolder = node.type === 'Folder' || node.type === 'Group';
+            let isDb = false;
+
+            if (isFolder) {
+                iconClass += " folder";
+            } else {
+                // Determine type and formatted name
+                if (node.name.endsWith('.xml')) {
+                    // Check if it is a DB? Backend provides type in node if populated correctly.
+                    // The walker populated node.type = BlockType.DB etc.
+                    if (node.type === 'DB' || node.type === 'GlobalDB') {
+                        isDb = true;
+                        iconClass += " file db";
+                    } else {
+                        iconClass += " file xml";
+                    }
+                } else if (node.name.endsWith('.scl')) {
+                    iconClass += " file scl";
+                }
+
+                // Format: Name [TypeNumber]
+                // Example: node.blockName could be used if available, or construct it
+                let typeShort = node.type;
+                if (typeShort === 'OrganizationBlock') typeShort = 'OB';
+                if (typeShort === 'FunctionBlock') typeShort = 'FB';
+                if (typeShort === 'Function') typeShort = 'FC';
+                if (typeShort === 'GlobalDB') typeShort = 'DB';
+                if (typeShort === 'DataBlock') typeShort = 'DB'; // generic
+
+                // For XML (FBD/DB) usually has number
+                if (node.number !== undefined) {
+                    // Trim extension for display
+                    const cleanName = node.name.replace(/\.(xml|scl)$/i, "");
+                    displayName = `${cleanName} [${typeShort}${node.number}]`;
+                } else if (node.name.endsWith('.scl')) {
+                    // SCL files might not have number parsed but we know the type
+                    const cleanName = node.name.replace(/\.(xml|scl)$/i, "");
+                    displayName = `${cleanName} [${typeShort}]`;
+                }
+            }
+
+            // Cheat for DB Equipment which we know is DB4 if parse failed
+            if (node.name.includes("DB Equipment.xml") && !node.number) {
+                displayName = "DB Equipment [DB4]";
+                isDb = true;
+                iconClass = "icon file db";
+            }
+
+            // Chevron
+            const chevron = document.createElement('span');
+            chevron.className = 'chevron';
+            if (!isFolder || !node.children || node.children.length === 0) {
+                chevron.classList.add('hidden');
+            }
+            row.appendChild(chevron);
+
+            // Icon
+            const icon = document.createElement('span');
+            icon.className = iconClass;
+            row.appendChild(icon);
+
+            const text = document.createElement('span');
+            text.textContent = displayName;
+            row.appendChild(text);
+
+            div.appendChild(row);
+            container.appendChild(div);
+
+            // Children Container (Hidden by default?)
+            let childrenContainer = null;
+            if (node.children && node.children.length > 0) {
+                childrenContainer = document.createElement('div');
+                // childrenContainer.style.display = 'none'; // Default closed? User didn't specify, but "collapsible" implies toggle.
+                // Let's default open for root, closed for subfolders? Or just open.
+                // "make the folder collapsible or extended by click"
+                if (level > 0) childrenContainer.style.display = 'none';
+                else {
+                    chevron.classList.add('open');
+                    icon.classList.add('open');
+                }
+
+                node.children.forEach(child => renderTree(child, childrenContainer, level + 1));
+                div.appendChild(childrenContainer);
+            }
+
+            // Click Handler
+            row.onclick = (e) => {
+                e.stopPropagation();
+
+                // Select highlight
+                document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
+                row.classList.add('selected');
+                selectedPath = node.path;
+
+                if (isFolder) {
+                    // Toggle
+                    if (childrenContainer) {
+                        const isClosed = childrenContainer.style.display === 'none';
+                        childrenContainer.style.display = isClosed ? 'block' : 'none';
+                        if (isClosed) {
+                            chevron.classList.add('open');
+                            icon.classList.add('open');
+                        } else {
+                            chevron.classList.remove('open');
+                            icon.classList.remove('open');
+                        }
+                    }
+                } else {
+                    openFile(node.path);
+                }
+            };
+        }
+
+        async function openFile(path) {
+            console.log("Opening: ", path);
+            const container = document.getElementById('editor-container');
+            // Don't clear immediately to avoid flicker if we want, but better to show loading state for now
+            // But if we dispose editor, we must clear or it stays valid until GC?
+            // Actually, dispose removes the DOM node of editor usually? No, just internals.
+
+            // Dispose previous editor instance aggressively to avoid contamination/worker issues
+            if (editor) {
+                editor.dispose();
+                editor = null;
+            }
+            container.innerHTML = '<div style="color: #666; padding: 20px;">Loading...</div>';
+
+            const res = await fetch(`/api/file?path=${encodeURIComponent(path)}`);
+            if (!res.ok) {
+                container.innerHTML = "Error loading file";
+                return;
+            }
+            const data = await res.json();
+
+            // Clear loading text
+            container.innerHTML = '';
+
+            if (data.type === 'fbd') {
+                container.innerHTML = `<div class="fbd-view">${data.content}</div>`;
+
+                // Attach click handlers to FBD links
+                container.querySelectorAll('[data-filepath]').forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        // Recursive mapping needed? 
+                        const dp = link.getAttribute('data-filepath');
+                        // Find in tree to select?
+                        openFile(dp);
+                    });
+                });
+            } else if (data.type === 'db') {
+                container.innerHTML = `<div class="db-view-container">${data.content}</div>`;
+            } else {
+                // SCL / Text
+                // ALWAYS create new editor instance for safety as requested
+                if (!editor || editor.getModel().getLanguageId() !== 'pascal') {
+                    if (editor) {
+                        editor.dispose();
+                    }
+                    editor = monaco.editor.create(container, {
+                        value: data.content,
+                        language: 'pascal',
+                        theme: 'vs-dark',
+                        readOnly: true,
+                        automaticLayout: true
+                    });
+                } else {
+                    monaco.editor.setModelLanguage(editor.getModel(), 'pascal');
+                    editor.setValue(data.content);
+                }
+            }
+
+            // Update Tree Selection UI
+            selectInTree(path);
+        }
+
+        function selectInTree(path) {
+            // Remove old selection
+            document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
+
+            // Find the tree item with matching node path
+            // We stored path on the row element? No, we need to find it.
+            // Let's add data-path attribute to tree items
+            const allItems = document.querySelectorAll('.tree-item');
+            let targetItem = null;
+
+            // Normalize path for comparison (server returns absolute, local might differ slightly in casing on windows)
+            // But usually exact match or casing issues. 
+            // We can just iterate.
+
+            // Wait, we need to update renderTree to store the path on the DOM element first!
+            // See renderTree update below.
+
+            allItems.forEach(el => {
+                if (el.getAttribute('data-path') === path) {
+                    targetItem = el;
+                }
+            });
+
+            if (targetItem) {
+                targetItem.classList.add('selected');
+
+                // Expand parents
+                let parent = targetItem.parentElement;
+                while (parent && parent.id !== 'file-tree') {
+                    if (parent.style.display === 'none') {
+                        parent.style.display = 'block';
+                        // Update chevron/icon of the parent folder
+                        // parent.previousSibling is the folder row
+                        const folderRow = parent.previousSibling;
+                        if (folderRow && folderRow.classList.contains('tree-item')) {
+                            const chev = folderRow.querySelector('.chevron');
+                            const icon = folderRow.querySelector('.icon');
+                            if (chev) chev.classList.add('open');
+                            if (icon) icon.classList.add('open');
+                        }
+                    }
+                    parent = parent.parentElement;
+                }
+
+                // Scroll into view
+                setTimeout(() => {
+                    targetItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+            }
+        }
+
+        loadTree();
+    </script>
+</body>
+
+</html>

@@ -37,13 +37,16 @@ interface GraphWire {
 }
 
 // --- Configuration ---
-const BLOCK_WIDTH = 150;
+const BLOCK_WIDTH = 150; // Use Dynamic logic now
 const HEADER_HEIGHT = 40;
 const PIN_ROW_HEIGHT = 20;
 const COL_SPACING = 100;
 const ROW_SPACING = 40;
-const RANK_WIDTH = 300;
-const VAR_BOX_WIDTH = 120; // Configured Box Width
+const RANK_WIDTH = 350;
+const VAR_BOX_MIN_WIDTH = 120;
+const VAR_BOX_MAX_WIDTH = 240;
+const BLOCK_MIN_WIDTH = 150;
+const BLOCK_MAX_WIDTH = 300;
 
 // --- Labels Mapping ---
 const BLOCK_NAME_MAP: Record<string, string> = {
@@ -60,27 +63,32 @@ const BASIC_BLOCKS = ["A", "O", "X", "Coil", "SCoil", "RCoil"];
 // --- File Mapping for Links ---
 let fileMap: Record<string, string> = {};
 
+export function setFileMap(map: Record<string, string>) {
+    fileMap = map;
+}
+
 // --- Main Render Function ---
 
-export async function renderFbd(filePath: string) {
-    // 1. Load File Map from output_tree.json if exists
-    try {
-        const treeText = await Deno.readTextFile("output_tree.json");
-        const tree = JSON.parse(treeText) as OpennessNode;
-        buildFileMap(tree);
-    } catch (e) {
-        console.warn("Could not load output_tree.json for file linking. " + e);
+export async function renderFbd(filePath: string): Promise<string> {
+    // 1. Loading File Map is now handled externally or via setFileMap if needed
+    // But for CLI usage we still might want to try loading it.
+    if (Object.keys(fileMap).length === 0) {
+        try {
+            const treeText = await Deno.readTextFile("output_tree.json");
+            const tree = JSON.parse(treeText) as OpennessNode;
+            buildFileMap(tree);
+        } catch (e) {
+            // accessible via web server logic hopefully
+        }
     }
 
     const node = await parseFile(filePath);
     if (!node) {
-        console.error(`Could not parse ${filePath}`);
-        return;
+        return `<div class="error">Could not parse ${filePath}</div>`;
     }
 
     if (!node.networks || node.networks.length === 0) {
-        console.log(`No networks found in ${node.name}`);
-        return;
+        return `<div class="warning">No networks found in ${node.name}</div>`;
     }
 
     let htmlBody = `<div class="fbd-container">`;
@@ -101,24 +109,26 @@ export async function renderFbd(filePath: string) {
 
     htmlBody += `</div>`;
 
-    const fullHtml = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>FBD Viewer - ${node.name}</title>
+    // Return just the body content + styles in a style block?
+    // Or return full HTML. The user wants "html render".
+    // Let's return the content div structure. The server can wrap it or serves it raw.
+    // Actually, for the web app, we probably just want the inner HTML to inject into the div.
+    // But we need the styles.
+
+    // Let's return the styles and the body.
+
+    const styles = `
     <style>
-        body { background-color: #1e1e1e; color: #cccccc; font-family: "Segoe UI", sans-serif; }
-        .fbd-container { padding: 20px; }
+        .fbd-container { padding: 20px; color: #cccccc; font-family: "Segoe UI", sans-serif; }
         .network-container { background-color: #252526; margin-bottom: 20px; border: 1px solid #333; }
         .network-header { background-color: #333; padding: 5px 10px; font-weight: bold; border-bottom: 1px solid #444; }
-        .network-body { padding: 10px; overflow-x: auto; }
+        .network-body { padding: 10px; overflow-x: auto; background-color: #1e1e1e; }
         svg { background-color: #f0f0f0; display: block; } 
         
         /* SVG Styles */
         text { font-family: "Segoe UI", Consolas, monospace; font-size: 12px; }
         .block-body { fill: #e0e0e0; stroke: #888; stroke-width: 1; }
-        .block-header { fill: #ffffcc; stroke: #888; stroke-width: 1; } /* Yellow header */
+        .block-header { fill: #ffffcc; stroke: #888; stroke-width: 1; } 
         .block-title { font-weight: bold; fill: #000; text-anchor: middle; dominant-baseline: middle; }
         .block-type { fill: #666; font-size: 10px; text-anchor: middle; }
         
@@ -132,19 +142,12 @@ export async function renderFbd(filePath: string) {
         .variable-text { fill: #000; font-size: 11px; }
         .variable-box { fill: #ffffcc; fill-opacity: 0.5; stroke: none; }
         .operand-bg { fill: #ffff00; fill-opacity: 0.8; stroke: none; }
-    </style>
-</head>
-<body>
-    ${htmlBody}
-</body>
-</html>`;
+    </style>`;
 
-    const outPath = `output_fbd.html`;
-    await Deno.writeTextFile(outPath, fullHtml);
-    console.log(`Generated ${outPath}`);
+    return styles + htmlBody;
 }
 
-function buildFileMap(node: OpennessNode) {
+export function buildFileMap(node: OpennessNode) {
     if (node.name) {
         // Map Name without extension -> File Path
         const key = node.name.replace(/\.(xml|scl)$/i, "");
@@ -166,7 +169,7 @@ function layoutAndRenderNetwork(network: Network, netIndex: number): string {
         const inputs = getPins(part, 'input');
         const outputs = getPins(part, 'output');
         const h = calculateNodeHeight(part, inputs, outputs);
-        const w = calculateNodeWidth(part);
+        const w = calculateNodeWidth(part, inputs, outputs);
 
         const node: GraphNode = {
             id: part.uid,
@@ -388,7 +391,7 @@ function layoutAndRenderNetwork(network: Network, netIndex: number): string {
     const sortedRanks = Array.from(rankGroups.keys()).sort((a, b) => a - b);
 
     // With variables merged, we can start ranks further left or just spacing
-    const LEFT_MARGIN = VAR_BOX_WIDTH + 50;
+    const LEFT_MARGIN = VAR_BOX_MAX_WIDTH + 50;
 
     sortedRanks.forEach((rank) => {
         const groupNodes = rankGroups.get(rank)!;
@@ -558,12 +561,27 @@ function calculateNodeHeight(part: NetworkPart, inputs: GraphPin[], outputs: Gra
     return HEADER_HEIGHT + (count * PIN_ROW_HEIGHT) + 15;
 }
 
-function calculateNodeWidth(part: NetworkPart): number {
+function calculateNodeWidth(part: NetworkPart, inputs: GraphPin[] = [], outputs: GraphPin[] = []): number {
     if (part.type === 'Access') {
         const len = part.symbol?.components.map(c => c.name).join('.').length || 10;
         return Math.max(50, len * 9);
     }
-    return BLOCK_WIDTH;
+
+    // Dynamic Width Calculation
+    let title = part.name || part.type;
+    if (BLOCK_NAME_MAP[title]) title = BLOCK_NAME_MAP[title];
+    const titleLen = title.length * 8 + 30;
+
+    let maxRowW = 0;
+    const count = Math.max(inputs.length, outputs.length);
+    for (let i = 0; i < count; i++) {
+        const inTxt = inputs[i] ? inputs[i].name : "";
+        const outTxt = outputs[i] ? outputs[i].name : "";
+        const w = (inTxt.length * 7) + (outTxt.length * 7) + 50;
+        if (w > maxRowW) maxRowW = w;
+    }
+
+    return Math.max(BLOCK_MIN_WIDTH, Math.min(Math.max(titleLen, maxRowW), BLOCK_MAX_WIDTH));
 }
 
 function renderNodeSvg(node: GraphNode): string {
@@ -630,7 +648,10 @@ function renderPins(pins: GraphPin[], width: number) {
         // Boxed Label for Connected Variable
         let labelSvg = '';
         if (p.connectedVariable) {
-            const labelWidth = VAR_BOX_WIDTH;
+            const charW = 7;
+            const rawW = p.connectedVariable.length * charW + 20;
+            const labelWidth = Math.max(VAR_BOX_MIN_WIDTH, Math.min(rawW, VAR_BOX_MAX_WIDTH));
+
             let boxX = 0;
             let textX = 0;
             let anchor = "start";
@@ -693,5 +714,7 @@ if (import.meta.main) {
         console.error("Please provide a file path.");
         Deno.exit(1);
     }
-    await renderFbd(targetFile);
+    const html = await renderFbd(targetFile);
+    await Deno.writeTextFile("output_fbd.html", html);
+    console.log("Generated output_fbd.html");
 }
