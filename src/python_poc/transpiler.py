@@ -28,7 +28,7 @@ class Transpiler:
     def visit_Function(self, node):
         # We generate a function that takes 'context' and 'global_dbs'
         # context will hold all INPUT, OUTPUT, IN_OUT, TEMP variables.
-        func_name = node.name.replace('"', '') # Strip quotes if present
+        func_name = node.name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_')
 
         code = f"def {func_name}(context, global_dbs):\n"
         self.indent_level += 1
@@ -39,10 +39,13 @@ class Transpiler:
         code += f"{self.indent()}# Return Type: {node.return_type}\n"
         for decl in node.var_decls:
             code += f"{self.indent()}# {decl.section_type}:\n"
-            for name, type_spec in decl.vars:
+            for name, type_spec, init_val in decl.vars:
                 code += f"{self.indent()}#   {name}: {type_spec}\n"
-                # Initialize arrays in context if not present?
-                # For PoC we assume context is prepared by the runtime/caller
+                if init_val:
+                    val_code = self.visit(init_val)
+                    # Initialize variable in context
+                    # If it's a CONSTANT, we treat it as context variable initialized once
+                    code += f"{self.indent()}context['{name}'] = {val_code}\n"
 
         code += self.visit(node.block)
 
@@ -94,6 +97,49 @@ class Transpiler:
 
         return code.strip() # Strip trailing newline to let visit_Block handle it
 
+    def visit_CaseStmt(self, node):
+        expr = self.visit(node.expr)
+
+        # We need to evaluate expr once.
+        var_name = f"_case_val_{self.indent_level}"
+        code = f"{var_name} = {expr}\n"
+
+        first = True
+        for labels, block in node.cases:
+            conditions = []
+            for label in labels:
+                if isinstance(label, tuple): # Range (start, end)
+                    start = self.visit(label[0])
+                    end = self.visit(label[1])
+                    conditions.append(f"({var_name} >= {start} and {var_name} <= {end})")
+                else: # Single value
+                    val = self.visit(label)
+                    conditions.append(f"{var_name} == {val}")
+
+            condition_str = " or ".join(conditions)
+
+            if first:
+                code += f"{self.indent()}if {condition_str}:\n"
+                first = False
+            else:
+                code += f"{self.indent()}elif {condition_str}:\n"
+
+            self.indent_level += 1
+            code += self.visit(block)
+            if not block.statements:
+                 code += f"{self.indent()}pass\n"
+            self.indent_level -= 1
+
+        if node.else_block:
+            code += f"{self.indent()}else:\n"
+            self.indent_level += 1
+            code += self.visit(node.else_block)
+            if not node.else_block.statements:
+                 code += f"{self.indent()}pass\n"
+            self.indent_level -= 1
+
+        return code.strip()
+
     def visit_ForStmt(self, node):
         var = self.visit(node.variable)
         start = self.visit(node.start)
@@ -114,8 +160,29 @@ class Transpiler:
         self.indent_level -= 1
         return code.strip()
 
+    def visit_WhileStmt(self, node):
+        cond = self.visit(node.condition)
+        code = f"while {cond}:\n"
+        self.indent_level += 1
+        code += self.visit(node.block)
+        if not node.block.statements:
+             code += f"{self.indent()}pass\n"
+        self.indent_level -= 1
+        return code.strip()
+
     def visit_ExitStmt(self, node):
         return "break"
+
+    def visit_ReturnStmt(self, node):
+        return "return"
+
+    def visit_GotoStmt(self, node):
+        # Python has no GOTO. We generate a comment.
+        return f"# GOTO {node.target} (Not supported)"
+
+    def visit_LabelStmt(self, node):
+        # Label.
+        return f"# LABEL {node.name}"
 
     def visit_BinOp(self, node):
         left = self.visit(node.left)
@@ -125,13 +192,29 @@ class Transpiler:
             'EQ': '==', 'LT': '<', 'GT': '>',
             # Add others as needed
         }
-        op = op_map.get(node.op.type, node.op.type)
+
+        # Handle keywords (AND, OR, XOR, MOD)
+        if node.op.type == 'KEYWORD':
+            val = node.op.value.upper()
+            if val == 'AND': op = 'and'
+            elif val == 'OR': op = 'or'
+            elif val == 'XOR': op = '^' # Python XOR is ^
+            elif val == 'MOD': op = '%'
+            else: op = val
+        else:
+            op = op_map.get(node.op.type, node.op.type)
+
         return f"({left} {op} {right})"
 
     def visit_UnaryOp(self, node):
         expr = self.visit(node.expr)
         op_map = {'PLUS': '+', 'MINUS': '-'}
-        op = op_map.get(node.op.type, node.op.type)
+
+        if node.op.type == 'KEYWORD' and node.op.value.upper() == 'NOT':
+            op = 'not '
+        else:
+            op = op_map.get(node.op.type, node.op.type)
+
         return f"({op}{expr})"
 
     def visit_Variable(self, node):
@@ -201,7 +284,18 @@ class Transpiler:
         else:
             return str(node.value)
 
-    def visit_FunctionCall(self, node):
-        func_name = node.name.strip('"')
-        args = [self.visit(arg) for arg in node.args]
-        return f"{func_name}({', '.join(args)})"
+    def visit_Call(self, node):
+        if isinstance(node.expr, Variable):
+            # Special handling for direct function calls to sanitize name
+            func_name = node.expr.name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_')
+            args = [self.visit(arg) for arg in node.args]
+            return f"{func_name}({', '.join(args)})"
+        else:
+            # Indirect call or member call
+            func = self.visit(node.expr)
+            args = [self.visit(arg) for arg in node.args]
+            return f"{func}({', '.join(args)})"
+
+    def visit_NamedArg(self, node):
+        val = self.visit(node.expr)
+        return f"{node.name}={val}"

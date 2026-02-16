@@ -50,6 +50,17 @@ class Lexer:
             self.advance()
         self.advance() # Skip the newline
 
+    def skip_block_comment(self):
+        # Handle (* ... *) comments
+        self.advance() # *
+
+        while self.current_char is not None:
+            if self.current_char == '*' and self.peek() == ')':
+                self.advance()
+                self.advance()
+                return
+            self.advance()
+
     def number(self):
         result = ''
         while self.current_char is not None and self.current_char.isdigit():
@@ -81,7 +92,10 @@ class Lexer:
             'VAR_IN_OUT', 'VAR_TEMP', 'VAR', 'BEGIN', 'IF', 'THEN', 'END_IF',
             'ELSE', 'ELSIF', 'FOR', 'TO', 'DO', 'END_FOR', 'WHILE', 'END_WHILE',
             'EXIT', 'RETURN', 'TRUE', 'FALSE', 'NOT', 'AND', 'OR', 'XOR', 'MOD',
-            'VERSION', 'VOID', 'INT', 'DINT', 'REAL', 'BOOL', 'TIME', 'STRING', 'ARRAY', 'OF'
+            'VERSION', 'VOID', 'INT', 'DINT', 'REAL', 'BOOL', 'TIME', 'STRING', 'ARRAY', 'OF',
+            'CONSTANT', 'TYPE', 'END_TYPE', 'STRUCT', 'END_STRUCT', 'WSTRING', 'CHAR', 'BYTE', 'WORD', 'DWORD', 'LWORD',
+            'SINT', 'USINT', 'UINT', 'UDINT', 'LINT', 'ULINT', 'LREAL', 'DATE', 'DATE_AND_TIME', 'TOD', 'DT', 'VARIANT',
+            'FUNCTION_BLOCK', 'GOTO', 'LABEL'
         }
 
         token_type = 'KEYWORD' if result.upper() in keywords else 'IDENTIFIER'
@@ -125,6 +139,11 @@ class Lexer:
                 self.skip_comment()
                 continue
 
+            if self.current_char == '(' and self.peek() == '*':
+                self.advance() # eat (
+                self.skip_block_comment() # eat * and rest
+                continue
+
             if self.current_char.isalpha() or self.current_char == '_':
                 return self.identifier()
 
@@ -141,6 +160,11 @@ class Lexer:
                 self.advance()
                 self.advance()
                 return Token('ASSIGN', ':=', self.line, self.column)
+
+            if self.current_char == '=' and self.peek() == '>':
+                self.advance()
+                self.advance()
+                return Token('ARROW', '=>', self.line, self.column)
 
             if self.current_char == '.' and self.peek() == '.':
                 self.advance()
