@@ -35,11 +35,25 @@ class Transpiler:
         # context will hold all INPUT, OUTPUT, IN_OUT, TEMP variables.
         func_name = self.sanitize_name(node.name)
 
-        code = f"def {func_name}(context=None, global_dbs=None, **kwargs):\n"
+        # Define function to accept positional args (mapped to inputs) and kw-only context
+        code = f"def {func_name}(*args, context=None, global_dbs=None, **kwargs):\n"
         self.indent_level += 1
 
         code += f"{self.indent()}if context is None: context = {{}}\n"
         code += f"{self.indent()}if global_dbs is None: global_dbs = {{}}\n"
+
+        # Map positional args to VAR_INPUT/VAR_IN_OUT names
+        input_vars = []
+        for decl in node.var_decls:
+            if decl.section_type in ['VAR_INPUT', 'VAR_IN_OUT']:
+                for name, _, _ in decl.vars:
+                    input_vars.append(name)
+
+        code += f"{self.indent()}# Mapping inputs\n"
+        for i, var_name in enumerate(input_vars):
+            sanitized_var_name = self.sanitize_name(var_name)
+            code += f"{self.indent()}if len(args) > {i}: context['{sanitized_var_name}'] = args[{i}]\n"
+
         code += f"{self.indent()}for k, v in kwargs.items():\n"
         code += f"{self.indent()}    context[k] = v\n"
 
@@ -51,11 +65,12 @@ class Transpiler:
             code += f"{self.indent()}# {decl.section_type}:\n"
             for name, type_spec, init_val in decl.vars:
                 code += f"{self.indent()}#   {name}: {type_spec}\n"
+                sanitized_name = self.sanitize_name(name)
                 if init_val:
                     val_code = self.visit(init_val)
                     # Initialize variable in context
                     # If it's a CONSTANT, we treat it as context variable initialized once
-                    code += f"{self.indent()}context['{name}'] = {val_code}\n"
+                    code += f"{self.indent()}context['{sanitized_name}'] = {val_code}\n"
 
         block_code = self.visit(node.block)
         code += block_code
@@ -71,6 +86,9 @@ class Transpiler:
 
         if not block_code and not has_init:
              code += f"{self.indent()}pass\n"
+
+        if node.return_type and str(node.return_type).upper() != 'VOID':
+             code += f"{self.indent()}return context.get('{func_name}')\n"
 
         self.indent_level -= 1
         return code
@@ -179,6 +197,10 @@ class Transpiler:
         start = self.visit(node.start)
         end = self.visit(node.end)
 
+        step_val = "1"
+        if node.step:
+            step_val = self.visit(node.step)
+
         # SCL loops are inclusive TO end. Python range is exclusive.
         # Also need to handle loop variable assignment.
         # Since 'var' maps to context['var'], we need to update it in the loop.
@@ -187,7 +209,22 @@ class Transpiler:
         # So we use a temp python var, and assign it to context var inside loop.
         loop_var = f"_loop_var_{self.indent_level}"
 
-        code = f"for {loop_var} in range(int({start}), int({end}) + 1):\n"
+        # Handle step logic for range
+        # If step is positive: range(start, end + 1, step)
+        # If step is negative: range(start, end - 1, step)
+        # Since step might be an expression, we need dynamic handling or assumption?
+        # For simplicity, if step_val string starts with '-', assume negative.
+        # Ideally we generate code to determine this at runtime if it's dynamic.
+
+        # Safe python approach:
+        # range(start, end + 1) if step > 0 else range(start, end - 1, step)
+
+        # But wait, Python's range(start, stop, step) logic:
+        # if step > 0, stop is exclusive upper bound. So end + 1.
+        # if step < 0, stop is exclusive lower bound. So end - 1.
+
+        # Construct dynamic range call
+        code = f"for {loop_var} in range(int({start}), int({end}) + (1 if int({step_val}) > 0 else -1), int({step_val})):\n"
         self.indent_level += 1
         code += f"{self.indent()}{var} = {loop_var}\n"
         code += self.visit(node.block)
@@ -261,7 +298,8 @@ class Transpiler:
 
         if node.is_local:
              # #var means local context
-             return f"context['{name}']"
+             sanitized = self.sanitize_name(name)
+             return f"context['{sanitized}']"
         else:
             # Could be global or local without hash (if allowed/ambiguous)
             # In SCL, # is usually mandatory for temps/params in some editors, but optional in others?
@@ -293,7 +331,8 @@ class Transpiler:
             if "DB " in name or " " in name: # Heuristic for DB names in this example
                 return f"global_dbs['{name}']"
             else:
-                return f"context['{name}']"
+                sanitized = self.sanitize_name(name)
+                return f"context['{sanitized}']"
 
     def visit_MemberAccess(self, node):
         expr = self.visit(node.expr)
@@ -364,7 +403,9 @@ class Transpiler:
                 'UINT_TO_INT', 'INT_TO_UINT', 'SINT_TO_INT', 'INT_TO_SINT',
                 'WSTRING_TO_STRING', 'STRING_TO_WSTRING', 'CONCAT_STRING', 'CONCAT_WSTRING',
                 'TypeOf', 'MOVE_BLK_VARIANT', 'Strg_TO_Chars', 'Chars_TO_Strg', 'SCATTER', 'GATHER',
-                'PEEK', 'POKE', 'PEEK_BOOL', 'POKE_BOOL'
+                'PEEK', 'POKE', 'PEEK_BOOL', 'POKE_BOOL',
+                'CountOfElements', 'Int___CountOfElements', 'INT_TO_STRING', 'LEFT_STRING', 'RIGHT_STRING',
+                'RUNTIME', 'UINT_TO_INT', 'RD_SYS_T', 'DINT_TO_DWORD', 'SHR_BYTE', 'DINT_TO_WSTRING', 'WCHAR_TO_DINT', 'CHAR_TO_BYTE'
             }
 
             if func_name.upper() not in {f.upper() for f in std_funcs}:

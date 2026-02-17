@@ -147,6 +147,7 @@ class Runtime:
         context = DotDict(context_vars if context_vars else {})
 
         # Run
-        func(context, self.global_dbs)
+        # Pass context and global_dbs as kwargs because func signature is (*args, context=None, global_dbs=None, **kwargs)
+        func(context=context, global_dbs=self.global_dbs)
 
         return context

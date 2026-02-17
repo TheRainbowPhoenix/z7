@@ -38,11 +38,29 @@ def transpile_file(scl_filepath, output_dir):
 
 def generate_test(module_name, program, output_dir):
     try:
-        # Assuming one function per file for now, or taking the first one
         if not program.functions:
             return None
 
-        func = program.functions[0]
+        # Try to find the "main" function matching the module name
+        # Module name is sanitized filename.
+        # Function names are also sanitized in python.
+        # We look for a function whose sanitized name roughly matches module name.
+
+        target_func = program.functions[0] # Default to first
+
+        # Heuristic: check if any function name contains the module name (ignoring case/underscores)
+        # module_name is like "Code_128_String_to_Code"
+        # func.name is "Code_128.String_to_Code"
+
+        normalized_mod = module_name.lower().replace('_', '')
+
+        for func in program.functions:
+            normalized_func = func.name.lower().replace('.', '').replace('_', '').replace('"', '')
+            if normalized_func in normalized_mod or normalized_mod in normalized_func:
+                target_func = func
+                break
+
+        func = target_func
         func_name_in_python = func.name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
 
         # Prepare context variables (8 spaces indent)
@@ -51,23 +69,28 @@ def generate_test(module_name, program, output_dir):
         for decl in func.var_decls:
             if decl.section_type in ['VAR_INPUT', 'VAR_IN_OUT', 'VAR_OUTPUT', 'VAR', 'VAR CONSTANT', 'VAR_TEMP']:
                 for name, type_spec, init_val in decl.vars:
+                    # Sanitize name
+                    sanitized_name = name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
+
                     # Use RecursiveMock by default for complex types
-                    py_val = "RecursiveMock(f'" + name + "')"
+                    py_val = "RecursiveMock(f'" + sanitized_name + "')"
 
                     type_upper = type_spec.upper()
 
                     if "ARRAY" in type_upper:
-                        # Initialize as DotDict which returns RecursiveMock for missing keys,
-                        # essentially acting as a sparse array/struct
                         py_val = "DotDict({})"
                     elif "BOOL" in type_upper:
                         py_val = "False"
-                    elif "STRING" in type_upper:
-                        py_val = "''"
-                    elif "INT" in type_upper or "DINT" in type_upper or "REAL" in type_upper or "WORD" in type_upper or "DWORD" in type_upper or "BYTE" in type_upper:
+                    elif "STRING" in type_upper or "WSTRING" in type_upper:
+                        py_val = "DotDict({})"
+                    elif "VARIANT" in type_upper:
+                         py_val = "DotDict({})"
+                    elif "WORD" in type_upper or "DWORD" in type_upper or "BYTE" in type_upper:
+                        py_val = "RecursiveMock(f'" + sanitized_name + "')"
+                    elif "INT" in type_upper or "DINT" in type_upper or "REAL" in type_upper or "TIME" in type_upper:
                         py_val = "0"
 
-                    context_setup += f"            '{name}': {py_val},\n"
+                    context_setup += f"            '{sanitized_name}': {py_val},\n"
 
         context_setup += "        })\n"
 
@@ -117,6 +140,22 @@ def mock_functions():
         'WString_to_Time': lambda x: 0,
         'RUNTIME': lambda x: 0,
         'LREAL_TO_INT': lambda x: int(x),
+        'UDINT_TO_DINT': lambda x: int(x),
+        'Strg_TO_Chars': lambda **kwargs: None, # Mock side effect?
+        'Chars_TO_Strg': lambda **kwargs: None,
+        'LEFT_STRING': lambda IN, L: IN[:L] if isinstance(IN, str) else IN,
+        'RIGHT_STRING': lambda IN, L: IN[-L:] if isinstance(IN, str) else IN,
+        'UINT_TO_INT': lambda x: int(x),
+        'RD_SYS_T': lambda x: 0,
+        'DINT_TO_DWORD': lambda x: int(x),
+        'SHR_BYTE': lambda **kwargs: 0,
+        'WCHAR_TO_DINT': lambda IN: int(IN),
+        'BYTE_TO_INT': lambda x: int(x),
+        'CHAR_TO_BYTE': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else int(x),
+        'INT_TO_BYTE': lambda x: int(x),
+        'STRING_TO_UINT': lambda x: int(x),
+        'WORD_TO_INT': lambda x: int(x),
+        'DWORD_TO_DINT': lambda x: int(x),
         # Add more mocks as needed by specific files
     }}
 
@@ -149,7 +188,12 @@ class Test_{module_name}(unittest.TestCase):
                 if name == '{module_name}': continue
                 try:
                     mod = importlib.import_module(f"scl_test.transpiled.{{name}}")
-                    # Inject functions from sibling module
+
+                    # Inject mocks into sibling module so they can run standard functions
+                    for k, v in mocks.items():
+                        setattr(mod, k, v)
+
+                    # Inject functions from sibling module into current module
                     for attr_name in dir(mod):
                         if not attr_name.startswith('__'):
                             attr = getattr(mod, attr_name)

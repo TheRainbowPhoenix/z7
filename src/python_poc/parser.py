@@ -64,14 +64,15 @@ class CaseStmt(AST):
         return f"CaseStmt({self.expr}, {self.cases}, {self.else_block})"
 
 class ForStmt(AST):
-    def __init__(self, variable, start, end, block):
+    def __init__(self, variable, start, end, step, block):
         self.variable = variable
         self.start = start
         self.end = end
+        self.step = step
         self.block = block
 
     def __repr__(self):
-        return f"ForStmt({self.variable}, {self.start}..{self.end}, {self.block})"
+        return f"ForStmt({self.variable}, {self.start}..{self.end}, step={self.step}, {self.block})"
 
 class WhileStmt(AST):
     def __init__(self, condition, block):
@@ -613,10 +614,16 @@ class Parser:
         start = self.expr()
         self.eat('KEYWORD') # TO
         end = self.expr()
+
+        step = None
+        if self.current_token.type == 'KEYWORD' and self.current_token.value.upper() == 'BY':
+            self.eat('KEYWORD') # BY
+            step = self.expr()
+
         self.eat('KEYWORD') # DO
         block = Block(self.statement_list())
         self.eat('KEYWORD') # END_FOR
-        return ForStmt(variable, start, end, block)
+        return ForStmt(variable, start, end, step, block)
 
     def while_statement(self):
         self.eat('KEYWORD') # WHILE
