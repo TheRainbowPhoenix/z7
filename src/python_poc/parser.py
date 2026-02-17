@@ -173,8 +173,11 @@ class Parser:
         self.current_token = self.lexer.get_next_token()
 
     def peek(self, n=1):
+        # print(f"DEBUG: peek({n})")
         while len(self.token_buffer) < n:
-            self.token_buffer.append(self.lexer.get_next_token())
+            tok = self.lexer.get_next_token()
+            # print(f"DEBUG: peek read {tok}")
+            self.token_buffer.append(tok)
         return self.token_buffer[n-1]
 
     def error(self, msg):
@@ -496,6 +499,28 @@ class Parser:
             self.eat('ASSIGN')
             right = self.expr()
             return Assignment(left, right)
+        elif self.current_token.type == 'PLUS_ASSIGN':
+            self.eat('PLUS_ASSIGN')
+            right = self.expr()
+            # Synthesize BinOp: left + right
+            # We need a Token for PLUS.
+            op_token = Token('PLUS', '+', self.current_token.line, self.current_token.column)
+            return Assignment(left, BinOp(left, op_token, right))
+        elif self.current_token.type == 'MINUS_ASSIGN':
+            self.eat('MINUS_ASSIGN')
+            right = self.expr()
+            op_token = Token('MINUS', '-', self.current_token.line, self.current_token.column)
+            return Assignment(left, BinOp(left, op_token, right))
+        elif self.current_token.type == 'MUL_ASSIGN':
+            self.eat('MUL_ASSIGN')
+            right = self.expr()
+            op_token = Token('MUL', '*', self.current_token.line, self.current_token.column)
+            return Assignment(left, BinOp(left, op_token, right))
+        elif self.current_token.type == 'DIV_ASSIGN':
+            self.eat('DIV_ASSIGN')
+            right = self.expr()
+            op_token = Token('DIV', '/', self.current_token.line, self.current_token.column)
+            return Assignment(left, BinOp(left, op_token, right))
         elif self.current_token.type == 'COLON':
             if isinstance(left, Variable):
                 self.eat('COLON')
@@ -562,27 +587,53 @@ class Parser:
         return WhileStmt(condition, block)
 
     def expr(self):
-        node = self.term()
+        # Lowest precedence: OR, XOR
+        node = self.conjunction()
+        while self.current_token.type == 'KEYWORD' and self.current_token.value.upper() in ['OR', 'XOR']:
+            token = self.current_token
+            self.eat('KEYWORD')
+            node = BinOp(left=node, op=token, right=self.conjunction())
+        return node
 
-        while self.current_token.type in ('PLUS', 'MINUS', 'EQ', 'LT', 'GT') or (self.current_token.type == 'KEYWORD' and self.current_token.value.upper() in ['AND', 'OR', 'XOR']):
+    def conjunction(self):
+        # AND
+        node = self.comparison()
+        while self.current_token.type == 'KEYWORD' and self.current_token.value.upper() == 'AND':
+            token = self.current_token
+            self.eat('KEYWORD')
+            node = BinOp(left=node, op=token, right=self.comparison())
+        return node
+
+    def comparison(self):
+        # =, <>, <, >, <=, >=
+        node = self.simple_expression()
+        while self.current_token.type in ('EQ', 'NE', 'LT', 'LE', 'GT', 'GE'):
+            token = self.current_token
+            self.eat(token.type)
+            node = BinOp(left=node, op=token, right=self.simple_expression())
+        return node
+
+    def simple_expression(self):
+        # +, -
+        node = self.term()
+        while self.current_token.type in ('PLUS', 'MINUS'):
             token = self.current_token
             self.eat(token.type)
             node = BinOp(left=node, op=token, right=self.term())
-
         return node
 
     def term(self):
+        # *, /, MOD
         node = self.factor()
-
         while self.current_token.type in ('MUL', 'DIV') or (self.current_token.type == 'KEYWORD' and self.current_token.value.upper() == 'MOD'):
             token = self.current_token
             self.eat(token.type)
             node = BinOp(left=node, op=token, right=self.factor())
-
         return node
 
     def factor(self):
         token = self.current_token
+        print(f"DEBUG: factor start. token={token}, current={self.current_token}")
         if token.type == 'PLUS':
             self.eat('PLUS')
             return UnaryOp(token, self.factor())
@@ -592,7 +643,46 @@ class Parser:
         elif token.type == 'KEYWORD' and token.value.upper() == 'NOT':
             self.eat('KEYWORD')
             return UnaryOp(token, self.factor())
+        elif (token.type == 'IDENTIFIER' or token.type == 'KEYWORD') and self.peek().type == 'HASH':
+            # Typed literal: TYPE#VALUE
+            type_name = token.value
+            if token.type == 'KEYWORD':
+                self.eat('KEYWORD')
+            else:
+                self.eat('IDENTIFIER')
+            self.eat('HASH')
+
+            # Value can be string, number, time literal, date literal
+            val = self.factor()
+            if isinstance(val, Literal):
+                val.type_name = type_name # Override type
+                return val
+            if isinstance(val, UnaryOp) and isinstance(val.expr, Literal):
+                 return val
+            return val
         elif token.type == 'INTEGER':
+            # Check for base literal: BASE#VALUE
+            if self.peek().type == 'HASH':
+                base = token.value
+                self.eat('INTEGER')
+                self.eat('HASH')
+                val_token = self.current_token
+                # Value can be INTEGER or IDENTIFIER (for hex)
+                val_str = str(val_token.value)
+                if val_token.type == 'INTEGER':
+                    self.eat('INTEGER')
+                elif val_token.type == 'IDENTIFIER':
+                    self.eat('IDENTIFIER')
+                else:
+                    self.error(f"Expected integer or identifier after base#, got {val_token}")
+
+                # Calculate value
+                try:
+                    int_val = int(val_str, base)
+                    return Literal(int_val, 'INTEGER')
+                except ValueError:
+                    self.error(f"Invalid number {val_str} for base {base}")
+
             self.eat('INTEGER')
             return Literal(token.value, 'INTEGER')
         elif token.type == 'FLOAT':

@@ -63,16 +63,18 @@ class Lexer:
 
     def number(self):
         result = ''
-        while self.current_char is not None and self.current_char.isdigit():
-            result += self.current_char
+        while self.current_char is not None and (self.current_char.isdigit() or self.current_char == '_'):
+            if self.current_char != '_':
+                result += self.current_char
             self.advance()
 
         # Check if it's a float (contains dot, but NOT double dot)
         if self.current_char == '.' and self.peek() != '.':
             result += '.'
             self.advance()
-            while self.current_char is not None and self.current_char.isdigit():
-                result += self.current_char
+            while self.current_char is not None and (self.current_char.isdigit() or self.current_char == '_'):
+                if self.current_char != '_':
+                    result += self.current_char
                 self.advance()
             return Token('FLOAT', float(result), self.line, self.column)
         else:
@@ -95,7 +97,7 @@ class Lexer:
             'VERSION', 'VOID', 'INT', 'DINT', 'REAL', 'BOOL', 'TIME', 'STRING', 'ARRAY', 'OF',
             'CONSTANT', 'TYPE', 'END_TYPE', 'STRUCT', 'END_STRUCT', 'WSTRING', 'CHAR', 'BYTE', 'WORD', 'DWORD', 'LWORD',
             'SINT', 'USINT', 'UINT', 'UDINT', 'LINT', 'ULINT', 'LREAL', 'DATE', 'DATE_AND_TIME', 'TOD', 'DT', 'VARIANT',
-            'FUNCTION_BLOCK', 'GOTO', 'LABEL'
+            'FUNCTION_BLOCK', 'GOTO', 'LABEL', 'CASE', 'END_CASE', 'OF', 'REGION', 'END_REGION', 'BY'
         }
 
         token_type = 'KEYWORD' if result.upper() in keywords else 'IDENTIFIER'
@@ -170,6 +172,41 @@ class Lexer:
                 self.advance()
                 self.advance()
                 return Token('RANGE', '..', self.line, self.column)
+
+            if self.current_char == '<' and self.peek() == '>':
+                self.advance()
+                self.advance()
+                return Token('NE', '<>', self.line, self.column)
+
+            if self.current_char == '<' and self.peek() == '=':
+                self.advance()
+                self.advance()
+                return Token('LE', '<=', self.line, self.column)
+
+            if self.current_char == '>' and self.peek() == '=':
+                self.advance()
+                self.advance()
+                return Token('GE', '>=', self.line, self.column)
+
+            if self.current_char == '+' and self.peek() == '=':
+                self.advance()
+                self.advance()
+                return Token('PLUS_ASSIGN', '+=', self.line, self.column)
+
+            if self.current_char == '-' and self.peek() == '=':
+                self.advance()
+                self.advance()
+                return Token('MINUS_ASSIGN', '-=', self.line, self.column)
+
+            if self.current_char == '*' and self.peek() == '=':
+                self.advance()
+                self.advance()
+                return Token('MUL_ASSIGN', '*=', self.line, self.column)
+
+            if self.current_char == '/' and self.peek() == '=':
+                self.advance()
+                self.advance()
+                return Token('DIV_ASSIGN', '/=', self.line, self.column)
 
             # Single char tokens
             single_char_tokens = {

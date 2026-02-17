@@ -20,10 +20,28 @@ def mock_functions():
         'MAX': max,
         'MIN': min,
         'LIMIT': lambda mn, val, mx: max(mn, min(val, mx)),
+        'CONCAT_STRING': lambda **kwargs: "".join(str(v) for v in kwargs.values()),
+        'INT_TO_STRING': lambda x: str(x),
+        'CountOfElements': lambda x: len(x) if isinstance(x, list) else 0,
+        'Int___CountOfElements': lambda x: len(x) if isinstance(x, list) else 0,
+        'DINT_TO_WSTRING': lambda IN: str(IN),
+        'CONCAT_WSTRING': lambda **kwargs: "".join(str(v) for v in kwargs.values()),
+        'Strip_Sign': lambda **kwargs: kwargs.get('WString', ''),
+        'Add_Leading': lambda **kwargs: kwargs.get('String', ''),
+        'LEFT': lambda IN, L: IN[:L] if isinstance(IN, str) else IN,
+        'RIGHT': lambda IN, L: IN[-L:] if isinstance(IN, str) else IN,
+        'LEN': len,
+        'DELETE': lambda IN, L, P: IN[:P-1] + IN[P-1+L:] if isinstance(IN, str) else IN,
+        'MID': lambda IN, L, P: IN[P-1:P-1+L] if isinstance(IN, str) else IN,
+        'FIND': lambda IN1, IN2: IN1.find(IN2) + 1 if isinstance(IN1, str) else 0,
+        'INSERT': lambda IN1, IN2, P: IN1[:P-1] + IN2 + IN1[P-1:] if isinstance(IN1, str) else IN1,
+        'REPLACE': lambda IN1, IN2, L, P: IN1[:P-1] + IN2 + IN1[P-1+L:] if isinstance(IN1, str) else IN1,
+        'CHAR_TO_INT': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else int(x),
+        'STRING_TO_CHAR': lambda x: x[0] if isinstance(x, str) and len(x) > 0 else '',
         # Add more mocks as needed by specific files
     }
 
-class Test_Int___Search(unittest.TestCase):
+class Test_Delimeter_Position(unittest.TestCase):
     def setUp(self):
         self.runtime = Runtime()
         # Load the specific transpiled module content to runtime
@@ -42,14 +60,20 @@ class Test_Int___Search(unittest.TestCase):
         # Let's import that .py file?
         # Since the generated code is just a function def, we can just exec it.
 
-        import scl_test.transpiled.Int___Search as transpiled_module
+        import scl_test.transpiled.Delimeter_Position as transpiled_module
 
         # We need to find the function in the module
-        func = getattr(transpiled_module, 'Int___Search')
+        func = getattr(transpiled_module, 'Is_Symbol')
 
         context = DotDict({
-            'haystack': [0] * 100,
-            'needle': 0,
+            'character': 0,
+            'ret': False,
+            '0': 0,
+            '9': 0,
+            'A': 0,
+            'Z': 0,
+            '_a': 0,
+            '_z': 0,
         })
 
         global_dbs = DotDict({})

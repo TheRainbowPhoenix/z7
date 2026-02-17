@@ -190,7 +190,7 @@ class Transpiler:
         op_map = {
             'PLUS': '+', 'MINUS': '-', 'MUL': '*', 'DIV': '/',
             'EQ': '==', 'LT': '<', 'GT': '>',
-            # Add others as needed
+            'NE': '!=', 'LE': '<=', 'GE': '>='
         }
 
         # Handle keywords (AND, OR, XOR, MOD)

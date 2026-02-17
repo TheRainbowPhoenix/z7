@@ -49,7 +49,7 @@ def generate_test(module_name, program, output_dir):
         context_setup = "        context = DotDict({\n"
 
         for decl in func.var_decls:
-            if decl.section_type in ['VAR_INPUT', 'VAR_IN_OUT', 'VAR_OUTPUT', 'VAR', 'VAR CONSTANT']:
+            if decl.section_type in ['VAR_INPUT', 'VAR_IN_OUT', 'VAR_OUTPUT', 'VAR', 'VAR CONSTANT', 'VAR_TEMP']:
                 for name, type_spec, init_val in decl.vars:
                     py_val = "0"
                     if "BOOL" in type_spec.upper():
@@ -85,6 +85,24 @@ def mock_functions():
         'MAX': max,
         'MIN': min,
         'LIMIT': lambda mn, val, mx: max(mn, min(val, mx)),
+        'CONCAT_STRING': lambda **kwargs: "".join(str(v) for v in kwargs.values()),
+        'INT_TO_STRING': lambda x: str(x),
+        'CountOfElements': lambda x: len(x) if isinstance(x, list) else 0,
+        'Int___CountOfElements': lambda x: len(x) if isinstance(x, list) else 0,
+        'DINT_TO_WSTRING': lambda IN: str(IN),
+        'CONCAT_WSTRING': lambda **kwargs: "".join(str(v) for v in kwargs.values()),
+        'Strip_Sign': lambda **kwargs: kwargs.get('WString', ''),
+        'Add_Leading': lambda **kwargs: kwargs.get('String', ''),
+        'LEFT': lambda IN, L: IN[:L] if isinstance(IN, str) else IN,
+        'RIGHT': lambda IN, L: IN[-L:] if isinstance(IN, str) else IN,
+        'LEN': len,
+        'DELETE': lambda IN, L, P: IN[:P-1] + IN[P-1+L:] if isinstance(IN, str) else IN,
+        'MID': lambda IN, L, P: IN[P-1:P-1+L] if isinstance(IN, str) else IN,
+        'FIND': lambda IN1, IN2: IN1.find(IN2) + 1 if isinstance(IN1, str) else 0,
+        'INSERT': lambda IN1, IN2, P: IN1[:P-1] + IN2 + IN1[P-1:] if isinstance(IN1, str) else IN1,
+        'REPLACE': lambda IN1, IN2, L, P: IN1[:P-1] + IN2 + IN1[P-1+L:] if isinstance(IN1, str) else IN1,
+        'CHAR_TO_INT': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else int(x),
+        'STRING_TO_CHAR': lambda x: x[0] if isinstance(x, str) and len(x) > 0 else '',
         # Add more mocks as needed by specific files
     }}
 
