@@ -1,4 +1,248 @@
-Test Run Start: scl_test/Step7_Functions/All Functions/Time/WString to Time.scl
+Test Run Start: scl_test
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Barcode/Code 128.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Barcode/Code 128.scl
+SCL Header:
+FUNCTION_BLOCK "Code 128"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      partNumber : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Code_128.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Code_128.py", line 166, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Code_128.py", line 32, in Code_128
+    context['charsIn'][int(context['i'])] = 0
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: 'int' object does not support item assignment
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Code_128.py", line 169, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: 'int' object does not support item assignment
+
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Code_128/Code_128.String_to_Code.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Code_128/Code_128.String_to_Code.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/DWord/DWord.To_String.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/DWord/DWord.To_String.scl
+SCL Header:
+FUNCTION "String.Trim" : String
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Data Structures/Stack.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Data Structures/Stack.scl
+SCL Header:
+TYPE "Stack_Int.Commands"
+VERSION : 0.1
+   STRUCT
+      initialize : Bool;
+      pop : Bool;
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Data Structures/Queue.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Data Structures/Queue.scl
+SCL Header:
+TYPE "Queue_Stack_Int.Input_Data"
+VERSION : 0.1
+   STRUCT
+      element : Int;
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Data Structures/Linked List.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Data Structures/Linked List.scl
+SCL Header:
+TYPE "Linked List: Node: Data"
+VERSION : 0.1
+   STRUCT
+      place_holder : Int;
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.029s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Table Navigation/Table Navigation General.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Table Navigation/Table Navigation General.scl
+SCL Header:
+TYPE "PB Data: Graphic/Text List"
+VERSION : 0.1
+   STRUCT
+      actuate : Bool;
+      animate : USInt;
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Byte/Byte.To_String.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Byte/Byte.To_String.scl
+SCL Header:
+FUNCTION "String.Trim" : String
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Byte/Byte.Array.Shift.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Byte/Byte.Array.Shift.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.023s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Int/Int.PseudoRandom.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Int/Int.PseudoRandom.scl
+SCL Header:
+FUNCTION_BLOCK "Int.PseudoRandom"
+TITLE = Pseudo Random Int Generator
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'Int'
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.022s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Int/Int.Summation.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Int/Int.Summation.scl
+SCL Header:
+FUNCTION "Int.Summation" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      start_index : Int;
+...
+
+Test Output:
+Transpilation: FAILED
+
 ==================================================
 
 TEST: scl_test/Step7_Functions/All Functions/Time/WString to Time.scl
@@ -14,8 +258,2346 @@ VERSION : 0.1
 ...
 
 Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_WString_to_Time.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_WString_to_Time.py", line 166, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/WString_to_Time.py", line 33, in WString_to_Time
+    Strg_TO_Chars(Strg=context['String Box'], pChars=0, Cnt=context['Count'], Chars=context['WChar Array'])
+    ^^^^^^^^^^^^^
+NameError: name 'Strg_TO_Chars' is not defined
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_WString_to_Time.py", line 169, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: name 'Strg_TO_Chars' is not defined
+
+----------------------------------------------------------------------
+Ran 1 test in 0.036s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Time/Time to WString.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Time/Time to WString.scl
+SCL Header:
+FUNCTION "Time to WString" : WString
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "Time" : Time;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Time_to_WString.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Time_to_WString.py", line 172, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Time_to_WString.py", line 41, in Time_to_WString
+    context['Time Elements'][int(0)] = ''
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+TypeError: 'str' object does not support item assignment
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Time_to_WString.py", line 175, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: 'str' object does not support item assignment
+
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Time/Real to WString Timer.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Time/Real to WString Timer.scl
+SCL Header:
+FUNCTION "Real to WString Timer" : WString
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      realVal : Real;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Real_to_WString_Timer.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Real_to_WString_Timer.py", line 156, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Real_to_WString_Timer.py", line 14, in Real_to_WString_Timer
+    context['Real to WString Timer'] = Time_to_WString(DINT_TO_TIME(REAL_TO_DINT((context['realVal'] * context['msPerSec']))))
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/transpiled/Time_to_WString.py", line 25, in Time_to_WString
+    context['Milliseconds per 10 Hours'] = 36000000
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'int' object does not support item assignment
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Real_to_WString_Timer.py", line 159, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: 'int' object does not support item assignment
+
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Time/WString Timer to Real.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Time/WString Timer to Real.scl
+SCL Header:
+FUNCTION "WString Timer to Real" : Real
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "wstring" : WString;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_WString_Timer_to_Real.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_WString_Timer_to_Real.py", line 156, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/WString_Timer_to_Real.py", line 14, in WString_Timer_to_Real
+    context['WString Timer to Real'] = (DINT_TO_REAL(TIME_TO_DINT(WString_to_Time(context['wstring']))) / context['msPerSec'])
+                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/transpiled/WString_to_Time.py", line 19, in WString_to_Time
+    context['ms/(10 hr)'] = 36000000
+    ~~~~~~~^^^^^^^^^^^^^^
+TypeError: 'str' object does not support item assignment
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_WString_Timer_to_Real.py", line 159, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: 'str' object does not support item assignment
+
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Fill.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Fill.scl
+SCL Header:
+FUNCTION "Int[].Fill" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      value : Int;   // value that will fill array
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Int___Fill.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___Fill.py", line 158, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Int___Fill.py", line 16, in Int___Fill
+    context['size'] = UDINT_TO_DINT(Int___CountOfElements(context['data']))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___Fill.py", line 161, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].IsFull.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].IsFull.scl
+SCL Header:
+FUNCTION "Int[].IsFull" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Array[*] of Int;   // array to be checked
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Int___IsFull.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___IsFull.py", line 158, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Int___IsFull.py", line 15, in Int___IsFull
+    context['size'] = UDINT_TO_DINT(Int___CountOfElements(context['array']))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___IsFull.py", line 161, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].IsEmpty.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].IsEmpty.scl
+SCL Header:
+FUNCTION "Int[].IsEmpty" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Array[*] of Int;   // array to be checked
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Int___IsEmpty.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___IsEmpty.py", line 158, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Int___IsEmpty.py", line 15, in Int___IsEmpty
+    context['size'] = UDINT_TO_DINT(Int___CountOfElements(context['array']))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___IsEmpty.py", line 161, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Swap.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Swap.scl
+SCL Header:
+FUNCTION "Int[].Swap" : Void
+TITLE = Swap Elements In An Array
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'Int[]'
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Search.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Search.scl
+SCL Header:
+FUNCTION "Int[].Search" : Int
+TITLE = Search Array of Integers
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'Int[]'
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Int___Search.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___Search.py", line 158, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Int___Search.py", line 15, in Int___Search
+    context['size'] = UDINT_TO_INT(Int___CountOfElements(context['haystack']))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___Search.py", line 161, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.026s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].CollapseRight.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].CollapseRight.scl
+SCL Header:
+FUNCTION "Int[].CollapseRight" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      null_token : Int;   // int value used as null in your project
+...
+
+Test Output:
 Transpilation: FAILED
 
 ==================================================
 
-Summary: 0 Passed, 1 Failed.
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Split.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Split.scl
+SCL Header:
+FUNCTION "Int[].Split" : Void
+TITLE = Split An Integer Array in Half
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'Int[]'
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Int___Split.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___Split.py", line 165, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Int___Split.py", line 23, in Int___Split
+    Int___Fill(value=context['null_token'], data=context['left'])
+  File "/app/scl_test/transpiled/Int___Fill.py", line 16, in Int___Fill
+    context['size'] = UDINT_TO_DINT(Int___CountOfElements(context['data']))
+                      ^^^^^^^^^^^^^
+NameError: name 'UDINT_TO_DINT' is not defined
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___Split.py", line 168, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: name 'UDINT_TO_DINT' is not defined
+
+----------------------------------------------------------------------
+Ran 1 test in 0.032s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].CollapseLeft.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].CollapseLeft.scl
+SCL Header:
+FUNCTION "Int[].CollapseLeft" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      null_token : Int;   // int value used as null in your project
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Int___CollapseLeft.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___CollapseLeft.py", line 159, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Int___CollapseLeft.py", line 17, in Int___CollapseLeft
+    context['size'] = UDINT_TO_DINT(Int___CountOfElements(context['array']))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___CollapseLeft.py", line 162, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].CountOfElements.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].CountOfElements.scl
+SCL Header:
+FUNCTION "Int[].CountOfElements" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      data : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.023s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].ShiftLeft.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].ShiftLeft.scl
+SCL Header:
+FUNCTION "Int[].ShiftLeft" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      places : DInt;   // must be positive
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.027s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].ShiftRight.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].ShiftRight.scl
+SCL Header:
+FUNCTION "Int[].ShiftRight" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      null_token : Int;
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Clear.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Clear.scl
+SCL Header:
+FUNCTION "Int[].Clear" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      null_token : Int;   // null representation in your project
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Int___Clear.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___Clear.py", line 158, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Int___Clear.py", line 16, in Int___Clear
+    Int___Fill(value=context['null_token'], data=context['array'])
+  File "/app/scl_test/transpiled/Int___Fill.py", line 16, in Int___Fill
+    context['size'] = UDINT_TO_DINT(Int___CountOfElements(context['data']))
+                      ^^^^^^^^^^^^^
+NameError: name 'UDINT_TO_DINT' is not defined
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Int___Clear.py", line 161, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: name 'UDINT_TO_DINT' is not defined
+
+----------------------------------------------------------------------
+Ran 1 test in 0.032s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Stack/Int{Stack}.PseudoRandom.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Stack/Int{Stack}.PseudoRandom.scl
+SCL Header:
+FUNCTION_BLOCK "Int{Stack}.PseudoRandom"
+TITLE = Genertate Random Stack of Ints
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'Int{S}'
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Timers/Timer.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Timers/Timer.scl
+SCL Header:
+TYPE "Runtime.All_Data"
+VERSION : 0.1
+   STRUCT
+      memory : LReal;
+      ellapsed : LReal;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.026s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Scroll_Speed.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Scroll_Speed.scl
+SCL Header:
+TYPE "ADP: Decoded: Scroll Speed"
+VERSION : 0.1
+   STRUCT
+      slowest : String[9] := 'slowest';
+      slow : String[9] := 'slow';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.027s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.scl
+SCL Header:
+TYPE "ADP: Encoded: Formatting: Horizontal Alignment"
+VERSION : 0.1
+   STRUCT
+      center : String[5] := '$L1';
+      left : String[5] := '$L0';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.026s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Size_and_Face.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Size_and_Face.scl
+SCL Header:
+TYPE "ADP: Decoded: Size and Face"
+VERSION : 0.1
+   STRUCT
+      bold_5 : String[11] := 'bold 5';
+      bold_11 : String[11] := 'bold 11';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Horizontal_Alignment.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Horizontal_Alignment.scl
+SCL Header:
+TYPE "ADP: Decoded: Horizontal Alignment"
+VERSION : 0.1
+   STRUCT
+      center : String[8] := 'center';
+      left : String[8] := 'left';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.scl
+SCL Header:
+TYPE "ADP: Encoded: Formatting: Size and Face"
+VERSION : 0.1
+   STRUCT
+      bold_5 : String[5] := '$1AG';
+      bold_11 : String[5] := '$1AH';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.026s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Scroll_Speed.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Scroll_Speed.scl
+SCL Header:
+TYPE "ADP: Encoded: Formatting: Scroll Speed"
+VERSION : 0.1
+   STRUCT
+      slowest : String[5] := '$15';
+      slow : String[5] := '$16';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Vertical_Alignment.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Vertical_Alignment.scl
+SCL Header:
+TYPE "ADP: Decoded: Vertical Alignment"
+VERSION : 0.1
+   STRUCT
+      bottom_hold : String[15] := 'bottom hold';
+      fill_hold : String[15] := 'fill hold';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.023s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Horizontal_Alignment.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Horizontal_Alignment.scl
+SCL Header:
+TYPE "ADP: Decoded: Horizontal Alignment"
+VERSION : 0.1
+   STRUCT
+      center : String[8] := 'center';
+      left : String[8] := 'left';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Vertical_Alignment.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Vertical_Alignment.scl
+SCL Header:
+TYPE "ADP: Encoded: Formatting: Vertical Alignment"
+VERSION : 0.1
+   STRUCT
+      middle_hold : String[5] := '$1B b';
+      fill_hold : String[5] := '$1B"b';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.023s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Size_and_Face.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Size_and_Face.scl
+SCL Header:
+TYPE "ADP: Decoded: Size and Face"
+VERSION : 0.1
+   STRUCT
+      bold_5 : String[11] := 'bold 5';
+      bold_11 : String[11] := 'bold 11';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Flashing.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Flashing.scl
+SCL Header:
+TYPE "ADP: Encoded: Formatting: Flashing"
+VERSION : 0.1
+   STRUCT
+      off : String[5] := '$070';
+      on : String[5] := '$071';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Flashing.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Flashing.scl
+SCL Header:
+TYPE "ADP: Decoded: Flash"
+VERSION : 0.1
+   STRUCT
+      off : String[8] := 'off';
+      on : String[8] := 'on';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.023s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Color.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Color.scl
+SCL Header:
+TYPE "ADP: Encoded: Formatting: Color"
+VERSION : 0.1
+   STRUCT
+      black { S7_SetPoint := 'True'} : String[5] := '$1C0';
+      blue : String[5] := '$1C8';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Color.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Color.scl
+SCL Header:
+TYPE "ADP: Decoded: Color"
+VERSION : 0.1
+   STRUCT
+      black : String[8] := 'black';
+      blue : String[8] := 'blue';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.023s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Web/1200/Publish_System_Time_to_Web_Page.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Web/1200/Publish_System_Time_to_Web_Page.scl
+SCL Header:
+FUNCTION "Is Symbol" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+//returns false if the input character is a number or letter of either case
+   VAR_INPUT
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.031s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Web/1200/Set_System_Time_from_Web_Page.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Web/1200/Set_System_Time_from_Web_Page.scl
+SCL Header:
+FUNCTION "Split" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      string_in : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Set_System_Time_from_Web_Page.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Set_System_Time_from_Web_Page.py", line 161, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 23, in Split
+    context['sub_strings'][int(context['pointer'])] = LEFT(IN=context['string_in'], L=(context['_position'] - 1))
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object does not support item assignment
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Set_System_Time_from_Web_Page.py", line 164, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: 'str' object does not support item assignment
+
+----------------------------------------------------------------------
+Ran 1 test in 0.026s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Nibble/Nibble.To_String.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Nibble/Nibble.To_String.scl
+SCL Header:
+FUNCTION "String.Trim" : String
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.026s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Word/Word.To_String.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Word/Word.To_String.scl
+SCL Header:
+FUNCTION "String.Trim" : String
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Load Format Codes.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Load Format Codes.scl
+SCL Header:
+FUNCTION "Load Format Codes" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+BEGIN
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Is Symbol.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Is Symbol.scl
+SCL Header:
+FUNCTION "Is Symbol" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+//returns false if the input character is a number or letter of either case
+   VAR_INPUT
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.023s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Select Element by Format Code.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Select Element by Format Code.scl
+SCL Header:
+TYPE "Elements as Strings"
+VERSION : 0.1
+   STRUCT
+      year : String[4];
+      month : String[2];
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Select_Element_by_Format_Code.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Select_Element_by_Format_Code.py", line 155, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Select_Element_by_Format_Code.py", line 11, in Format_Code_as_Int
+    context['Format Code as Int'] = CHAR_TO_INT(STRING_TO_CHAR(LEFT(IN=context['formatCode'], L=1)))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/tests/test_Select_Element_by_Format_Code.py", line 81, in <lambda>
+    'CHAR_TO_INT': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else int(x),
+                                                                              ^^^^^^
+ValueError: invalid literal for int() with base 10: ''
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Select_Element_by_Format_Code.py", line 158, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: invalid literal for int() with base 10: ''
+
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Split_Multiple.Clean_Output.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Split_Multiple.Clean_Output.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Upper.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Upper.scl
+SCL Header:
+FUNCTION "Upper" : String
+TITLE = Upper
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Upper.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Upper.py", line 164, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Upper.py", line 25, in Upper
+    Strg_TO_Chars(Strg=context['string'], pChars=0, Cnt=context['cntChar'], Chars=context['charArr'])
+    ^^^^^^^^^^^^^
+NameError: name 'Strg_TO_Chars' is not defined
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Upper.py", line 167, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: name 'Strg_TO_Chars' is not defined
+
+----------------------------------------------------------------------
+Ran 1 test in 0.036s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Add Leading.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Add Leading.scl
+SCL Header:
+FUNCTION "Add Leading" : String
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "Leading Character" : Char;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.023s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Is Format Character.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Is Format Character.scl
+SCL Header:
+FUNCTION "Is Format Character" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      character : Char;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Format Output.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Format Output.scl
+SCL Header:
+TYPE "Elements as Strings"
+VERSION : 0.1
+   STRUCT
+      year : String[4];
+      month : String[2];
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Format_Output.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Format_Output.py", line 155, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Format_Output.py", line 11, in Format_Code_as_Int
+    context['Format Code as Int'] = CHAR_TO_INT(STRING_TO_CHAR(LEFT(IN=context['formatCode'], L=1)))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/tests/test_Format_Output.py", line 81, in <lambda>
+    'CHAR_TO_INT': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else int(x),
+                                                                              ^^^^^^
+ValueError: invalid literal for int() with base 10: ''
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Format_Output.py", line 158, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: invalid literal for int() with base 10: ''
+
+----------------------------------------------------------------------
+Ran 1 test in 0.027s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Split_Multiple.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Split_Multiple.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/String.PercentComplete.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/String.PercentComplete.scl
+SCL Header:
+FUNCTION "String.PercentComplete" : String
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      percent_complete : Int;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.023s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Find_Multiple.Breadth.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Find_Multiple.Breadth.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Trim.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Trim.scl
+SCL Header:
+FUNCTION "Trim" : String
+TITLE = Trim
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Delimeter Position.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Delimeter Position.scl
+SCL Header:
+FUNCTION "Is Symbol" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+//returns false if the input character is a number or letter of either case
+   VAR_INPUT
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Resolve Format.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Resolve Format.scl
+SCL Header:
+FUNCTION "Is Symbol" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+//returns false if the input character is a number or letter of either case
+   VAR_INPUT
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.027s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Lower.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Lower.scl
+SCL Header:
+FUNCTION "Lower" : String
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "string" : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Lower.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Lower.py", line 162, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Lower.py", line 23, in Lower
+    Strg_TO_Chars(Strg=context['string'], pChars=0, Cnt=context['cntChar'], Chars=context['charArr'])
+    ^^^^^^^^^^^^^
+NameError: name 'Strg_TO_Chars' is not defined
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Lower.py", line 165, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: name 'Strg_TO_Chars' is not defined
+
+----------------------------------------------------------------------
+Ran 1 test in 0.036s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Strip Sign.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Strip Sign.scl
+SCL Header:
+FUNCTION "Strip Sign" : String
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "string" : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Strip_Sign.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Strip_Sign.py", line 160, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Strip_Sign.py", line 21, in Strip_Sign
+    context['Test Character'] = LEFT_STRING(IN=context['String Box'], L=1)
+                                ^^^^^^^^^^^
+NameError: name 'LEFT_STRING' is not defined
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Strip_Sign.py", line 163, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: name 'LEFT_STRING' is not defined
+
+----------------------------------------------------------------------
+Ran 1 test in 0.032s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Format String Elements.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Format String Elements.scl
+SCL Header:
+FUNCTION "Format String Elements" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+BEGIN
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Array.WString.Reverse.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Array.WString.Reverse.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Format Code as Int.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Format Code as Int.scl
+SCL Header:
+FUNCTION "Format Code as Int" : Int
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      formatCode : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Format_Code_as_Int.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Format_Code_as_Int.py", line 155, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Format_Code_as_Int.py", line 11, in Format_Code_as_Int
+    context['Format Code as Int'] = CHAR_TO_INT(STRING_TO_CHAR(LEFT(IN=context['formatCode'], L=1)))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/tests/test_Format_Code_as_Int.py", line 81, in <lambda>
+    'CHAR_TO_INT': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else int(x),
+                                                                              ^^^^^^
+ValueError: invalid literal for int() with base 10: ''
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Format_Code_as_Int.py", line 158, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: invalid literal for int() with base 10: ''
+
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Elements to Strings.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Elements to Strings.scl
+SCL Header:
+TYPE "Element Lengths"
+VERSION : 0.1
+   STRUCT
+      year : Int;
+      month : Int;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.026s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Resolve Element Lengths.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Resolve Element Lengths.scl
+SCL Header:
+TYPE "String Buffer"
+VERSION : 0.1
+   STRUCT
+      me : Array[0..9] of String [10];
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Resolve_Element_Lengths.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Resolve_Element_Lengths.py", line 160, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Resolve_Element_Lengths.py", line 21, in Resolve_Element_Lengths
+    context['code'] = context['formatCodes'].me[int(context['pCode'])]
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'str' object has no attribute 'me'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Resolve_Element_Lengths.py", line 163, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: 'str' object has no attribute 'me'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Strip_Sign.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Strip_Sign.scl
+SCL Header:
+FUNCTION "Strip_Sign" : String
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "string" : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Strip_Sign.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Strip_Sign.py", line 160, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Strip_Sign.py", line 21, in Strip_Sign
+    context['Test Character'] = LEFT_STRING(IN=context['String Box'], L=1)
+                                ^^^^^^^^^^^
+NameError: name 'LEFT_STRING' is not defined
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Strip_Sign.py", line 163, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: name 'LEFT_STRING' is not defined
+
+----------------------------------------------------------------------
+Ran 1 test in 0.032s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Parse Date_And_Time Elements.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Parse Date_And_Time Elements.scl
+SCL Header:
+TYPE "Byte Buffer"
+VERSION : 0.1
+   STRUCT
+      me : Array[0..7] of Byte;
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.023s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Split_Single.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Split_Single.scl
+SCL Header:
+FUNCTION "WString.Split_Single" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      wstring_in : WString;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_WString_Split_Single.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_WString_Split_Single.py", line 161, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/WString_Split_Single.py", line 23, in WString_Split_Single
+    context['sub_strings'][int(context['pointer'])] = LEFT(IN=context['wstring_in'], L=(context['_position'] - 1))
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object does not support item assignment
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_WString_Split_Single.py", line 164, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: 'str' object does not support item assignment
+
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Find_Multiple.Depth.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Find_Multiple.Depth.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Parse Format.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Parse Format.scl
+SCL Header:
+FUNCTION "Is Symbol" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+//returns false if the input character is a number or letter of either case
+   VAR_INPUT
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Find_Multiple.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Find_Multiple.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.026s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Date_And_Time to String.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Date_And_Time to String.scl
+SCL Header:
+FUNCTION "Is Symbol" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+//returns false if the input character is a number or letter of either case
+   VAR_INPUT
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.030s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Split.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Split.scl
+SCL Header:
+FUNCTION "Split" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      string_in : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Split.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Split.py", line 161, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Split.py", line 23, in Split
+    context['sub_strings'][int(context['pointer'])] = LEFT(IN=context['string_in'], L=(context['_position'] - 1))
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object does not support item assignment
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Split.py", line 164, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: 'str' object does not support item assignment
+
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Add Leading Characters to Elements.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Add Leading Characters to Elements.scl
+SCL Header:
+TYPE "Element Lengths"
+VERSION : 0.1
+   STRUCT
+      year : Int;
+      month : Int;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Word_Wrap.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Word_Wrap.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Char.Is_Numeric.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Char.Is_Numeric.scl
+SCL Header:
+FUNCTION "Char.Is_Numeric" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      character : Char;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/DInt/DInt.Summation.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/DInt/DInt.Summation.scl
+SCL Header:
+FUNCTION "DInt.Summation" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      start_index : DInt;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.023s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/KP8/LRUD KP8 Remap.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/KP8/LRUD KP8 Remap.scl
+SCL Header:
+FUNCTION "LRUD KP8 Remap" : Int
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      btnNum : Int;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/KP8/KP8 Driver.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/KP8/KP8 Driver.scl
+SCL Header:
+TYPE "KP8 Driver: Parameters: 1 Button"
+VERSION : 0.1
+   STRUCT
+      activate : Bool;   // true = button on, flase = button off
+      "color on 1" : String[10];   // color when button is in pressed state. valid entries: 'red', 'green', 'blue', 'yellow', 'white', 'off'
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.027s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/MQTT-Siemens-S7-1500/MQTT_Runtime.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/MQTT-Siemens-S7-1500/MQTT_Runtime.scl
+SCL Header:
+FUNCTION_BLOCK "mqttRuntime"
+TITLE = 'Runtimercounter'
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Groschke
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.024s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/MQTT-Siemens-S7-1500/MQTT_Main_CP.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/MQTT-Siemens-S7-1500/MQTT_Main_CP.scl
+SCL Header:
+FUNCTION_BLOCK "MQTT"
+TITLE = 'MQTT MAIN Function(CP)'
+{ S7_Optimized_Access := 'FALSE' }
+AUTHOR : Maul
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/MQTT-Siemens-S7-1500/MQTT_Receiving.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/MQTT-Siemens-S7-1500/MQTT_Receiving.scl
+SCL Header:
+FUNCTION "mqttAvailable" : Bool
+TITLE = 'MQTT mqttAvailable Helper Function'
+{ S7_Optimized_Access := 'FALSE' }
+AUTHOR : Brand
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/MQTT-Siemens-S7-1500/MQTT_Sending.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/MQTT-Siemens-S7-1500/MQTT_Sending.scl
+SCL Header:
+FUNCTION "mqttSendTCP" : Void
+TITLE = 'MQTT mqttSendTCP Helper Function'
+{ S7_Optimized_Access := 'FALSE' }
+AUTHOR : Brand
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_MQTT_Sending.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_MQTT_Sending.py", line 157, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/MQTT_Sending.py", line 14, in mqttSendTCP
+    if ((context['mqttData'].sendSize + context['size']) <= context['mqttGlobals'].TCP_SENDBUFFERSIZE):
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~
+TypeError: unsupported operand type(s) for +: 'DotDict' and 'int'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_MQTT_Sending.py", line 160, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: unsupported operand type(s) for +: 'DotDict' and 'int'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.027s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/MQTT-Siemens-S7-1500/MQTT_Functions.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/MQTT-Siemens-S7-1500/MQTT_Functions.scl
+SCL Header:
+(*
+    TODO:
+    - connect method: handle reset of message ID according to cleanSessio flag
+
+*)
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_MQTT_Functions.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_MQTT_Functions.py", line 154, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/MQTT_Functions.py", line 9, in mqttGetNextMessageID
+    context['mqttData'].nextMsgId = (context['mqttData'].nextMsgId + 1)
+                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~
+TypeError: unsupported operand type(s) for +: 'DotDict' and 'int'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_MQTT_Functions.py", line 157, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: unsupported operand type(s) for +: 'DotDict' and 'int'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.028s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/MQTT-Siemens-S7-1500/MQTT_Main_PN.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/MQTT-Siemens-S7-1500/MQTT_Main_PN.scl
+SCL Header:
+FUNCTION_BLOCK "MQTT"
+TITLE = 'MQTT MAIN Function(PN)'
+{ S7_Optimized_Access := 'FALSE' }
+AUTHOR : Maul
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/MQTT-Siemens-S7-1500/MQTT_Example.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/MQTT-Siemens-S7-1500/MQTT_Example.scl
+SCL Header:
+FUNCTION_BLOCK "mqttExample"
+TITLE = 'MQTT Example Application'
+{ S7_Optimized_Access := 'FALSE' }
+AUTHOR : Brand
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/MQTT-Siemens-S7-1500/Unixtime.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/MQTT-Siemens-S7-1500/Unixtime.scl
+SCL Header:
+FUNCTION "Unixtime" : DWord
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+   VAR_TEMP
+      leapyears : Int;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Unixtime.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Unixtime.py", line 167, in test_run
+    func(context, global_dbs)
+  File "/app/scl_test/transpiled/Unixtime.py", line 25, in Unixtime
+    context['days_from_BeginOfYear'][int(0)] = 0
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+TypeError: 'int' object does not support item assignment
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Unixtime.py", line 170, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: 'int' object does not support item assignment
+
+----------------------------------------------------------------------
+Ran 1 test in 0.025s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+Summary: 50 Passed, 40 Failed.

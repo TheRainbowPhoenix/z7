@@ -1,2 +1,4 @@
+__pycache__/
 *.pyc
-*.bak
+scl_test/transpiled/
+scl_test/tests/

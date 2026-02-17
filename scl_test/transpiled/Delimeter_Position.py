@@ -1,6 +1,10 @@
 import math
 
-def Is_Symbol(context, global_dbs):
+def Is_Symbol(context=None, global_dbs=None, **kwargs):
+    if context is None: context = {}
+    if global_dbs is None: global_dbs = {}
+    for k, v in kwargs.items():
+        context[k] = v
     # Return Type: Bool
     # VAR_INPUT:
     #   character: Char
@@ -27,7 +31,11 @@ def Is_Symbol(context, global_dbs):
     context['Is Symbol'] = context['ret']
 
 
-def Delimeter_Position(context, global_dbs):
+def Delimeter_Position(context=None, global_dbs=None, **kwargs):
+    if context is None: context = {}
+    if global_dbs is None: global_dbs = {}
+    for k, v in kwargs.items():
+        context[k] = v
     # Return Type: Int
     # VAR_INPUT:
     #   format: String

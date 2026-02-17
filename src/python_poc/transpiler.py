@@ -28,16 +28,21 @@ class Transpiler:
     def sanitize_name(self, name):
         if not isinstance(name, str):
             name = str(name)
-        return name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_')
+        return name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
 
     def visit_Function(self, node):
         # We generate a function that takes 'context' and 'global_dbs'
         # context will hold all INPUT, OUTPUT, IN_OUT, TEMP variables.
         func_name = self.sanitize_name(node.name)
-        
-        code = f"def {func_name}(context, global_dbs):\n"
+
+        code = f"def {func_name}(context=None, global_dbs=None, **kwargs):\n"
         self.indent_level += 1
-        
+
+        code += f"{self.indent()}if context is None: context = {{}}\n"
+        code += f"{self.indent()}if global_dbs is None: global_dbs = {{}}\n"
+        code += f"{self.indent()}for k, v in kwargs.items():\n"
+        code += f"{self.indent()}    context[k] = v\n"
+
         # Initialize TEMP variables if needed, or rely on them being in context?
         # Typically TEMP are undefined at start.
         # We can document declared variables in comments
@@ -51,9 +56,22 @@ class Transpiler:
                     # Initialize variable in context
                     # If it's a CONSTANT, we treat it as context variable initialized once
                     code += f"{self.indent()}context['{name}'] = {val_code}\n"
-        
-        code += self.visit(node.block)
-        
+
+        block_code = self.visit(node.block)
+        code += block_code
+
+        # Check if we generated any statements in the body (assignments or block)
+        has_init = False
+        for decl in node.var_decls:
+            for _, _, init_val in decl.vars:
+                if init_val:
+                    has_init = True
+                    break
+            if has_init: break
+
+        if not block_code and not has_init:
+             code += f"{self.indent()}pass\n"
+
         self.indent_level -= 1
         return code
 
@@ -84,13 +102,13 @@ class Transpiler:
     def visit_IfStmt(self, node):
         cond = self.visit(node.condition)
         code = f"if {cond}:\n"
-        
+
         self.indent_level += 1
         code += self.visit(node.then_block)
         if not node.then_block.statements:
             code += f"{self.indent()}pass\n"
         self.indent_level -= 1
-        
+
         if node.else_block:
             # Check if else_block contains a single IfStmt (ELSIF case optimization)
             if isinstance(node.else_block, Block) and len(node.else_block.statements) == 1 and isinstance(node.else_block.statements[0], IfStmt):
@@ -110,16 +128,16 @@ class Transpiler:
                  if not node.else_block.statements:
                     code += f"{self.indent()}pass\n"
                  self.indent_level -= 1
-        
+
         return code.strip() # Strip trailing newline to let visit_Block handle it
 
     def visit_CaseStmt(self, node):
         expr = self.visit(node.expr)
-        
+
         # We need to evaluate expr once.
         var_name = f"_case_val_{self.indent_level}"
         code = f"{var_name} = {expr}\n"
-        
+
         first = True
         for labels, block in node.cases:
             conditions = []
@@ -131,21 +149,21 @@ class Transpiler:
                 else: # Single value
                     val = self.visit(label)
                     conditions.append(f"{var_name} == {val}")
-            
+
             condition_str = " or ".join(conditions)
-            
+
             if first:
                 code += f"{self.indent()}if {condition_str}:\n"
                 first = False
             else:
                 code += f"{self.indent()}elif {condition_str}:\n"
-            
+
             self.indent_level += 1
             code += self.visit(block)
             if not block.statements:
                  code += f"{self.indent()}pass\n"
             self.indent_level -= 1
-            
+
         if node.else_block:
             code += f"{self.indent()}else:\n"
             self.indent_level += 1
@@ -153,22 +171,22 @@ class Transpiler:
             if not node.else_block.statements:
                  code += f"{self.indent()}pass\n"
             self.indent_level -= 1
-            
+
         return code.strip()
 
     def visit_ForStmt(self, node):
         var = self.visit(node.variable)
         start = self.visit(node.start)
         end = self.visit(node.end)
-        
+
         # SCL loops are inclusive TO end. Python range is exclusive.
         # Also need to handle loop variable assignment.
         # Since 'var' maps to context['var'], we need to update it in the loop.
-        
+
         # We can't use 'for context["i"] in range...' directly in python.
         # So we use a temp python var, and assign it to context var inside loop.
-        loop_var = f"_loop_var_{self.indent_level}" 
-        
+        loop_var = f"_loop_var_{self.indent_level}"
+
         code = f"for {loop_var} in range(int({start}), int({end}) + 1):\n"
         self.indent_level += 1
         code += f"{self.indent()}{var} = {loop_var}\n"
@@ -194,21 +212,21 @@ class Transpiler:
 
     def visit_GotoStmt(self, node):
         # Python has no GOTO. We generate a comment.
-        return f"# GOTO {node.target} (Not supported)"
+        return f"pass # GOTO {node.target} (Not supported)"
 
     def visit_LabelStmt(self, node):
         # Label.
-        return f"# LABEL {node.name}"
+        return f"pass # LABEL {node.name}"
 
     def visit_BinOp(self, node):
         left = self.visit(node.left)
         right = self.visit(node.right)
         op_map = {
-            'PLUS': '+', 'MINUS': '-', 'MUL': '*', 'DIV': '/', 
+            'PLUS': '+', 'MINUS': '-', 'MUL': '*', 'DIV': '/',
             'EQ': '==', 'LT': '<', 'GT': '>',
             'NE': '!=', 'LE': '<=', 'GE': '>='
         }
-        
+
         # Handle keywords (AND, OR, XOR, MOD)
         if node.op.type == 'KEYWORD':
             val = node.op.value.upper()
@@ -219,18 +237,18 @@ class Transpiler:
             else: op = val
         else:
             op = op_map.get(node.op.type, node.op.type)
-            
+
         return f"({left} {op} {right})"
 
     def visit_UnaryOp(self, node):
         expr = self.visit(node.expr)
         op_map = {'PLUS': '+', 'MINUS': '-'}
-        
+
         if node.op.type == 'KEYWORD' and node.op.value.upper() == 'NOT':
             op = 'not '
         else:
             op = op_map.get(node.op.type, node.op.type)
-            
+
         return f"({op}{expr})"
 
     def visit_Variable(self, node):
@@ -240,7 +258,7 @@ class Transpiler:
             name = str(node.name).strip('"')
         else:
             name = node.name.strip('"')
-            
+
         if node.is_local:
              # #var means local context
              return f"context['{name}']"
@@ -252,26 +270,26 @@ class Transpiler:
             # So if it starts with #, it's local (handled by parser setting is_local).
             # If not, it might be local or global.
             # Lexer/Parser distinguishes #.
-            # We will assume if not local, we try global_dbs first? 
+            # We will assume if not local, we try global_dbs first?
             # Or if it contains spaces/dots, it's likely global DB or complex access.
             # But the parser splits dots into MemberAccess.
             # So here we just have the base name.
-            
+
             # If the name corresponds to a known DB (we don't know them statically easily), use global_dbs.
-            # For PoC, let's assume if it is NOT in context, it is global? 
+            # For PoC, let's assume if it is NOT in context, it is global?
             # But we are generating code.
-            # Let's try context first, then global_dbs? 
+            # Let's try context first, then global_dbs?
             # Or use a helper function `get_var(name, context, global_dbs)`.
             # But we want assignments to work: `get_var(...) = val` is invalid.
-            
+
             # If it's on the LHS of assignment, we need a valid lvalue.
             # `context['name']` is valid. `global_dbs['name']` is valid.
-            
+
             # Strategy:
             # If name looks like a DB (e.g. "DB Services"), use global_dbs.
             # If it looks like a variable (no spaces usually, unless quoted), context.
             # But "DB Services" is quoted.
-            
+
             if "DB " in name or " " in name: # Heuristic for DB names in this example
                 return f"global_dbs['{name}']"
             else:
@@ -280,17 +298,13 @@ class Transpiler:
     def visit_MemberAccess(self, node):
         expr = self.visit(node.expr)
         member = node.member.strip('"')
-        # Accessing field of a DB or Struct.
-        # Python: expr['member'] or expr.member
-        # Since we use dicts for DBs/Structs:
-        # If expr is `global_dbs['DB Services']` which is a dict (likely Mock object wrapping dict),
-        # we can use attribute access if we implement `__getattr__` or dict access.
-        # The SCL uses dots. `expr.member`.
-        # If we map everything to objects, `expr.member` is fine.
-        # If we map to dicts, `expr['member']`.
-        # Let's try to use object-style access in Python for read, but we need it for write too.
-        # `expr.member = val`.
-        return f"{expr}.{member}"
+
+        # Check if member is a valid python identifier and not a keyword
+        import keyword
+        if not member.isidentifier() or keyword.iskeyword(member):
+             return f"{expr}['{member}']"
+        else:
+             return f"{expr}.{member}"
 
     def visit_ArrayAccess(self, node):
         expr = self.visit(node.expr)
@@ -321,4 +335,3 @@ class Transpiler:
         val = self.visit(node.expr)
         name = self.sanitize_name(node.name)
         return f"{name}={val}"
-

@@ -11,7 +11,7 @@ class DotDict(dict):
         # Auto-create nested dict if missing for convenience in mocking
         if item not in self:
             self[item] = DotDict({})
-        
+
         value = self[item]
         if isinstance(value, dict) and not isinstance(value, DotDict):
             value = DotDict(value)
@@ -31,7 +31,7 @@ class DotDict(dict):
         # Auto-create nested dict if missing for convenience in mocking
         if item not in self:
             self[item] = DotDict({})
-            
+
         value = super().__getitem__(item)
         if isinstance(value, dict) and not isinstance(value, DotDict):
             value = DotDict(value)
@@ -46,14 +46,14 @@ class Runtime:
     def load_scl(self, filepath):
         with open(filepath, 'r', encoding='utf-8-sig') as f:
             code = f.read()
-        
+
         lexer = Lexer(code)
         parser = Parser(lexer)
         program = parser.program()
-        
+
         transpiler = Transpiler()
         python_code = transpiler.generate(program)
-        
+
         # Execute the generated code to define functions
         # We execute it in a local namespace, but we need to capture the functions.
         local_scope = {}
@@ -70,26 +70,25 @@ class Runtime:
         except Exception as e:
             print(f"Error executing transpiled code:\n{python_code}")
             raise e
-        
+
         # Store functions in compiled_code
         for name, func in local_scope.items():
             if callable(func):
                 self.compiled_code[name] = func
-        
+
         print(f"Loaded functions: {list(self.compiled_code.keys())}")
         return python_code # For debugging
 
     def run_function(self, func_name, context_vars=None):
         if func_name not in self.compiled_code:
             raise Exception(f"Function {func_name} not found.")
-        
+
         func = self.compiled_code[func_name]
-        
+
         # Prepare context (inputs, outputs, temps)
         context = DotDict(context_vars if context_vars else {})
-        
+
         # Run
         func(context, self.global_dbs)
-        
-        return context
 
+        return context

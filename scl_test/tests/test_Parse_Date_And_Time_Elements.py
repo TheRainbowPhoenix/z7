@@ -80,6 +80,11 @@ def mock_functions():
         'REPLACE': lambda IN1, IN2, L, P: IN1[:P-1] + IN2 + IN1[P-1+L:] if isinstance(IN1, str) else IN1,
         'CHAR_TO_INT': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else int(x),
         'STRING_TO_CHAR': lambda x: x[0] if isinstance(x, str) and len(x) > 0 else '',
+        'UDINT_TO_INT': lambda x: int(x),
+        'CHAR_TO_STRING': lambda x: str(x),
+        'WString_to_Time': lambda x: 0,
+        'RUNTIME': lambda x: 0,
+        'LREAL_TO_INT': lambda x: int(x),
         # Add more mocks as needed by specific files
     }
 
@@ -126,6 +131,27 @@ class Test_Parse_Date_And_Time_Elements(unittest.TestCase):
         mocks = mock_functions()
         for k, v in mocks.items():
             setattr(transpiled_module, k, v)
+
+        # Load all other transpiled modules and inject them
+        try:
+            import pkgutil
+            import importlib
+            import scl_test.transpiled as pkg
+
+            for _, name, _ in pkgutil.iter_modules(pkg.__path__):
+                if name == 'Parse_Date_And_Time_Elements': continue
+                try:
+                    mod = importlib.import_module(f"scl_test.transpiled.{name}")
+                    # Inject functions from sibling module
+                    for attr_name in dir(mod):
+                        if not attr_name.startswith('__'):
+                            attr = getattr(mod, attr_name)
+                            if callable(attr):
+                                setattr(transpiled_module, attr_name, attr)
+                except Exception as e:
+                    print(f"Warning: Failed to import sibling module {name}: {e}")
+        except Exception as e:
+            print(f"Warning: Failed to load sibling modules: {e}")
 
         try:
             func(context, global_dbs)

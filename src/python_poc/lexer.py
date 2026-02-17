@@ -25,7 +25,7 @@ class Lexer:
         if self.current_char == '\n':
             self.line += 1
             self.column = 0
-        
+
         self.pos += 1
         self.column += 1
         if self.pos < len(self.text):
@@ -53,7 +53,7 @@ class Lexer:
     def skip_block_comment(self):
         # Handle (* ... *) comments
         self.advance() # *
-        
+
         while self.current_char is not None:
             if self.current_char == '*' and self.peek() == ')':
                 self.advance()
@@ -67,7 +67,7 @@ class Lexer:
             if self.current_char != '_':
                 result += self.current_char
             self.advance()
-        
+
         # Check if it's a float (contains dot, but NOT double dot)
         if self.current_char == '.' and self.peek() != '.':
             result += '.'
@@ -87,19 +87,19 @@ class Lexer:
             while self.current_char is not None and (self.current_char.isalnum() or self.current_char == '_'):
                 result += self.current_char
                 self.advance()
-        
+
         # Check for keywords
         keywords = {
-            'FUNCTION', 'END_FUNCTION', 'VAR_INPUT', 'END_VAR', 'VAR_OUTPUT', 
-            'VAR_IN_OUT', 'VAR_TEMP', 'VAR', 'BEGIN', 'IF', 'THEN', 'END_IF', 
-            'ELSE', 'ELSIF', 'FOR', 'TO', 'DO', 'END_FOR', 'WHILE', 'END_WHILE', 
+            'FUNCTION', 'END_FUNCTION', 'VAR_INPUT', 'END_VAR', 'VAR_OUTPUT',
+            'VAR_IN_OUT', 'VAR_TEMP', 'VAR', 'BEGIN', 'IF', 'THEN', 'END_IF',
+            'ELSE', 'ELSIF', 'FOR', 'TO', 'DO', 'END_FOR', 'WHILE', 'END_WHILE',
             'EXIT', 'RETURN', 'TRUE', 'FALSE', 'NOT', 'AND', 'OR', 'XOR', 'MOD',
             'VERSION', 'VOID', 'INT', 'DINT', 'REAL', 'BOOL', 'TIME', 'STRING', 'ARRAY', 'OF',
             'CONSTANT', 'TYPE', 'END_TYPE', 'STRUCT', 'END_STRUCT', 'WSTRING', 'CHAR', 'BYTE', 'WORD', 'DWORD', 'LWORD',
             'SINT', 'USINT', 'UINT', 'UDINT', 'LINT', 'ULINT', 'LREAL', 'DATE', 'DATE_AND_TIME', 'TOD', 'DT', 'VARIANT',
             'FUNCTION_BLOCK', 'GOTO', 'LABEL', 'CASE', 'END_CASE', 'OF', 'REGION', 'END_REGION', 'BY', 'DB_SPECIFIC', 'END_FUNCTION_BLOCK'
         }
-        
+
         token_type = 'KEYWORD' if result.upper() in keywords else 'IDENTIFIER'
         return Token(token_type, result, self.line, self.column)
 
@@ -110,7 +110,7 @@ class Lexer:
         while self.current_char is not None and self.current_char != '"':
             result += self.current_char
             self.advance()
-        
+
         if self.current_char == '"':
             self.advance() # Skip closing quote
             return Token('IDENTIFIER', result, self.line, self.column)
@@ -124,7 +124,7 @@ class Lexer:
         while self.current_char is not None and self.current_char != "'":
             result += self.current_char
             self.advance()
-        
+
         if self.current_char == "'":
             self.advance() # Skip closing quote
             return Token('STRING', result, self.line, self.column)
@@ -140,7 +140,7 @@ class Lexer:
             if self.current_char == '/' and self.peek() == '/':
                 self.skip_comment()
                 continue
-            
+
             if self.current_char == '(' and self.peek() == '*':
                 self.advance() # eat (
                 self.skip_block_comment() # eat * and rest
@@ -162,7 +162,7 @@ class Lexer:
                 self.advance()
                 self.advance()
                 return Token('ASSIGN', ':=', self.line, self.column)
-            
+
             if self.current_char == '=' and self.peek() == '>':
                 self.advance()
                 self.advance()
@@ -216,7 +216,7 @@ class Lexer:
                 '=': 'EQ', '<': 'LT', '>': 'GT', '#': 'HASH', '{': 'LBRACE', '}': 'RBRACE',
                 '%': 'PERCENT'
             }
-            
+
             if self.current_char in single_char_tokens:
                 token = Token(single_char_tokens[self.current_char], self.current_char, self.line, self.column)
                 self.advance()
