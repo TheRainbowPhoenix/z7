@@ -4,11 +4,28 @@ class AST:
     pass
 
 class Program(AST):
-    def __init__(self, functions):
+    def __init__(self, functions, types=None):
         self.functions = functions
+        self.types = types if types else []
 
     def __repr__(self):
-        return f"Program({self.functions})"
+        return f"Program({self.functions}, {self.types})"
+
+class TypeDecl(AST):
+    def __init__(self, name, type_spec, version=None):
+        self.name = name
+        self.type_spec = type_spec
+        self.version = version
+
+    def __repr__(self):
+        return f"TypeDecl({self.name}, {self.type_spec})"
+
+class StructType(AST):
+    def __init__(self, members):
+        self.members = members # List of (name, type, init_val)
+
+    def __repr__(self):
+        return f"StructType({self.members})"
 
 class Function(AST):
     def __init__(self, name, return_type, var_decls, block, attributes=None, version=None):
@@ -206,32 +223,48 @@ class Parser:
 
     def program(self):
         functions = []
+        types = []
         while self.current_token.type != 'EOF':
             if self.current_token.type == 'KEYWORD':
                 if self.current_token.value.upper() in ['FUNCTION', 'FUNCTION_BLOCK']:
                     functions.append(self.function())
                 elif self.current_token.value.upper() == 'TYPE':
-                    self.skip_type_block()
+                    types.append(self.type_decl_block())
                 else:
                     self.error(f"Expected FUNCTION, FUNCTION_BLOCK or TYPE, got {self.current_token.value}")
             else:
                 # Skip unknown top level stuff or error
                 self.error("Expected FUNCTION, FUNCTION_BLOCK or TYPE")
-        return Program(functions)
+        return Program(functions, types)
 
-    def skip_type_block(self):
+    def type_decl_block(self):
         self.eat('KEYWORD') # TYPE
-        # Skip until END_TYPE
-        while self.current_token.type != 'EOF':
-            if self.current_token.type == 'KEYWORD' and self.current_token.value.upper() == 'END_TYPE':
-                self.eat('KEYWORD')
-                return
-            self.advance()
+
+        name = self.current_token.value
+        # Name can be string or identifier
+        if self.current_token.type == 'STRING':
+            self.eat('STRING')
+        else:
+            self.eat('IDENTIFIER')
+
+        # Attributes/Version skipping
+        version = self.skip_header_attributes()
+
+        type_node = self.type_spec()
+
+        self.eat('SEMI') # SCL syntax: STRUCT ... END_STRUCT;
+
+        self.eat('KEYWORD') # END_TYPE
+
+        return TypeDecl(name, type_node, version)
 
     def function(self):
         self.eat('KEYWORD') # FUNCTION or FUNCTION_BLOCK
         name = self.current_token.value
-        self.eat('IDENTIFIER')
+        if self.current_token.type == 'STRING':
+             self.eat('STRING')
+        else:
+             self.eat('IDENTIFIER')
 
         # Function Blocks might not have return type directly, or it is the block name?
         # SCL: FUNCTION_BLOCK "Name"
@@ -280,9 +313,12 @@ class Parser:
     def skip_header_attributes(self):
         version = None
         while True:
-            # Check if we reached variable section or BEGIN
-            if self.current_token.type == 'KEYWORD' and (self.current_token.value.upper().startswith('VAR') or self.current_token.value.upper() == 'BEGIN'):
-                break
+            # Check if we reached variable section or BEGIN or TYPE body
+            if self.current_token.type == 'KEYWORD':
+                 if self.current_token.value.upper().startswith('VAR') or \
+                    self.current_token.value.upper() == 'BEGIN' or \
+                    self.current_token.value.upper() == 'STRUCT':
+                     break
 
             if self.current_token.type == 'EOF':
                 break
@@ -372,22 +408,44 @@ class Parser:
             return f"Array[{start}..{end}] of {self.type_spec()}"
         elif self.current_token.type == 'KEYWORD' and self.current_token.value.upper() == 'STRUCT':
             self.eat('KEYWORD') # STRUCT
-            # Skip/Consume struct members until END_STRUCT
+
+            members = []
             while self.current_token.type != 'KEYWORD' or self.current_token.value.upper() != 'END_STRUCT':
                 if self.current_token.type == 'EOF':
                     break
-                # Consume member declaration: name : type ;
+
+                # Consume member declaration: name : type [:= init];
+                name = self.current_token.value
                 self.eat('IDENTIFIER') # name
+
+                # Handle attributes { ... }
+                if self.current_token.type == 'LBRACE':
+                    self.attributes()
+
                 self.eat('COLON')
-                self.type_spec()
+                m_type = self.type_spec()
+
+                init_val = None
+                if self.current_token.type == 'ASSIGN':
+                    self.eat('ASSIGN')
+                    init_val = self.expr()
+
                 self.eat('SEMI')
+                members.append((name, m_type, init_val))
+
             self.eat('KEYWORD') # END_STRUCT
-            return "Struct"
+            return StructType(members)
         else:
             # Base type, potentially followed by length [len]
             val = self.current_token.value
             if self.current_token.type == 'KEYWORD':
                 self.eat('KEYWORD')
+            elif self.current_token.type == 'STRING':
+                # Type name can be a string "Type.Name"
+                self.eat('STRING')
+                # Remove quotes for internal representation if needed, but parser usually keeps tokens raw
+                # val is already the value without quotes if Lexer handles it, but Lexer keeps quotes for STRING.
+                # Let's keep quotes to match usage in VAR decls.
             else:
                 self.eat('IDENTIFIER')
 
@@ -682,7 +740,7 @@ class Parser:
 
     def factor(self):
         token = self.current_token
-        print(f"DEBUG: factor start. token={token}, current={self.current_token}")
+        # print(f"DEBUG: factor start. token={token}, current={self.current_token}")
         if token.type == 'PLUS':
             self.eat('PLUS')
             return UnaryOp(token, self.factor())

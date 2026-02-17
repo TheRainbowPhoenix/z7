@@ -4,6 +4,7 @@ class Transpiler:
     def __init__(self):
         self.indent_level = 0
         self.generated_code = ""
+        self.types_map = {} # SCL type name -> Python class name
 
     def indent(self):
         return "    " * self.indent_level
@@ -20,7 +21,13 @@ class Transpiler:
         raise Exception(f'No visit_{type(node).__name__} method')
 
     def visit_Program(self, node):
-        code = "import math\n\n"
+        code = "import math\n"
+        code += "from src.python_poc.runtime import DotDict, RecursiveMock\n\n"
+
+        # Generate types first
+        for type_decl in node.types:
+            code += self.visit(type_decl) + "\n\n"
+
         for func in node.functions:
             code += self.visit(func) + "\n\n"
         return code
@@ -29,6 +36,99 @@ class Transpiler:
         if not isinstance(name, str):
             name = str(name)
         return name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
+
+    def get_default_val(self, type_spec):
+        if isinstance(type_spec, str):
+            type_upper = type_spec.upper()
+            if type_upper in ['BOOL']:
+                return "False"
+            elif type_upper in ['BYTE', 'WORD', 'DWORD', 'LWORD']:
+                return "0" # Or RecursiveMock? Using 0 for bits manipulation if needed, or RecursiveMock if member access.
+                           # Actually DWord.To_String uses .%B0, so RecursiveMock is better or we need a wrapper.
+                           # My previous fix in transpile_and_test used RecursiveMock for these.
+                           # But inside generated code we don't have RecursiveMock unless imported.
+                           # The generated code imports math. We can inject RecursiveMock or use it if available.
+                           # tools/transpile_and_test injects RecursiveMock.
+                return "RecursiveMock()"
+            elif type_upper in ['INT', 'SINT', 'USINT', 'UINT', 'DINT', 'UDINT', 'LINT', 'ULINT', 'REAL', 'LREAL', 'TIME', 'LTIME', 'S5TIME', 'DATE', 'TOD', 'TIME_OF_DAY', 'DT', 'DATE_AND_TIME', 'CHAR', 'WCHAR']:
+                return "0"
+            elif "STRING" in type_upper or "WSTRING" in type_upper:
+                return "DotDict({})"
+            elif "ARRAY" in type_upper:
+                return "DotDict({})"
+            elif "VARIANT" in type_upper:
+                return "DotDict({})"
+
+            # Check if it is a known UDT
+            # type_spec might be "Timer.Control" (with quotes in parser? parser eats quotes for string token?)
+            # In parser.type_spec(), if it's a string token, we kept quotes?
+            # Let's check Parser.type_spec:
+            # if self.current_token.type == 'STRING': self.eat('STRING') -> val includes quotes if token has them.
+            # Tokenizer for STRING includes quotes.
+
+            clean_type = type_spec.strip('"')
+            if clean_type in self.types_map:
+                return f"{self.types_map[clean_type]}()"
+
+            # If quoted and not found, maybe sanitize?
+            # self.types_map keys are raw names from parser (with quotes if they had them).
+
+            # Fallback
+            return "RecursiveMock()"
+
+        elif isinstance(type_spec, StructType):
+             # Inline struct? We can't easily instantiate a class unless we define it.
+             # Or we return a DotDict with initialized fields.
+             # Generating inline DotDict initialization:
+             # DotDict({'field': val, ...})
+             init_str = "DotDict({"
+             for name, m_type, init in type_spec.members:
+                 val = "0"
+                 if init:
+                     val = self.visit(init)
+                 else:
+                     val = self.get_default_val(m_type)
+                 init_str += f"'{name}': {val}, "
+             init_str += "})"
+             return init_str
+
+        return "None"
+
+    def visit_TypeDecl(self, node):
+        class_name = self.sanitize_name(node.name)
+        # Store in map (handle potential quotes in node.name)
+        clean_name = node.name.strip('"')
+        self.types_map[clean_name] = class_name
+        self.types_map[node.name] = class_name # Store raw too just in case
+
+        code = f"class {class_name}:\n"
+        self.indent_level += 1
+        code += f"{self.indent()}def __init__(self):\n"
+        self.indent_level += 1
+
+        if isinstance(node.type_spec, StructType):
+            code += self.visit_StructType(node.type_spec)
+        else:
+            code += f"{self.indent()}pass\n"
+
+        self.indent_level -= 2
+        return code
+
+    def visit_StructType(self, node):
+        code = ""
+        for name, type_spec, init_val in node.members:
+            val = "0"
+            if init_val:
+                val = self.visit(init_val)
+            else:
+                val = self.get_default_val(type_spec)
+
+            sanitized_name = self.sanitize_name(name)
+            code += f"{self.indent()}self.{sanitized_name} = {val}\n"
+
+        if not code:
+             code += f"{self.indent()}pass\n"
+        return code
 
     def visit_Function(self, node):
         # We generate a function that takes 'context' and 'global_dbs'
@@ -66,11 +166,26 @@ class Transpiler:
             for name, type_spec, init_val in decl.vars:
                 code += f"{self.indent()}#   {name}: {type_spec}\n"
                 sanitized_name = self.sanitize_name(name)
+
+                # Check if it needs initialization (TEMP, VAR) or if init_val is present
+                # VAR_INPUT/IN_OUT are passed in, but if missing, we might want default?
+                # VAR and VAR_TEMP should be initialized.
+
+                needs_init = True # Default to init
+                if decl.section_type in ['VAR_INPUT', 'VAR_IN_OUT']:
+                    # Only init if not in context?
+                    # Python kwargs handling does this.
+                    # But if we want defaults for missing inputs?
+                    # For now, rely on context check
+                    needs_init = False # Initialized by args/kwargs
+
                 if init_val:
                     val_code = self.visit(init_val)
-                    # Initialize variable in context
-                    # If it's a CONSTANT, we treat it as context variable initialized once
-                    code += f"{self.indent()}context['{sanitized_name}'] = {val_code}\n"
+                    code += f"{self.indent()}if '{sanitized_name}' not in context: context['{sanitized_name}'] = {val_code}\n"
+                elif needs_init or decl.section_type in ['VAR', 'VAR_TEMP']:
+                     # Init with default value based on type
+                     default_val = self.get_default_val(type_spec)
+                     code += f"{self.indent()}if '{sanitized_name}' not in context: context['{sanitized_name}'] = {default_val}\n"
 
         block_code = self.visit(node.block)
         code += block_code
@@ -395,7 +510,7 @@ class Transpiler:
                 'TIME_TO_DINT', 'DINT_TO_TIME', 'DATE_AND_TIME_TO_TIME_OF_DAY', 'TIME_OF_DAY_TO_DINT', 'DINT_TO_TIME_OF_DAY',
                 'DATE_TO_DINT', 'DINT_TO_DATE', 'CHAR_TO_INT', 'INT_TO_CHAR', 'STRING_TO_CHAR', 'CHAR_TO_STRING',
                 'BOOL_TO_BYTE', 'BYTE_TO_BOOL', 'BYTE_TO_INT', 'INT_TO_BYTE', 'WORD_TO_INT', 'INT_TO_WORD',
-                'DWORD_TO_DINT', 'DINT_TO_DWORD', 'REAL_TO_DWORD', 'DWORD_TO_REAL',
+                'DWORD_TO_DINT', 'DINT_TO_DWORD', 'REAL_TO_DWORD', 'DWORD_TO_REAL', 'REAL_TO_UDINT',
                 'S_CONV', 'CONVERT', 'ROUND', 'TRUNC', 'FLOOR', 'CEIL',
                 'SWAP', 'ROL', 'ROR', 'SHL', 'SHR',
                 'SCALE_X', 'NORM_X',

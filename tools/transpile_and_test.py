@@ -6,7 +6,7 @@ import traceback
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.python_poc.lexer import Lexer
-from src.python_poc.parser import Parser, VarDecl
+from src.python_poc.parser import Parser, VarDecl, StructType
 from src.python_poc.transpiler import Transpiler
 from src.python_poc.runtime import Runtime, DotDict, RecursiveMock
 
@@ -36,22 +36,26 @@ def transpile_file(scl_filepath, output_dir):
         # traceback.print_exc()
         return None, None, False
 
+def sanitize(name):
+    if not isinstance(name, str):
+        name = str(name)
+    return name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
+
 def generate_test(module_name, program, output_dir):
     try:
         if not program.functions:
             return None
 
+        # Collect defined types
+        defined_types = {}
+        if hasattr(program, 'types'):
+            for t in program.types:
+                clean_name = t.name.strip('"')
+                class_name = sanitize(t.name)
+                defined_types[clean_name] = class_name
+
         # Try to find the "main" function matching the module name
-        # Module name is sanitized filename.
-        # Function names are also sanitized in python.
-        # We look for a function whose sanitized name roughly matches module name.
-
         target_func = program.functions[0] # Default to first
-
-        # Heuristic: check if any function name contains the module name (ignoring case/underscores)
-        # module_name is like "Code_128_String_to_Code"
-        # func.name is "Code_128.String_to_Code"
-
         normalized_mod = module_name.lower().replace('_', '')
 
         for func in program.functions:
@@ -61,7 +65,7 @@ def generate_test(module_name, program, output_dir):
                 break
 
         func = target_func
-        func_name_in_python = func.name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
+        func_name_in_python = sanitize(func.name)
 
         # Prepare context variables (8 spaces indent)
         context_setup = "        context = DotDict({\n"
@@ -70,24 +74,29 @@ def generate_test(module_name, program, output_dir):
             if decl.section_type in ['VAR_INPUT', 'VAR_IN_OUT', 'VAR_OUTPUT', 'VAR', 'VAR CONSTANT', 'VAR_TEMP']:
                 for name, type_spec, init_val in decl.vars:
                     # Sanitize name
-                    sanitized_name = name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
+                    sanitized_name = sanitize(name)
 
-                    # Use RecursiveMock by default for complex types
+                    # Determine initial value
                     py_val = "RecursiveMock(f'" + sanitized_name + "')"
 
-                    type_upper = type_spec.upper()
+                    type_str = str(type_spec).strip('"')
+                    type_upper = type_str.upper()
 
-                    if "ARRAY" in type_upper:
+                    if isinstance(type_spec, StructType):
                         py_val = "DotDict({})"
-                    elif "BOOL" in type_upper:
+                    elif type_str in defined_types:
+                        py_val = f"transpiled_module.{defined_types[type_str]}()"
+                    elif "ARRAY" in type_upper:
+                        py_val = "DotDict({})"
+                    elif "BOOL" == type_upper or type_upper == "BOOL":
                         py_val = "False"
                     elif "STRING" in type_upper or "WSTRING" in type_upper:
                         py_val = "DotDict({})"
                     elif "VARIANT" in type_upper:
                          py_val = "DotDict({})"
-                    elif "WORD" in type_upper or "DWORD" in type_upper or "BYTE" in type_upper:
+                    elif type_upper in ['BYTE', 'WORD', 'DWORD', 'LWORD']:
                         py_val = "RecursiveMock(f'" + sanitized_name + "')"
-                    elif "INT" in type_upper or "DINT" in type_upper or "REAL" in type_upper or "TIME" in type_upper:
+                    elif type_upper in ['INT', 'SINT', 'USINT', 'UINT', 'DINT', 'UDINT', 'LINT', 'ULINT', 'REAL', 'LREAL', 'TIME', 'LTIME', 'S5TIME', 'DATE', 'TOD', 'TIME_OF_DAY', 'DT', 'DATE_AND_TIME', 'CHAR', 'WCHAR']:
                         py_val = "0"
 
                     context_setup += f"            '{sanitized_name}': {py_val},\n"

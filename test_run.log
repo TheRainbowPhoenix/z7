@@ -15,10 +15,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.037s
+Ran 1 test in 0.035s
 
 OK
 
@@ -40,10 +41,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.034s
 
 OK
 
@@ -65,14 +67,41 @@ VERSION : 1.0
 
 Test Output:
 Transpilation: SUCCESS
-Execution successful
-.
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
+F
+======================================================================
+FAIL: test_run (__main__.Test_DWord_To_String.test_run)
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_DWord_To_String.py", line 116, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/DWord_To_String.py", line 133, in Word_To_String
+    context['Word_To_String'] = CONCAT_STRING(IN1=Byte_To_String(context['value']['%B1'], context=context, global_dbs=global_dbs), IN2=Byte_To_String(context['value']['%B0'], context=context, global_dbs=global_dbs))
+                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/transpiled/Byte_To_String.py", line 116, in Byte_To_String
+    context['Byte_ToString'] = CONCAT_STRING(IN1=Nibble_ToString(context['_high_nibble'], context=context, global_dbs=global_dbs), IN2=Nibble_ToString(context['_low_nibble'], context=context, global_dbs=global_dbs))
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/transpiled/Byte_To_String.py", line 77, in Nibble_ToString
+    context['_ret'] = String_Trim(String_Strip_Sign(INT_TO_STRING(context['_nibble_as_int']), context=context, global_dbs=global_dbs), context=context, global_dbs=global_dbs)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/transpiled/Byte_To_String.py", line 42, in String_Strip_Sign
+    if 'String_Box' not in context: context['String_Box'] = DotDict({})
+                                                            ^^^^^^^
+NameError: name 'DotDict' is not defined
 
-OK
+During handling of the above exception, another exception occurred:
 
-RESULT: PASSED
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_DWord_To_String.py", line 119, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: name 'DotDict' is not defined
+
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+FAILED (failures=1)
+
+RESULT: FAILED
 
 ==================================================
 
@@ -158,6 +187,7 @@ VERSION : 1.0
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 F
 ======================================================================
 FAIL: test_run (__main__.Test_Byte_To_String.test_run)
@@ -181,7 +211,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: name 'DotDict' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.034s
+Ran 1 test in 0.039s
 
 FAILED (failures=1)
 
@@ -203,10 +233,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.034s
 
 OK
 
@@ -228,10 +259,11 @@ FAMILY : 'Int'
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.030s
+Ran 1 test in 0.035s
 
 OK
 
@@ -270,10 +302,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.037s
+Ran 1 test in 0.036s
 
 OK
 
@@ -295,6 +328,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 F
 ======================================================================
 FAIL: test_run (__main__.Test_Time_to_WString.test_run)
@@ -315,7 +349,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: division by zero
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.036s
 
 FAILED (failures=1)
 
@@ -337,6 +371,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 F
 ======================================================================
 FAIL: test_run (__main__.Test_Real_to_WString_Timer.test_run)
@@ -360,7 +395,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: name 'DotDict' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.036s
 
 FAILED (failures=1)
 
@@ -382,6 +417,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 F
 ======================================================================
 FAIL: test_run (__main__.Test_WString_Timer_to_Real.test_run)
@@ -402,7 +438,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: mock_functions.<locals>.<lambda>() got an unexpected keyword argument 'context'
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.035s
+Ran 1 test in 0.040s
 
 FAILED (failures=1)
 
@@ -424,10 +460,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.035s
 
 OK
 
@@ -449,10 +486,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.033s
 
 OK
 
@@ -474,10 +512,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.033s
 
 OK
 
@@ -499,10 +538,11 @@ FAMILY : 'Int[]'
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.035s
 
 OK
 
@@ -524,10 +564,11 @@ FAMILY : 'Int[]'
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.032s
 
 OK
 
@@ -549,10 +590,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.033s
 
 OK
 
@@ -574,10 +616,11 @@ FAMILY : 'Int[]'
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.037s
 
 OK
 
@@ -599,10 +642,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.033s
 
 OK
 
@@ -624,10 +668,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.030s
+Ran 1 test in 0.033s
 
 OK
 
@@ -649,10 +694,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.034s
 
 OK
 
@@ -674,10 +720,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.033s
 
 OK
 
@@ -699,10 +746,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.030s
+Ran 1 test in 0.032s
 
 OK
 
@@ -741,6 +789,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 F
 ======================================================================
 FAIL: test_run (__main__.Test_Timer.test_run)
@@ -761,7 +810,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: 'bool' object has no attribute 'reset'
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.033s
 
 FAILED (failures=1)
 
@@ -783,10 +832,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.030s
+Ran 1 test in 0.034s
 
 OK
 
@@ -808,10 +858,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.035s
+Ran 1 test in 0.039s
 
 OK
 
@@ -833,10 +884,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.038s
+Ran 1 test in 0.033s
 
 OK
 
@@ -858,10 +910,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.033s
 
 OK
 
@@ -883,6 +936,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
@@ -908,10 +962,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.034s
 
 OK
 
@@ -933,10 +988,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.033s
 
 OK
 
@@ -958,10 +1014,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.078s
+Ran 1 test in 0.032s
 
 OK
 
@@ -983,10 +1040,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.039s
+Ran 1 test in 0.036s
 
 OK
 
@@ -1008,10 +1066,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.035s
+Ran 1 test in 0.032s
 
 OK
 
@@ -1033,10 +1092,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.032s
 
 OK
 
@@ -1058,10 +1118,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.035s
 
 OK
 
@@ -1083,6 +1144,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
@@ -1108,10 +1170,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.034s
 
 OK
 
@@ -1133,6 +1196,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 F
 ======================================================================
 FAIL: test_run (__main__.Test_Publish_System_Time_to_Web_Page.test_run)
@@ -1156,7 +1220,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: name 'DotDict' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.095s
+Ran 1 test in 0.047s
 
 FAILED (failures=1)
 
@@ -1178,6 +1242,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 F
 ======================================================================
 FAIL: test_run (__main__.Test_Set_System_Time_from_Web_Page.test_run)
@@ -1201,7 +1266,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: name 'DotDict' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.036s
+Ran 1 test in 0.041s
 
 FAILED (failures=1)
 
@@ -1223,14 +1288,35 @@ VERSION : 1.0
 
 Test Output:
 Transpilation: SUCCESS
-Execution successful
-.
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
+F
+======================================================================
+FAIL: test_run (__main__.Test_Nibble_To_String.test_run)
 ----------------------------------------------------------------------
-Ran 1 test in 0.035s
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Nibble_To_String.py", line 117, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/Nibble_To_String.py", line 77, in Nibble_To_String
+    context['_ret'] = String_Trim(String_Strip_Sign(INT_TO_STRING(context['_nibble_as_int']), context=context, global_dbs=global_dbs), context=context, global_dbs=global_dbs)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/transpiled/Word_To_String.py", line 42, in String_Strip_Sign
+    if 'String_Box' not in context: context['String_Box'] = DotDict({})
+                                                            ^^^^^^^
+NameError: name 'DotDict' is not defined
 
-OK
+During handling of the above exception, another exception occurred:
 
-RESULT: PASSED
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Nibble_To_String.py", line 120, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: name 'DotDict' is not defined
+
+----------------------------------------------------------------------
+Ran 1 test in 0.037s
+
+FAILED (failures=1)
+
+RESULT: FAILED
 
 ==================================================
 
@@ -1248,6 +1334,7 @@ VERSION : 1.0
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 F
 ======================================================================
 FAIL: test_run (__main__.Test_Word_To_String.test_run)
@@ -1299,10 +1386,11 @@ BEGIN
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.033s
 
 OK
 
@@ -1324,10 +1412,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.035s
 
 OK
 
@@ -1349,6 +1438,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 F
 ======================================================================
 FAIL: test_run (__main__.Test_Select_Element_by_Format_Code.test_run)
@@ -1372,7 +1462,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: invalid literal for int() with base 10: ''
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.034s
 
 FAILED (failures=1)
 
@@ -1394,10 +1484,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.034s
+Ran 1 test in 0.033s
 
 OK
 
@@ -1419,6 +1510,7 @@ FAMILY : 'String'
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
@@ -1444,6 +1536,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
@@ -1469,10 +1562,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.032s
 
 OK
 
@@ -1494,6 +1588,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 F
 ======================================================================
 FAIL: test_run (__main__.Test_Format_Output.test_run)
@@ -1539,10 +1634,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.034s
 
 OK
 
@@ -1564,10 +1660,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.034s
 
 OK
 
@@ -1589,6 +1686,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
@@ -1633,10 +1731,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.034s
 
 OK
 
@@ -1658,10 +1757,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.034s
+Ran 1 test in 0.036s
 
 OK
 
@@ -1683,10 +1783,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.045s
+Ran 1 test in 0.032s
 
 OK
 
@@ -1708,6 +1809,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
@@ -1733,6 +1835,7 @@ BEGIN
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
@@ -1758,6 +1861,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 F
 ======================================================================
 FAIL: test_run (__main__.Test_Array_WString_Reverse.test_run)
@@ -1800,6 +1904,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 F
 ======================================================================
 FAIL: test_run (__main__.Test_Format_Code_as_Int.test_run)
@@ -1823,7 +1928,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: invalid literal for int() with base 10: ''
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.034s
 
 FAILED (failures=1)
 
@@ -1900,6 +2005,7 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
@@ -1944,10 +2050,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.035s
+Ran 1 test in 0.033s
 
 OK
 
@@ -1969,10 +2076,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.031s
 
 OK
 
@@ -1994,10 +2102,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.034s
+Ran 1 test in 0.032s
 
 OK
 
@@ -2019,10 +2128,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.031s
 
 OK
 
@@ -2044,10 +2154,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.103s
+Ran 1 test in 0.040s
 
 OK
 
@@ -2069,10 +2180,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.037s
+Ran 1 test in 0.032s
 
 OK
 
@@ -2094,10 +2206,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.036s
+Ran 1 test in 0.034s
 
 OK
 
@@ -2119,10 +2232,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.037s
+Ran 1 test in 0.032s
 
 OK
 
@@ -2144,10 +2258,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.031s
 
 OK
 
@@ -2169,31 +2284,15 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_DInt_Summation.test_run)
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_DInt_Summation.py", line 116, in test_run
-    func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/DInt_Summation.py", line 15, in DInt_Summation
-    context['DInt_Summation'] = REAL_TO_UDINT((((context['end_index'] - context['start_index']) * ((context['end_index'] - context['start_index']) + 1)) / 2), context=context, global_dbs=global_dbs)
-                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: mock_functions.<locals>.<lambda>() got an unexpected keyword argument 'context'
+Ran 1 test in 0.032s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_DInt_Summation.py", line 119, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: mock_functions.<locals>.<lambda>() got an unexpected keyword argument 'context'
-
-----------------------------------------------------------------------
-Ran 1 test in 0.036s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -2211,10 +2310,11 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
+Warning: Failed to import sibling module KP8_Driver: invalid syntax (KP8_Driver.py, line 6)
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.033s
 
 OK
 
@@ -2241,15 +2341,16 @@ E
 ERROR: test_run (__main__.Test_KP8_Driver.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_KP8_Driver.py", line 72, in test_run
-    import scl_test.transpiled.KP8_Driver as transpiled_module
-  File "/app/scl_test/transpiled/KP8_Driver.py", line 6
-    self.color on 1 = DotDict({})
-               ^^
-SyntaxError: invalid syntax
+  File "/app/scl_test/tests/test_KP8_Driver.py", line 79, in test_run
+    'btnsParams': transpiled_module.KP8_Driver__Parameters__8_Buttons(),
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/transpiled/KP8_Driver.py", line 21, in __init__
+    self.btn = DotDict({})
+               ^^^^^^^
+NameError: name 'DotDict' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.002s
+Ran 1 test in 0.011s
 
 FAILED (errors=1)
 
@@ -2257,4 +2358,4 @@ RESULT: FAILED
 
 ==================================================
 
-Summary: 58 Passed, 24 Failed.
+Summary: 57 Passed, 25 Failed.

@@ -18,7 +18,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.037s
+Ran 1 test in 0.034s
 
 OK
 
@@ -43,7 +43,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.036s
 
 OK
 
@@ -68,7 +68,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.034s
 
 OK
 
@@ -158,34 +158,14 @@ VERSION : 1.0
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_Byte_To_String.test_run)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Byte_To_String.py", line 119, in test_run
-    func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/Byte_To_String.py", line 116, in Byte_To_String
-    context['Byte_ToString'] = CONCAT_STRING(IN1=Nibble_ToString(context['_high_nibble'], context=context, global_dbs=global_dbs), IN2=Nibble_ToString(context['_low_nibble'], context=context, global_dbs=global_dbs))
-                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scl_test/transpiled/Byte_To_String.py", line 73, in Nibble_ToString
-    if '_ret' not in context: context['_ret'] = DotDict({})
-                                                ^^^^^^^
-NameError: name 'DotDict' is not defined
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Byte_To_String.py", line 122, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: name 'DotDict' is not defined
-
+Execution successful
+.
 ----------------------------------------------------------------------
 Ran 1 test in 0.034s
 
-FAILED (failures=1)
+OK
 
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -206,7 +186,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.034s
 
 OK
 
@@ -231,7 +211,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.030s
+Ran 1 test in 0.034s
 
 OK
 
@@ -273,7 +253,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.037s
+Ran 1 test in 0.034s
 
 OK
 
@@ -302,7 +282,7 @@ FAIL: test_run (__main__.Test_Time_to_WString.test_run)
 Traceback (most recent call last):
   File "/app/scl_test/tests/test_Time_to_WString.py", line 132, in test_run
     func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/Time_to_WString.py", line 50, in Time_to_WString
+  File "/app/scl_test/transpiled/Time_to_WString.py", line 51, in Time_to_WString
     context['Minutes_10s_Place'] = (context['Time_as_DInt'] / context['Milliseconds_per_10_Minutes'])
                                     ~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ZeroDivisionError: division by zero
@@ -315,7 +295,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: division by zero
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.035s
 
 FAILED (failures=1)
 
@@ -337,34 +317,14 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_Real_to_WString_Timer.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Real_to_WString_Timer.py", line 116, in test_run
-    func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/Real_to_WString_Timer.py", line 16, in Real_to_WString_Timer
-    context['Real_to_WString_Timer'] = Time_to_WString(DINT_TO_TIME(REAL_TO_DINT((context['realVal'] * context['msPerSec']))), context=context, global_dbs=global_dbs)
-                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scl_test/transpiled/Time_to_WString.py", line 29, in Time_to_WString
-    if 'Time_Elements' not in context: context['Time_Elements'] = DotDict({})
-                                                                  ^^^^^^^
-NameError: name 'DotDict' is not defined
+Ran 1 test in 0.035s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Real_to_WString_Timer.py", line 119, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: name 'DotDict' is not defined
-
-----------------------------------------------------------------------
-Ran 1 test in 0.033s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -389,7 +349,7 @@ FAIL: test_run (__main__.Test_WString_Timer_to_Real.test_run)
 Traceback (most recent call last):
   File "/app/scl_test/tests/test_WString_Timer_to_Real.py", line 116, in test_run
     func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/WString_Timer_to_Real.py", line 16, in WString_Timer_to_Real
+  File "/app/scl_test/transpiled/WString_Timer_to_Real.py", line 17, in WString_Timer_to_Real
     context['WString_Timer_to_Real'] = (DINT_TO_REAL(TIME_TO_DINT(WString_to_Time(context['wstring'], context=context, global_dbs=global_dbs))) / context['msPerSec'])
                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 TypeError: mock_functions.<locals>.<lambda>() got an unexpected keyword argument 'context'
@@ -427,7 +387,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.033s
 
 OK
 
@@ -452,7 +412,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.033s
 
 OK
 
@@ -477,7 +437,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.034s
 
 OK
 
@@ -502,7 +462,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.033s
 
 OK
 
@@ -527,7 +487,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.034s
 
 OK
 
@@ -552,7 +512,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.036s
 
 OK
 
@@ -577,7 +537,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.038s
 
 OK
 
@@ -602,7 +562,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.036s
 
 OK
 
@@ -627,7 +587,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.030s
+Ran 1 test in 0.035s
 
 OK
 
@@ -652,7 +612,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.033s
 
 OK
 
@@ -677,7 +637,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.033s
 
 OK
 
@@ -702,7 +662,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.030s
+Ran 1 test in 0.032s
 
 OK
 
@@ -741,31 +701,14 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_Timer.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Timer.py", line 128, in test_run
-    func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/Timer.py", line 132, in Timer
-    context['last'].reset = context['control'].reset
-    ^^^^^^^^^^^^^^^^^^^^^
-AttributeError: 'bool' object has no attribute 'reset'
+Ran 1 test in 0.033s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Timer.py", line 131, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: 'bool' object has no attribute 'reset'
-
-----------------------------------------------------------------------
-Ran 1 test in 0.031s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -786,7 +729,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.030s
+Ran 1 test in 0.054s
 
 OK
 
@@ -811,7 +754,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.035s
+Ran 1 test in 0.037s
 
 OK
 
@@ -836,7 +779,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.038s
+Ran 1 test in 0.034s
 
 OK
 
@@ -861,7 +804,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.033s
 
 OK
 
@@ -886,7 +829,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.037s
+Ran 1 test in 0.038s
 
 OK
 
@@ -911,7 +854,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.035s
 
 OK
 
@@ -936,7 +879,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.037s
 
 OK
 
@@ -961,7 +904,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.078s
+Ran 1 test in 0.039s
 
 OK
 
@@ -986,7 +929,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.039s
+Ran 1 test in 0.034s
 
 OK
 
@@ -1036,7 +979,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.034s
 
 OK
 
@@ -1061,7 +1004,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.036s
 
 OK
 
@@ -1086,7 +1029,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.034s
 
 OK
 
@@ -1111,7 +1054,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.033s
 
 OK
 
@@ -1140,23 +1083,31 @@ FAIL: test_run (__main__.Test_Publish_System_Time_to_Web_Page.test_run)
 Traceback (most recent call last):
   File "/app/scl_test/tests/test_Publish_System_Time_to_Web_Page.py", line 118, in test_run
     func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/Publish_System_Time_to_Web_Page.py", line 719, in Publish_System_Time_to_Web_Page
+  File "/app/scl_test/transpiled/Publish_System_Time_to_Web_Page.py", line 720, in Publish_System_Time_to_Web_Page
     context['_return'] = DTL_to_String(time_as_dtl=context['_system_time'], format='yyyy-mm-dd hh:ii:ss', error_message=context['_error_message'], context=context, global_dbs=global_dbs)
                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scl_test/transpiled/Publish_System_Time_to_Web_Page.py", line 669, in DTL_to_String
-    if 'formatCodes' not in context: context['formatCodes'] = DotDict({})
-                                                              ^^^^^^^
-NameError: name 'DotDict' is not defined
+  File "/app/scl_test/transpiled/Publish_System_Time_to_Web_Page.py", line 682, in DTL_to_String
+    Resolve_Format(format=context['format'], error_message=context['retError'], formatCodes=context['formatCodes'], delimeters=context['delimeters'], context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/Resolve_Format.py", line 247, in Resolve_Format
+    if (not Is_Format_Character(STRING_TO_CHAR(LEFT(IN=context['_format'], L=1)), context=context, global_dbs=global_dbs)):
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/transpiled/Resolve_Format.py", line 141, in Is_Format_Character
+    _case_val_1 = CHAR_TO_INT(context['character'])
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/tests/test_Publish_System_Time_to_Web_Page.py", line 40, in <lambda>
+    'CHAR_TO_INT': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else int(x),
+                                                                              ^^^^^^
+ValueError: invalid literal for int() with base 10: ''
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
   File "/app/scl_test/tests/test_Publish_System_Time_to_Web_Page.py", line 121, in test_run
     self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: name 'DotDict' is not defined
+AssertionError: Execution failed: invalid literal for int() with base 10: ''
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.095s
+Ran 1 test in 0.046s
 
 FAILED (failures=1)
 
@@ -1185,23 +1136,23 @@ FAIL: test_run (__main__.Test_Set_System_Time_from_Web_Page.test_run)
 Traceback (most recent call last):
   File "/app/scl_test/tests/test_Set_System_Time_from_Web_Page.py", line 117, in test_run
     func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 97, in Set_System_Time_from_Web_Page
+  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 98, in Set_System_Time_from_Web_Page
     context['_time_as_dtl'] = String_to_DTL(context['time_as_string'], context=context, global_dbs=global_dbs)
                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 47, in String_to_DTL
-    if '_dtl_components' not in context: context['_dtl_components'] = DotDict({})
-                                                                      ^^^^^^^
-NameError: name 'DotDict' is not defined
+  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 73, in String_to_DTL
+    context['String_to_DTL'].YEAR = STRING_TO_UINT(context['_year'], context=context, global_dbs=global_dbs)
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: mock_functions.<locals>.<lambda>() got an unexpected keyword argument 'context'
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
   File "/app/scl_test/tests/test_Set_System_Time_from_Web_Page.py", line 120, in test_run
     self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: name 'DotDict' is not defined
+AssertionError: Execution failed: mock_functions.<locals>.<lambda>() got an unexpected keyword argument 'context'
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.036s
+Ran 1 test in 0.041s
 
 FAILED (failures=1)
 
@@ -1226,7 +1177,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.035s
+Ran 1 test in 0.044s
 
 OK
 
@@ -1248,40 +1199,14 @@ VERSION : 1.0
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_Word_To_String.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Word_To_String.py", line 116, in test_run
-    func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/Word_To_String.py", line 133, in Word_to_String
-    context['Word_to_String'] = CONCAT_STRING(IN1=Byte_to_String(context['value']['%B1'], context=context, global_dbs=global_dbs), IN2=Byte_to_String(context['value']['%B0'], context=context, global_dbs=global_dbs))
-                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scl_test/transpiled/Word_To_String.py", line 116, in Byte_to_String
-    context['Byte_to_String'] = CONCAT_STRING(IN1=Nibble_to_String(context['_high_nibble'], context=context, global_dbs=global_dbs), IN2=Nibble_to_String(context['_low_nibble'], context=context, global_dbs=global_dbs))
-                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scl_test/transpiled/Word_To_String.py", line 77, in Nibble_to_String
-    context['_ret'] = String_Trim(String_Strip_Sign(INT_TO_STRING(context['_nibble_as_int']), context=context, global_dbs=global_dbs), context=context, global_dbs=global_dbs)
-                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scl_test/transpiled/Nibble_To_String.py", line 42, in String_Strip_Sign
-    if 'String_Box' not in context: context['String_Box'] = DotDict({})
-                                                            ^^^^^^^
-NameError: name 'DotDict' is not defined
+Ran 1 test in 0.046s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Word_To_String.py", line 119, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: name 'DotDict' is not defined
-
-----------------------------------------------------------------------
-Ran 1 test in 0.036s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -1302,7 +1227,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.032s
 
 OK
 
@@ -1327,7 +1252,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.038s
 
 OK
 
@@ -1356,7 +1281,7 @@ FAIL: test_run (__main__.Test_Select_Element_by_Format_Code.test_run)
 Traceback (most recent call last):
   File "/app/scl_test/tests/test_Select_Element_by_Format_Code.py", line 115, in test_run
     func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/Select_Element_by_Format_Code.py", line 23, in Format_Code_as_Int
+  File "/app/scl_test/transpiled/Select_Element_by_Format_Code.py", line 24, in Format_Code_as_Int
     context['Format_Code_as_Int'] = CHAR_TO_INT(STRING_TO_CHAR(LEFT(IN=context['formatCode'], L=1)))
                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/app/scl_test/tests/test_Select_Element_by_Format_Code.py", line 40, in <lambda>
@@ -1372,7 +1297,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: invalid literal for int() with base 10: ''
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.035s
 
 FAILED (failures=1)
 
@@ -1397,7 +1322,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.034s
+Ran 1 test in 0.041s
 
 OK
 
@@ -1422,7 +1347,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.034s
 
 OK
 
@@ -1447,7 +1372,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.032s
 
 OK
 
@@ -1472,7 +1397,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.032s
 
 OK
 
@@ -1501,7 +1426,7 @@ FAIL: test_run (__main__.Test_Format_Output.test_run)
 Traceback (most recent call last):
   File "/app/scl_test/tests/test_Format_Output.py", line 115, in test_run
     func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/Format_Output.py", line 28, in Format_Code_as_Int
+  File "/app/scl_test/transpiled/Format_Output.py", line 29, in Format_Code_as_Int
     context['Format_Code_as_Int'] = CHAR_TO_INT(STRING_TO_CHAR(LEFT(IN=context['formatCode'], L=1)))
                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/app/scl_test/tests/test_Format_Output.py", line 40, in <lambda>
@@ -1517,7 +1442,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: invalid literal for int() with base 10: ''
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.034s
+Ran 1 test in 0.036s
 
 FAILED (failures=1)
 
@@ -1542,7 +1467,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.033s
 
 OK
 
@@ -1567,7 +1492,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.036s
 
 OK
 
@@ -1592,7 +1517,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.033s
 
 OK
 
@@ -1636,7 +1561,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.034s
 
 OK
 
@@ -1661,7 +1586,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.034s
+Ran 1 test in 0.036s
 
 OK
 
@@ -1686,7 +1611,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.045s
+Ran 1 test in 0.033s
 
 OK
 
@@ -1711,7 +1636,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.035s
 
 OK
 
@@ -1736,7 +1661,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.034s
 
 OK
 
@@ -1765,7 +1690,7 @@ FAIL: test_run (__main__.Test_Array_WString_Reverse.test_run)
 Traceback (most recent call last):
   File "/app/scl_test/tests/test_Array_WString_Reverse.py", line 121, in test_run
     func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/Array_WString_Reverse.py", line 81, in Array_WString_Reverse
+  File "/app/scl_test/transpiled/Array_WString_Reverse.py", line 82, in Array_WString_Reverse
     context['_has_data_count'] = (context['_has_data_count'] - 1)
                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~
 TypeError: unsupported operand type(s) for -: 'NoneType' and 'int'
@@ -1778,7 +1703,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: unsupported operand type(s) for -: 'NoneType' and 'int'
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.034s
+Ran 1 test in 0.038s
 
 FAILED (failures=1)
 
@@ -1807,7 +1732,7 @@ FAIL: test_run (__main__.Test_Format_Code_as_Int.test_run)
 Traceback (most recent call last):
   File "/app/scl_test/tests/test_Format_Code_as_Int.py", line 115, in test_run
     func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/Format_Code_as_Int.py", line 13, in Format_Code_as_Int
+  File "/app/scl_test/transpiled/Format_Code_as_Int.py", line 14, in Format_Code_as_Int
     context['Format_Code_as_Int'] = CHAR_TO_INT(STRING_TO_CHAR(LEFT(IN=context['formatCode'], L=1)))
                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/app/scl_test/tests/test_Format_Code_as_Int.py", line 40, in <lambda>
@@ -1823,7 +1748,7 @@ Traceback (most recent call last):
 AssertionError: Execution failed: invalid literal for int() with base 10: ''
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.034s
 
 FAILED (failures=1)
 
@@ -1864,25 +1789,14 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
-E
-======================================================================
-ERROR: test_run (__main__.Test_Resolve_Element_Lengths.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Resolve_Element_Lengths.py", line 78, in test_run
-    'formatCodes': transpiled_module.String_Buffer(),
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scl_test/transpiled/Resolve_Element_Lengths.py", line 5, in __init__
-    self.me = DotDict({})
-              ^^^^^^^
-NameError: name 'DotDict' is not defined
+Ran 1 test in 0.033s
 
-----------------------------------------------------------------------
-Ran 1 test in 0.006s
+OK
 
-FAILED (errors=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -1903,7 +1817,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.034s
+Ran 1 test in 0.036s
 
 OK
 
@@ -1947,7 +1861,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.035s
+Ran 1 test in 0.034s
 
 OK
 
@@ -1972,7 +1886,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.033s
+Ran 1 test in 0.034s
 
 OK
 
@@ -1997,7 +1911,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.034s
+Ran 1 test in 0.033s
 
 OK
 
@@ -2047,7 +1961,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.103s
+Ran 1 test in 0.041s
 
 OK
 
@@ -2072,7 +1986,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.037s
+Ran 1 test in 0.032s
 
 OK
 
@@ -2097,7 +2011,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.036s
+Ran 1 test in 0.034s
 
 OK
 
@@ -2122,7 +2036,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.037s
+Ran 1 test in 0.033s
 
 OK
 
@@ -2169,31 +2083,14 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_DInt_Summation.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_DInt_Summation.py", line 116, in test_run
-    func(context=context, global_dbs=global_dbs)
-  File "/app/scl_test/transpiled/DInt_Summation.py", line 15, in DInt_Summation
-    context['DInt_Summation'] = REAL_TO_UDINT((((context['end_index'] - context['start_index']) * ((context['end_index'] - context['start_index']) + 1)) / 2), context=context, global_dbs=global_dbs)
-                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: mock_functions.<locals>.<lambda>() got an unexpected keyword argument 'context'
+Ran 1 test in 0.033s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_DInt_Summation.py", line 119, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: mock_functions.<locals>.<lambda>() got an unexpected keyword argument 'context'
-
-----------------------------------------------------------------------
-Ran 1 test in 0.036s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -2236,25 +2133,15 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
-E
-======================================================================
-ERROR: test_run (__main__.Test_KP8_Driver.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_KP8_Driver.py", line 72, in test_run
-    import scl_test.transpiled.KP8_Driver as transpiled_module
-  File "/app/scl_test/transpiled/KP8_Driver.py", line 6
-    self.color on 1 = DotDict({})
-               ^^
-SyntaxError: invalid syntax
+Ran 1 test in 0.037s
 
-----------------------------------------------------------------------
-Ran 1 test in 0.002s
+OK
 
-FAILED (errors=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
-Summary: 58 Passed, 24 Failed.
+Summary: 65 Passed, 17 Failed.

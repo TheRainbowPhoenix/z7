@@ -1,0 +1,29 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/Timers/Timer.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Timers/Timer.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Timers/Timer.scl
+SCL Header:
+TYPE "Runtime.All_Data"
+VERSION : 0.1
+   STRUCT
+      memory : LReal;
+      ellapsed : LReal;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.035s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+Summary: 1 Passed, 0 Failed.
