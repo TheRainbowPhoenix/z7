@@ -83,7 +83,7 @@ def mock_functions():
         # Add more mocks as needed by specific files
     }
 
-class Test_Load_Format_Codes(unittest.TestCase):
+class Test_Timer(unittest.TestCase):
     def setUp(self):
         self.runtime = Runtime()
         # Load the specific transpiled module content to runtime
@@ -102,12 +102,26 @@ class Test_Load_Format_Codes(unittest.TestCase):
         # Let's import that .py file?
         # Since the generated code is just a function def, we can just exec it.
 
-        import scl_test.transpiled.Load_Format_Codes as transpiled_module
+        import scl_test.transpiled.Timer as transpiled_module
 
         # We need to find the function in the module
-        func = getattr(transpiled_module, 'Load_Format_Codes')
+        func = getattr(transpiled_module, 'Timer')
 
         context = DotDict({
+            'control': RecursiveMock(f'control'),
+            'settings': RecursiveMock(f'settings'),
+            'feedback': RecursiveMock(f'feedback'),
+            'rt': RecursiveMock(f'rt'),
+            'state': 0,
+            'last': RecursiveMock(f'last'),
+            '_feedback': RecursiveMock(f'_feedback'),
+            'blank_timer': RecursiveMock(f'blank_timer'),
+            'expired': 0,
+            'idle': 0,
+            'reset': 0,
+            'restart': 0,
+            'running': 0,
+            'stopped': 0,
         })
 
         global_dbs = DotDict({})

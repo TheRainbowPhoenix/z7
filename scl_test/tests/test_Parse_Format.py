@@ -83,7 +83,7 @@ def mock_functions():
         # Add more mocks as needed by specific files
     }
 
-class Test_Load_Format_Codes(unittest.TestCase):
+class Test_Parse_Format(unittest.TestCase):
     def setUp(self):
         self.runtime = Runtime()
         # Load the specific transpiled module content to runtime
@@ -102,12 +102,20 @@ class Test_Load_Format_Codes(unittest.TestCase):
         # Let's import that .py file?
         # Since the generated code is just a function def, we can just exec it.
 
-        import scl_test.transpiled.Load_Format_Codes as transpiled_module
+        import scl_test.transpiled.Parse_Format as transpiled_module
 
         # We need to find the function in the module
-        func = getattr(transpiled_module, 'Load_Format_Codes')
+        func = getattr(transpiled_module, 'Is_Symbol')
 
         context = DotDict({
+            'character': RecursiveMock(f'character'),
+            'ret': False,
+            '0': 0,
+            '9': 0,
+            'A': 0,
+            'Z': 0,
+            '_a': 0,
+            '_z': 0,
         })
 
         global_dbs = DotDict({})

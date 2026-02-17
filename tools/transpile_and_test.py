@@ -43,7 +43,7 @@ def generate_test(module_name, program, output_dir):
             return None
 
         func = program.functions[0]
-        func_name_in_python = func.name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_')
+        func_name_in_python = func.name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_')
 
         # Prepare context variables (8 spaces indent)
         context_setup = "        context = DotDict({\n"
@@ -51,17 +51,64 @@ def generate_test(module_name, program, output_dir):
         for decl in func.var_decls:
             if decl.section_type in ['VAR_INPUT', 'VAR_IN_OUT', 'VAR_OUTPUT', 'VAR', 'VAR CONSTANT', 'VAR_TEMP']:
                 for name, type_spec, init_val in decl.vars:
-                    py_val = "0"
+                    py_val = "RecursiveMock(f'" + name + "')"
                     if "BOOL" in type_spec.upper():
                         py_val = "False"
                     elif "STRING" in type_spec.upper():
                         py_val = "''"
-                    elif "ARRAY" in type_spec.upper():
-                        py_val = "[0] * 100" # Default array size
+                    elif "INT" in type_spec.upper() or "DINT" in type_spec.upper() or "REAL" in type_spec.upper() or "WORD" in type_spec.upper() or "DWORD" in type_spec.upper() or "BYTE" in type_spec.upper():
+                        py_val = "0"
+                    # ARRAY is tricky, because it can be ARRAY of INT, or ARRAY of Struct.
+                    # If we use RecursiveMock, array access returns RecursiveMock.
+                    # But if the code expects list, it might fail `isinstance(list)`.
+                    # Let's keep specific mocks for known types, and fallback to RecursiveMock.
+                    #elif "ARRAY" in type_spec.upper():
+                    #    py_val = "[0] * 100" # Default array size
 
                     context_setup += f"            '{name}': {py_val},\n"
 
         context_setup += "        })\n"
+        
+        recursive_mock_code = r'''
+class RecursiveMock:
+    def __init__(self, name="Mock"):
+        self._name = name
+    def __getattr__(self, name):
+        return RecursiveMock(f"{self._name}.{name}")
+    def __getitem__(self, key):
+        return RecursiveMock(f"{self._name}[{key}]")
+    def __setattr__(self, name, value):
+        if name == "_name":
+            super().__setattr__(name, value)
+        pass # Ignore sets
+    def __setitem__(self, key, value):
+        pass # Ignore sets
+    def __call__(self, *args, **kwargs):
+        return RecursiveMock(f"{self._name}()")
+    def __int__(self): return 0
+    def __float__(self): return 0.0
+    def __str__(self): return ""
+    def __bool__(self): return False
+    def __len__(self): return 0
+    def __iter__(self): return iter([])
+    def __eq__(self, other): return False
+    def __ne__(self, other): return True
+    def __le__(self, other): return True
+    def __ge__(self, other): return True
+    def __lt__(self, other): return False
+    def __gt__(self, other): return False
+    # Add arithmetic operations if needed
+    def __add__(self, other): return RecursiveMock()
+    def __sub__(self, other): return RecursiveMock()
+    def __mul__(self, other): return RecursiveMock()
+    def __truediv__(self, other): return RecursiveMock()
+    def __and__(self, other): return RecursiveMock()
+    def __or__(self, other): return RecursiveMock()
+    def __xor__(self, other): return RecursiveMock()
+    def __mod__(self, other): return RecursiveMock()
+    def __invert__(self): return RecursiveMock()
+    def __neg__(self): return RecursiveMock()
+'''
 
         test_content = f"""
 import unittest
@@ -70,10 +117,13 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from src.python_poc.runtime import Runtime, DotDict
 
+{recursive_mock_code}
+
 # Mock functions for common SCL calls found in libraries
 def mock_functions():
     return {{
         '__builtins__': __builtins__,
+        'RecursiveMock': RecursiveMock,
         'DINT_TO_TIME': lambda x: x,
         'TIME_TO_DINT': lambda x: x,
         'INT_TO_DINT': lambda x: x,
@@ -160,6 +210,7 @@ if __name__ == '__main__':
         return test_path
     except Exception as e:
         print(f"Failed to generate test for {module_name}: {e}")
+        traceback.print_exc()
         return None
 
 def main():

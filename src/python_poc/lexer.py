@@ -97,7 +97,7 @@ class Lexer:
             'VERSION', 'VOID', 'INT', 'DINT', 'REAL', 'BOOL', 'TIME', 'STRING', 'ARRAY', 'OF',
             'CONSTANT', 'TYPE', 'END_TYPE', 'STRUCT', 'END_STRUCT', 'WSTRING', 'CHAR', 'BYTE', 'WORD', 'DWORD', 'LWORD',
             'SINT', 'USINT', 'UINT', 'UDINT', 'LINT', 'ULINT', 'LREAL', 'DATE', 'DATE_AND_TIME', 'TOD', 'DT', 'VARIANT',
-            'FUNCTION_BLOCK', 'GOTO', 'LABEL', 'CASE', 'END_CASE', 'OF', 'REGION', 'END_REGION', 'BY'
+            'FUNCTION_BLOCK', 'GOTO', 'LABEL', 'CASE', 'END_CASE', 'OF', 'REGION', 'END_REGION', 'BY', 'DB_SPECIFIC', 'END_FUNCTION_BLOCK'
         }
         
         token_type = 'KEYWORD' if result.upper() in keywords else 'IDENTIFIER'
@@ -213,7 +213,8 @@ class Lexer:
                 '+': 'PLUS', '-': 'MINUS', '*': 'MUL', '/': 'DIV',
                 '(': 'LPAREN', ')': 'RPAREN', '[': 'LBRACKET', ']': 'RBRACKET',
                 ';': 'SEMI', ':': 'COLON', ',': 'COMMA', '.': 'DOT',
-                '=': 'EQ', '<': 'LT', '>': 'GT', '#': 'HASH', '{': 'LBRACE', '}': 'RBRACE'
+                '=': 'EQ', '<': 'LT', '>': 'GT', '#': 'HASH', '{': 'LBRACE', '}': 'RBRACE',
+                '%': 'PERCENT'
             }
             
             if self.current_char in single_char_tokens:

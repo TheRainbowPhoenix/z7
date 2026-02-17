@@ -180,8 +180,11 @@ class Parser:
         self.current_token = self.lexer.get_next_token()
 
     def peek(self, n=1):
+        # print(f"DEBUG: peek({n})")
         while len(self.token_buffer) < n:
-            self.token_buffer.append(self.lexer.get_next_token())
+            tok = self.lexer.get_next_token()
+            # print(f"DEBUG: peek read {tok}")
+            self.token_buffer.append(tok)
         return self.token_buffer[n-1]
 
     def error(self, msg):
@@ -257,7 +260,11 @@ class Parser:
         
         self.eat('KEYWORD') # BEGIN
         statements = self.statement_list()
-        self.eat('KEYWORD') # END_FUNCTION
+        
+        if self.current_token.type == 'KEYWORD' and self.current_token.value.upper() in ['END_FUNCTION', 'END_FUNCTION_BLOCK']:
+            self.eat('KEYWORD') # END_FUNCTION or END_FUNCTION_BLOCK
+        else:
+            self.error("Expected END_FUNCTION or END_FUNCTION_BLOCK")
         
         return Function(name, return_type, var_decls, Block(statements), attributes, version)
 
@@ -305,6 +312,9 @@ class Parser:
         if self.current_token.type == 'KEYWORD' and self.current_token.value.upper() == 'CONSTANT':
              section_type += ' CONSTANT'
              self.eat('KEYWORD')
+        elif self.current_token.type == 'KEYWORD' and self.current_token.value.upper() == 'DB_SPECIFIC':
+             section_type += ' DB_SPECIFIC'
+             self.eat('KEYWORD')
 
         vars = []
         while self.current_token.type != 'KEYWORD' or not self.current_token.value.upper().startswith('END_VAR'):
@@ -319,6 +329,10 @@ class Parser:
                  # Usually just identifier or %M...
                  # We consume IDENTIFIER.
                  self.eat('IDENTIFIER') # Overlaid var
+            
+             # Handle attributes { ... }
+             if self.current_token.type == 'LBRACE':
+                 self.attributes()
                  
              self.eat('COLON')
              type_node = self.type_spec()
@@ -386,7 +400,7 @@ class Parser:
 
     def statement_list(self):
         statements = []
-        while self.current_token.type != 'KEYWORD' or self.current_token.value.upper() not in ['END_FUNCTION', 'END_IF', 'END_FOR', 'END_WHILE', 'ELSE', 'ELSIF', 'END_CASE', 'END_REGION']:
+        while self.current_token.type != 'KEYWORD' or self.current_token.value.upper() not in ['END_FUNCTION', 'END_FUNCTION_BLOCK', 'END_IF', 'END_FOR', 'END_WHILE', 'ELSE', 'ELSIF', 'END_CASE', 'END_REGION']:
             if self.current_token.type == 'SEMI':
                 self.eat('SEMI')
                 continue
@@ -475,6 +489,25 @@ class Parser:
             return (start, end)
         return start
 
+    def region_statement(self):
+        region_token = self.current_token
+        self.eat('KEYWORD') # REGION
+        
+        # Consume name: everything until the line changes
+        current_line = region_token.line
+        while self.current_token.line == current_line and self.current_token.type != 'EOF':
+            self.advance()
+            
+        # Now parse statements inside
+        stmt_list = self.statement_list()
+        
+        if self.current_token.type == 'KEYWORD' and self.current_token.value.upper() == 'END_REGION':
+            self.eat('KEYWORD') # END_REGION
+        else:
+            self.error("Expected END_REGION")
+            
+        return Region(stmt_list)
+
     def statement(self):
         if self.current_token.type == 'KEYWORD':
             if self.current_token.value.upper() == 'IF':
@@ -506,6 +539,28 @@ class Parser:
             self.eat('ASSIGN')
             right = self.expr()
             return Assignment(left, right)
+        elif self.current_token.type == 'PLUS_ASSIGN':
+            self.eat('PLUS_ASSIGN')
+            right = self.expr()
+            # Synthesize BinOp: left + right
+            # We need a Token for PLUS.
+            op_token = Token('PLUS', '+', self.current_token.line, self.current_token.column)
+            return Assignment(left, BinOp(left, op_token, right))
+        elif self.current_token.type == 'MINUS_ASSIGN':
+            self.eat('MINUS_ASSIGN')
+            right = self.expr()
+            op_token = Token('MINUS', '-', self.current_token.line, self.current_token.column)
+            return Assignment(left, BinOp(left, op_token, right))
+        elif self.current_token.type == 'MUL_ASSIGN':
+            self.eat('MUL_ASSIGN')
+            right = self.expr()
+            op_token = Token('MUL', '*', self.current_token.line, self.current_token.column)
+            return Assignment(left, BinOp(left, op_token, right))
+        elif self.current_token.type == 'DIV_ASSIGN':
+            self.eat('DIV_ASSIGN')
+            right = self.expr()
+            op_token = Token('DIV', '/', self.current_token.line, self.current_token.column)
+            return Assignment(left, BinOp(left, op_token, right))
         elif self.current_token.type == 'COLON':
             if isinstance(left, Variable):
                 self.eat('COLON')
@@ -515,25 +570,6 @@ class Parser:
         else:
             # Maybe a standalone expression (like function call)?
             return left
-
-    def region_statement(self):
-        region_token = self.current_token
-        self.eat('KEYWORD') # REGION
-        
-        # Consume name: everything until the line changes
-        current_line = region_token.line
-        while self.current_token.line == current_line and self.current_token.type != 'EOF':
-            self.advance()
-            
-        # Now parse statements inside
-        stmt_list = self.statement_list()
-        
-        if self.current_token.type == 'KEYWORD' and self.current_token.value.upper() == 'END_REGION':
-            self.eat('KEYWORD') # END_REGION
-        else:
-            self.error("Expected END_REGION")
-            
-        return Region(stmt_list)
 
     def if_statement(self):
         self.eat('KEYWORD') # IF
@@ -591,18 +627,43 @@ class Parser:
         return WhileStmt(condition, block)
 
     def expr(self):
-        node = self.term()
+        # Lowest precedence: OR, XOR
+        node = self.conjunction()
+        while self.current_token.type == 'KEYWORD' and self.current_token.value.upper() in ['OR', 'XOR']:
+            token = self.current_token
+            self.eat('KEYWORD')
+            node = BinOp(left=node, op=token, right=self.conjunction())
+        return node
 
-        # print(f"DEBUG: expr loop check {self.current_token}")
-        while self.current_token.type in ('PLUS', 'MINUS', 'EQ', 'LT', 'GT', 'NE', 'LE', 'GE') or (self.current_token.type == 'KEYWORD' and self.current_token.value.upper() in ['AND', 'OR', 'XOR']):
-            # print(f"DEBUG: expr loop match {self.current_token}")
+    def conjunction(self):
+        # AND
+        node = self.comparison()
+        while self.current_token.type == 'KEYWORD' and self.current_token.value.upper() == 'AND':
+            token = self.current_token
+            self.eat('KEYWORD')
+            node = BinOp(left=node, op=token, right=self.comparison())
+        return node
+
+    def comparison(self):
+        # =, <>, <, >, <=, >=
+        node = self.simple_expression()
+        while self.current_token.type in ('EQ', 'NE', 'LT', 'LE', 'GT', 'GE'):
+            token = self.current_token
+            self.eat(token.type)
+            node = BinOp(left=node, op=token, right=self.simple_expression())
+        return node
+
+    def simple_expression(self):
+        # +, -
+        node = self.term()
+        while self.current_token.type in ('PLUS', 'MINUS'):
             token = self.current_token
             self.eat(token.type)
             node = BinOp(left=node, op=token, right=self.term())
-
         return node
 
     def term(self):
+        # *, /, MOD
         node = self.factor()
 
         while self.current_token.type in ('MUL', 'DIV') or (self.current_token.type == 'KEYWORD' and self.current_token.value.upper() == 'MOD'):
@@ -614,7 +675,7 @@ class Parser:
 
     def factor(self):
         token = self.current_token
-        print(f"DEBUG: factor token={token} peek={self.peek()}")
+        print(f"DEBUG: factor start. token={token}, current={self.current_token}")
         if token.type == 'PLUS':
             self.eat('PLUS')
             return UnaryOp(token, self.factor())
@@ -706,9 +767,17 @@ class Parser:
                 node = ArrayAccess(node, index)
             elif self.current_token.type == 'DOT':
                 self.eat('DOT')
+                prefix = ""
+                if self.current_token.type == 'PERCENT':
+                    self.eat('PERCENT')
+                    prefix = "%"
+                
                 member_name = self.current_token.value
-                self.eat('IDENTIFIER') # or keyword acting as identifier
-                node = MemberAccess(node, member_name)
+                if self.current_token.type == 'KEYWORD':
+                     self.eat('KEYWORD')
+                else:
+                     self.eat('IDENTIFIER')
+                node = MemberAccess(node, prefix + member_name)
             elif self.current_token.type == 'LPAREN':
                 self.eat('LPAREN')
                 args = []

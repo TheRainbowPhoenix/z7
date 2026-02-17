@@ -5,10 +5,52 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from src.python_poc.runtime import Runtime, DotDict
 
+
+class RecursiveMock:
+    def __init__(self, name="Mock"):
+        self._name = name
+    def __getattr__(self, name):
+        return RecursiveMock(f"{self._name}.{name}")
+    def __getitem__(self, key):
+        return RecursiveMock(f"{self._name}[{key}]")
+    def __setattr__(self, name, value):
+        if name == "_name":
+            super().__setattr__(name, value)
+        pass # Ignore sets
+    def __setitem__(self, key, value):
+        pass # Ignore sets
+    def __call__(self, *args, **kwargs):
+        return RecursiveMock(f"{self._name}()")
+    def __int__(self): return 0
+    def __float__(self): return 0.0
+    def __str__(self): return ""
+    def __bool__(self): return False
+    def __len__(self): return 0
+    def __iter__(self): return iter([])
+    def __eq__(self, other): return False
+    def __ne__(self, other): return True
+    def __le__(self, other): return True
+    def __ge__(self, other): return True
+    def __lt__(self, other): return False
+    def __gt__(self, other): return False
+    # Add arithmetic operations if needed
+    def __add__(self, other): return RecursiveMock()
+    def __sub__(self, other): return RecursiveMock()
+    def __mul__(self, other): return RecursiveMock()
+    def __truediv__(self, other): return RecursiveMock()
+    def __and__(self, other): return RecursiveMock()
+    def __or__(self, other): return RecursiveMock()
+    def __xor__(self, other): return RecursiveMock()
+    def __mod__(self, other): return RecursiveMock()
+    def __invert__(self): return RecursiveMock()
+    def __neg__(self): return RecursiveMock()
+
+
 # Mock functions for common SCL calls found in libraries
 def mock_functions():
     return {
         '__builtins__': __builtins__,
+        'RecursiveMock': RecursiveMock,
         'DINT_TO_TIME': lambda x: x,
         'TIME_TO_DINT': lambda x: x,
         'INT_TO_DINT': lambda x: x,
@@ -66,7 +108,7 @@ class Test_Int___CountOfElements(unittest.TestCase):
         func = getattr(transpiled_module, 'Int___CountOfElements')
 
         context = DotDict({
-            'data': 0,
+            'data': RecursiveMock(f'data'),
         })
 
         global_dbs = DotDict({})

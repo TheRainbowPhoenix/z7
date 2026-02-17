@@ -83,7 +83,7 @@ def mock_functions():
         # Add more mocks as needed by specific files
     }
 
-class Test_Load_Format_Codes(unittest.TestCase):
+class Test_Int___Split(unittest.TestCase):
     def setUp(self):
         self.runtime = Runtime()
         # Load the specific transpiled module content to runtime
@@ -102,12 +102,23 @@ class Test_Load_Format_Codes(unittest.TestCase):
         # Let's import that .py file?
         # Since the generated code is just a function def, we can just exec it.
 
-        import scl_test.transpiled.Load_Format_Codes as transpiled_module
+        import scl_test.transpiled.Int___Split as transpiled_module
 
         # We need to find the function in the module
-        func = getattr(transpiled_module, 'Load_Format_Codes')
+        func = getattr(transpiled_module, 'Int___Split')
 
         context = DotDict({
+            'array': 0,
+            'null_token': 0,
+            'left': 0,
+            'left_length': 0,
+            'right': 0,
+            'right_length': 0,
+            'i': 0,
+            'i_l': 0,
+            'i_r': 0,
+            'mid': 0,
+            'size': 0,
         })
 
         global_dbs = DotDict({})

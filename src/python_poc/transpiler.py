@@ -26,7 +26,9 @@ class Transpiler:
         return code
 
     def sanitize_name(self, name):
-        return name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_')
+        if not isinstance(name, str):
+            name = str(name)
+        return name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_')
 
     def visit_Function(self, node):
         # We generate a function that takes 'context' and 'global_dbs'

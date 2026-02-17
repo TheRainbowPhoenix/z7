@@ -83,7 +83,7 @@ def mock_functions():
         # Add more mocks as needed by specific files
     }
 
-class Test_Load_Format_Codes(unittest.TestCase):
+class Test_Int_PseudoRandom(unittest.TestCase):
     def setUp(self):
         self.runtime = Runtime()
         # Load the specific transpiled module content to runtime
@@ -102,12 +102,15 @@ class Test_Load_Format_Codes(unittest.TestCase):
         # Let's import that .py file?
         # Since the generated code is just a function def, we can just exec it.
 
-        import scl_test.transpiled.Load_Format_Codes as transpiled_module
+        import scl_test.transpiled.Int_PseudoRandom as transpiled_module
 
         # We need to find the function in the module
-        func = getattr(transpiled_module, 'Load_Format_Codes')
+        func = getattr(transpiled_module, 'Int_PseudoRandom')
 
         context = DotDict({
+            'value': 0,
+            'runtime': RecursiveMock(f'runtime'),
+            'OFFSET': 0,
         })
 
         global_dbs = DotDict({})
