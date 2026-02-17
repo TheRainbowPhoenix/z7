@@ -39,7 +39,13 @@ def transpile_file(scl_filepath, output_dir):
 def sanitize(name):
     if not isinstance(name, str):
         name = str(name)
-    return name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
+
+    sanitized = name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
+
+    import keyword
+    if keyword.iskeyword(sanitized):
+        return sanitized + "_"
+    return sanitized
 
 def generate_test(module_name, program, output_dir):
     try:
@@ -142,7 +148,7 @@ def mock_functions():
         'FIND': lambda IN1, IN2: IN1.find(IN2) + 1 if isinstance(IN1, str) else 0,
         'INSERT': lambda IN1, IN2, P: IN1[:P-1] + IN2 + IN1[P-1:] if isinstance(IN1, str) else IN1,
         'REPLACE': lambda IN1, IN2, L, P: IN1[:P-1] + IN2 + IN1[P-1+L:] if isinstance(IN1, str) else IN1,
-        'CHAR_TO_INT': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else int(x),
+        'CHAR_TO_INT': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else (0 if x == '' else int(x)),
         'STRING_TO_CHAR': lambda x: x[0] if isinstance(x, str) and len(x) > 0 else '',
         'UDINT_TO_INT': lambda x: int(x),
         'CHAR_TO_STRING': lambda x: str(x),

@@ -398,11 +398,9 @@ class Parser:
                 self.eat('KEYWORD') # OF
                 return f"Array[*] of {self.type_spec()}"
 
-            start = self.current_token.value
-            self.eat('INTEGER')
+            start = self.array_bound()
             self.eat('RANGE')
-            end = self.current_token.value
-            self.eat('INTEGER')
+            end = self.array_bound()
             self.eat('RBRACKET')
             self.eat('KEYWORD') # OF
             return f"Array[{start}..{end}] of {self.type_spec()}"
@@ -456,6 +454,28 @@ class Parser:
                 self.eat('RBRACKET')
                 val += f"[{length}]"
             return val
+
+    def array_bound(self):
+        val = ""
+        if self.current_token.type == 'MINUS':
+            self.eat('MINUS')
+            val += "-"
+
+        if self.current_token.type == 'HASH':
+            self.eat('HASH')
+            val += "#"
+            val += str(self.current_token.value)
+            self.eat('IDENTIFIER')
+        elif self.current_token.type == 'IDENTIFIER':
+            val += str(self.current_token.value)
+            self.eat('IDENTIFIER')
+        elif self.current_token.type == 'INTEGER':
+            val += str(self.current_token.value)
+            self.eat('INTEGER')
+        else:
+            self.error(f"Expected array bound (integer, identifier, or constant), got {self.current_token}")
+
+        return val
 
     def statement_list(self):
         statements = []

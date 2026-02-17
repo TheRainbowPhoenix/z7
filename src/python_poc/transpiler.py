@@ -5,6 +5,7 @@ class Transpiler:
         self.indent_level = 0
         self.generated_code = ""
         self.types_map = {} # SCL type name -> Python class name
+        self.in_class = False
 
     def indent(self):
         return "    " * self.indent_level
@@ -35,7 +36,13 @@ class Transpiler:
     def sanitize_name(self, name):
         if not isinstance(name, str):
             name = str(name)
-        return name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
+
+        sanitized = name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
+
+        import keyword
+        if keyword.iskeyword(sanitized):
+            return sanitized + "_"
+        return sanitized
 
     def get_default_val(self, type_spec):
         if isinstance(type_spec, str):
@@ -95,6 +102,7 @@ class Transpiler:
         return "None"
 
     def visit_TypeDecl(self, node):
+        self.in_class = True
         class_name = self.sanitize_name(node.name)
         # Store in map (handle potential quotes in node.name)
         clean_name = node.name.strip('"')
@@ -112,6 +120,7 @@ class Transpiler:
             code += f"{self.indent()}pass\n"
 
         self.indent_level -= 2
+        self.in_class = False
         return code
 
     def visit_StructType(self, node):
@@ -411,9 +420,17 @@ class Transpiler:
         else:
             name = node.name.strip('"')
 
+        sanitized = self.sanitize_name(name)
+
+        if self.in_class:
+            # If inside a class definition (TypeDecl), we cannot access context.
+            # Return a RecursiveMock or literal assumption if it is a constant.
+            # Since SCL constants used in initial values are usually resolved at compile time or global,
+            # and we don't have global constants loaded in the class scope, we use a Mock.
+            return f"RecursiveMock('{sanitized}')"
+
         if node.is_local:
              # #var means local context
-             sanitized = self.sanitize_name(name)
              return f"context['{sanitized}']"
         else:
             # Could be global or local without hash (if allowed/ambiguous)
@@ -446,7 +463,6 @@ class Transpiler:
             if "DB " in name or " " in name: # Heuristic for DB names in this example
                 return f"global_dbs['{name}']"
             else:
-                sanitized = self.sanitize_name(name)
                 return f"context['{sanitized}']"
 
     def visit_MemberAccess(self, node):

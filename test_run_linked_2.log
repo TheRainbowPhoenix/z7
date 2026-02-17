@@ -1,0 +1,29 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/Data Structures/Linked List.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Data Structures/Linked List.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Data Structures/Linked List.scl
+SCL Header:
+TYPE "Linked List: Node: Data"
+VERSION : 0.1
+   STRUCT
+      place_holder : Int;
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.053s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+Summary: 1 Passed, 0 Failed.

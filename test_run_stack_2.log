@@ -1,0 +1,29 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/Data Structures/Stack.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Data Structures/Stack.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Data Structures/Stack.scl
+SCL Header:
+TYPE "Stack_Int.Commands"
+VERSION : 0.1
+   STRUCT
+      initialize : Bool;
+      pop : Bool;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.059s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+Summary: 1 Passed, 0 Failed.
