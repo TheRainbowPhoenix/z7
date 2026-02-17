@@ -324,11 +324,66 @@ class Transpiler:
             # Special handling for direct function calls to sanitize name
             func_name = self.sanitize_name(node.expr.name)
             args = [self.visit(arg) for arg in node.args]
+
+            # Check if it's a known standard function or an internal function call.
+            # Internal functions need context and global_dbs passed.
+            # Standard functions (like SCL builtins) might not, but we mocked them to ignore extra args or we can check.
+            # However, our generated functions signature is (context=None, global_dbs=None, **kwargs).
+            # So passing them is safe if the target function accepts **kwargs.
+            # Our mocks should accept **kwargs too or be robust.
+            # But wait, standard functions like ABS(x) don't take context.
+            # If we pass ABS(x, context=context), it will fail if ABS is math.abs.
+            # We need to distinguish between internal function calls and standard library calls.
+            # We don't have a symbol table here easily.
+            # Heuristic: SCL standard functions are usually uppercase. User functions are MixedCase or have underscores/dots.
+            # But this is risky.
+
+            # Better approach: The generated function signature uses **kwargs.
+            # If we pass context=context, global_dbs=global_dbs as named args,
+            # our generated functions will pick them up.
+            # Standard mocks defined in tools/transpile_and_test.py are lambdas like lambda x: x.
+            # These lambdas will choke on extra keyword arguments.
+            # So we SHOULD NOT pass context/global_dbs to standard functions.
+
+            # List of standard SCL functions to exclude from context propagation
+            std_funcs = {
+                'ABS', 'ACOS', 'ASIN', 'ATAN', 'COS', 'EXP', 'LN', 'LOG', 'SIN', 'SQRT', 'TAN',
+                'MOD', 'EXPT', 'MOVE', 'LEN', 'LEFT', 'RIGHT', 'MID', 'CONCAT', 'INSERT', 'DELETE', 'REPLACE', 'FIND',
+                'EQ_STRING', 'GE_STRING', 'GT_STRING', 'LE_STRING', 'LT_STRING', 'NE_STRING',
+                'LIMIT', 'MAX', 'MIN', 'MUX', 'SEL',
+                'AND', 'OR', 'XOR', 'NOT',
+                'INT_TO_DINT', 'DINT_TO_INT', 'REAL_TO_INT', 'INT_TO_REAL', 'DINT_TO_REAL', 'REAL_TO_DINT',
+                'TIME_TO_DINT', 'DINT_TO_TIME', 'DATE_AND_TIME_TO_TIME_OF_DAY', 'TIME_OF_DAY_TO_DINT', 'DINT_TO_TIME_OF_DAY',
+                'DATE_TO_DINT', 'DINT_TO_DATE', 'CHAR_TO_INT', 'INT_TO_CHAR', 'STRING_TO_CHAR', 'CHAR_TO_STRING',
+                'BOOL_TO_BYTE', 'BYTE_TO_BOOL', 'BYTE_TO_INT', 'INT_TO_BYTE', 'WORD_TO_INT', 'INT_TO_WORD',
+                'DWORD_TO_DINT', 'DINT_TO_DWORD', 'REAL_TO_DWORD', 'DWORD_TO_REAL',
+                'S_CONV', 'CONVERT', 'ROUND', 'TRUNC', 'FLOOR', 'CEIL',
+                'SWAP', 'ROL', 'ROR', 'SHL', 'SHR',
+                'SCALE_X', 'NORM_X',
+                'UDINT_TO_INT', 'UDINT_TO_DINT', 'LREAL_TO_INT', 'LREAL_TO_DINT', 'LREAL_TO_REAL',
+                'UINT_TO_INT', 'INT_TO_UINT', 'SINT_TO_INT', 'INT_TO_SINT',
+                'WSTRING_TO_STRING', 'STRING_TO_WSTRING', 'CONCAT_STRING', 'CONCAT_WSTRING',
+                'TypeOf', 'MOVE_BLK_VARIANT', 'Strg_TO_Chars', 'Chars_TO_Strg', 'SCATTER', 'GATHER',
+                'PEEK', 'POKE', 'PEEK_BOOL', 'POKE_BOOL'
+            }
+
+            if func_name.upper() not in {f.upper() for f in std_funcs}:
+                # Assume internal function, append context args
+                args.append("context=context")
+                args.append("global_dbs=global_dbs")
+
             return f"{func_name}({', '.join(args)})"
         else:
             # Indirect call or member call
             func = self.visit(node.expr)
             args = [self.visit(arg) for arg in node.args]
+            # Indirect calls usually don't need context injection unless we know what they are.
+            # If it's a FB call `inst(IN:=...)`, in SCL it's `inst(...)`.
+            # In Python `context['inst'](...)`.
+            # `inst` is likely a RecursiveMock or a generated class instance.
+            # If generated class, it might need context.
+            # But usually FBs maintain their own state.
+            # Let's assume for now we don't inject context into member calls to avoid breaking objects.
             return f"{func}({', '.join(args)})"
 
     def visit_NamedArg(self, node):

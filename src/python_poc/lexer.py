@@ -61,24 +61,6 @@ class Lexer:
                 return
             self.advance()
 
-    def number(self):
-        result = ''
-        while self.current_char is not None and (self.current_char.isdigit() or self.current_char == '_'):
-            if self.current_char != '_':
-                result += self.current_char
-            self.advance()
-
-        # Check if it's a float (contains dot, but NOT double dot)
-        if self.current_char == '.' and self.peek() != '.':
-            result += '.'
-            self.advance()
-            while self.current_char is not None and (self.current_char.isdigit() or self.current_char == '_'):
-                if self.current_char != '_':
-                    result += self.current_char
-                self.advance()
-            return Token('FLOAT', float(result), self.line, self.column)
-        else:
-            return Token('INTEGER', int(result), self.line, self.column)
 
     def identifier(self):
         result = ''
@@ -150,7 +132,45 @@ class Lexer:
                 return self.identifier()
 
             if self.current_char.isdigit():
-                return self.number()
+                # Handle base#value literal e.g. 16#FF
+                # Peek ahead to see if it is base#
+                # We need to scan number first
+                # But if it is 16#FF, 'FF' starts with char.
+                # Let's read digits.
+                # If we encounter '#', then read hex/binary value.
+                start_pos = self.pos
+                result = ''
+                while self.current_char is not None and (self.current_char.isdigit() or self.current_char == '_'):
+                    if self.current_char != '_':
+                        result += self.current_char
+                    self.advance()
+
+                if self.current_char == '#':
+                    # Base literal
+                    base = int(result)
+                    self.advance() # Skip #
+                    val_str = ''
+                    while self.current_char is not None and (self.current_char.isalnum() or self.current_char == '_'):
+                        if self.current_char != '_':
+                            val_str += self.current_char
+                        self.advance()
+
+                    try:
+                        int_val = int(val_str, base)
+                        return Token('INTEGER', int_val, self.line, self.column)
+                    except ValueError:
+                        self.error(f"Invalid number {val_str} for base {base}")
+                elif self.current_char == '.' and self.peek() != '.':
+                    # Float
+                    result += '.'
+                    self.advance()
+                    while self.current_char is not None and (self.current_char.isdigit() or self.current_char == '_'):
+                        if self.current_char != '_':
+                            result += self.current_char
+                        self.advance()
+                    return Token('FLOAT', float(result), self.line, self.column)
+                else:
+                    return Token('INTEGER', int(result), self.line, self.column)
 
             if self.current_char == '"':
                 return self.quoted_identifier()
