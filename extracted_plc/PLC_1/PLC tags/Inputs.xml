@@ -1,0 +1,481 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Document>
+  <Engineering version="V16" />
+  <DocumentInfo>
+    <Created>2025-12-18T09:29:18.5098521Z</Created>
+    <ExportSetting>WithDefaults</ExportSetting>
+    <InstalledProducts>
+      <Product>
+        <DisplayName>Totally Integrated Automation Portal</DisplayName>
+        <DisplayVersion>V16</DisplayVersion>
+      </Product>
+      <OptionPackage>
+        <DisplayName>TIA Portal Version Control Interface</DisplayName>
+        <DisplayVersion>V16</DisplayVersion>
+      </OptionPackage>
+      <OptionPackage>
+        <DisplayName>TIA Portal Openness</DisplayName>
+        <DisplayVersion>V16</DisplayVersion>
+      </OptionPackage>
+      <Product>
+        <DisplayName>STEP 7 Professional</DisplayName>
+        <DisplayVersion>V16</DisplayVersion>
+      </Product>
+      <OptionPackage>
+        <DisplayName>STEP 7 Safety</DisplayName>
+        <DisplayVersion>V16</DisplayVersion>
+      </OptionPackage>
+      <Product>
+        <DisplayName>WinCC Advanced</DisplayName>
+        <DisplayVersion>V16</DisplayVersion>
+      </Product>
+    </InstalledProducts>
+  </DocumentInfo>
+  <SW.Tags.PlcTagTable ID="0">
+    <AttributeList>
+      <Name>Inputs</Name>
+    </AttributeList>
+    <ObjectList>
+      <SW.Tags.PlcTag ID="1" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I0.1</LogicalAddress>
+          <Name>iIO_xS1EntrySensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="2" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="3" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="4" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I0.2</LogicalAddress>
+          <Name>iIO_xS1ExitSensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="5" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="6" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="7" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I0.3</LogicalAddress>
+          <Name>iIO_xS1PositionerSensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="8" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="9" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="A" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I0.4</LogicalAddress>
+          <Name>iIO_xS1ClampSensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="B" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="C" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="D" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I0.5</LogicalAddress>
+          <Name>iIO_xS2EntrySensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="E" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="F" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="10" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I0.6</LogicalAddress>
+          <Name>iIO_xS2ExitSensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="11" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="12" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="13" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I0.7</LogicalAddress>
+          <Name>iIO_xS2PositionerSensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="14" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="15" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="16" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I1.0</LogicalAddress>
+          <Name>iIO_xS2ClampSensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="17" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="18" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="19" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I1.1</LogicalAddress>
+          <Name>iIO_xS3EntrySensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="1A" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="1B" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="1C" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I1.2</LogicalAddress>
+          <Name>iIO_xS3ExitSensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="1D" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="1E" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="1F" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I1.3</LogicalAddress>
+          <Name>iIO_xS3PositionerSensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="20" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="21" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="22" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I1.4</LogicalAddress>
+          <Name>iIO_xS3ClampSensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="23" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="24" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="25" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I1.5</LogicalAddress>
+          <Name>iIO_xS1ResetButton</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="26" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="27" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="28" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I0.0</LogicalAddress>
+          <Name>iIO_xSupplyExitSensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="29" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="2A" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="2B" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I1.6</LogicalAddress>
+          <Name>iIO_xS1EmergencyButton</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="2C" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="2D" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="2E" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I2.0</LogicalAddress>
+          <Name>iIO_xS2ResetButton</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="2F" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="30" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="31" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I2.1</LogicalAddress>
+          <Name>iIO_xS2EmergencyButton</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="32" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="33" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="34" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I2.2</LogicalAddress>
+          <Name>iIO_xS3ResetButton</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="35" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="36" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="37" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I2.3</LogicalAddress>
+          <Name>iIO_xS3EmergencyButton</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="38" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="39" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+      <SW.Tags.PlcTag ID="3A" CompositionName="Tags">
+        <AttributeList>
+          <DataTypeName>Bool</DataTypeName>
+          <ExternalAccessible>true</ExternalAccessible>
+          <ExternalVisible>true</ExternalVisible>
+          <ExternalWritable>true</ExternalWritable>
+          <LogicalAddress>%I1.7</LogicalAddress>
+          <Name>iIO_xSupplyEntrySensor</Name>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="3B" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="3C" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcTag>
+    </ObjectList>
+  </SW.Tags.PlcTagTable>
+</Document>
