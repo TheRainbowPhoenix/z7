@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.python_poc.lexer import Lexer
 from src.python_poc.parser import Parser, VarDecl
 from src.python_poc.transpiler import Transpiler
-from src.python_poc.runtime import Runtime, DotDict
+from src.python_poc.runtime import Runtime, DotDict, RecursiveMock
 
 def transpile_file(scl_filepath, output_dir):
     try:
@@ -43,7 +43,7 @@ def generate_test(module_name, program, output_dir):
             return None
 
         func = program.functions[0]
-        func_name_in_python = func.name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_')
+        func_name_in_python = func.name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
 
         # Prepare context variables (8 spaces indent)
         context_setup = "        context = DotDict({\n"
@@ -51,73 +51,32 @@ def generate_test(module_name, program, output_dir):
         for decl in func.var_decls:
             if decl.section_type in ['VAR_INPUT', 'VAR_IN_OUT', 'VAR_OUTPUT', 'VAR', 'VAR CONSTANT', 'VAR_TEMP']:
                 for name, type_spec, init_val in decl.vars:
+                    # Use RecursiveMock by default for complex types
                     py_val = "RecursiveMock(f'" + name + "')"
-                    if "BOOL" in type_spec.upper():
+
+                    type_upper = type_spec.upper()
+
+                    if "ARRAY" in type_upper:
+                        # Initialize as DotDict which returns RecursiveMock for missing keys,
+                        # essentially acting as a sparse array/struct
+                        py_val = "DotDict({})"
+                    elif "BOOL" in type_upper:
                         py_val = "False"
-                    elif "STRING" in type_spec.upper():
+                    elif "STRING" in type_upper:
                         py_val = "''"
-                    elif "INT" in type_spec.upper() or "DINT" in type_spec.upper() or "REAL" in type_spec.upper() or "WORD" in type_spec.upper() or "DWORD" in type_spec.upper() or "BYTE" in type_spec.upper():
+                    elif "INT" in type_upper or "DINT" in type_upper or "REAL" in type_upper or "WORD" in type_upper or "DWORD" in type_upper or "BYTE" in type_upper:
                         py_val = "0"
-                    # ARRAY is tricky, because it can be ARRAY of INT, or ARRAY of Struct.
-                    # If we use RecursiveMock, array access returns RecursiveMock.
-                    # But if the code expects list, it might fail `isinstance(list)`.
-                    # Let's keep specific mocks for known types, and fallback to RecursiveMock.
-                    #elif "ARRAY" in type_spec.upper():
-                    #    py_val = "[0] * 100" # Default array size
 
                     context_setup += f"            '{name}': {py_val},\n"
 
         context_setup += "        })\n"
-
-        recursive_mock_code = r'''
-class RecursiveMock:
-    def __init__(self, name="Mock"):
-        self._name = name
-    def __getattr__(self, name):
-        return RecursiveMock(f"{self._name}.{name}")
-    def __getitem__(self, key):
-        return RecursiveMock(f"{self._name}[{key}]")
-    def __setattr__(self, name, value):
-        if name == "_name":
-            super().__setattr__(name, value)
-        pass # Ignore sets
-    def __setitem__(self, key, value):
-        pass # Ignore sets
-    def __call__(self, *args, **kwargs):
-        return RecursiveMock(f"{self._name}()")
-    def __int__(self): return 0
-    def __float__(self): return 0.0
-    def __str__(self): return ""
-    def __bool__(self): return False
-    def __len__(self): return 0
-    def __iter__(self): return iter([])
-    def __eq__(self, other): return False
-    def __ne__(self, other): return True
-    def __le__(self, other): return True
-    def __ge__(self, other): return True
-    def __lt__(self, other): return False
-    def __gt__(self, other): return False
-    # Add arithmetic operations if needed
-    def __add__(self, other): return RecursiveMock()
-    def __sub__(self, other): return RecursiveMock()
-    def __mul__(self, other): return RecursiveMock()
-    def __truediv__(self, other): return RecursiveMock()
-    def __and__(self, other): return RecursiveMock()
-    def __or__(self, other): return RecursiveMock()
-    def __xor__(self, other): return RecursiveMock()
-    def __mod__(self, other): return RecursiveMock()
-    def __invert__(self): return RecursiveMock()
-    def __neg__(self): return RecursiveMock()
-'''
 
         test_content = f"""
 import unittest
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from src.python_poc.runtime import Runtime, DotDict
-
-{recursive_mock_code}
+from src.python_poc.runtime import Runtime, DotDict, RecursiveMock
 
 # Mock functions for common SCL calls found in libraries
 def mock_functions():
@@ -164,22 +123,9 @@ def mock_functions():
 class Test_{module_name}(unittest.TestCase):
     def setUp(self):
         self.runtime = Runtime()
-        # Load the specific transpiled module content to runtime
-        # Actually runtime.load_scl transpiles from SCL.
-        # But here we want to test the already transpiled code if possible?
-        # Or we can just use runtime.load_scl pointing to the original SCL file.
-        # But the requirement is to use the transpiled file.
-        # The runtime currently takes SCL path.
-        # Let's override or use exec.
         pass
 
     def test_run(self):
-        # We will load the SCL file using runtime to ensure it matches our transpilation flow
-        # This is slightly redundant with transpile_file but verifies integration.
-        # But wait, transpile_file created a .py file.
-        # Let's import that .py file?
-        # Since the generated code is just a function def, we can just exec it.
-
         import scl_test.transpiled.{module_name} as transpiled_module
 
         # We need to find the function in the module
@@ -188,14 +134,7 @@ class Test_{module_name}(unittest.TestCase):
 {context_setup}
         global_dbs = DotDict({{}})
 
-        # Add mocks to globals if needed (Runtime does this internally for load_scl)
-        # But here we are calling the function directly.
-        # The function expects (context, global_dbs).
-        # And it might use global functions like DINT_TO_TIME.
-        # These need to be in the function's globals.
-        # Since we imported the module, its globals are the module's globals.
-        # We need to inject mocks into the module's globals.
-
+        # Add mocks to globals
         mocks = mock_functions()
         for k, v in mocks.items():
             setattr(transpiled_module, k, v)
@@ -222,7 +161,7 @@ class Test_{module_name}(unittest.TestCase):
             print(f"Warning: Failed to load sibling modules: {{e}}")
 
         try:
-            func(context, global_dbs)
+            func(context=context, global_dbs=global_dbs)
             print("Execution successful")
         except Exception as e:
             self.fail(f"Execution failed: {{e}}")

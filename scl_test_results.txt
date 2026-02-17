@@ -20,22 +20,22 @@ F
 FAIL: test_run (__main__.Test_Code_128.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Code_128.py", line 166, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/Code_128.py", line 32, in Code_128
-    context['charsIn'][int(context['i'])] = 0
+  File "/app/scl_test/tests/test_Code_128.py", line 105, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/Code_128.py", line 34, in Code_128
+    context['intVals'][int(context['i'])] = 0
     ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
 TypeError: 'int' object does not support item assignment
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Code_128.py", line 169, in test_run
+  File "/app/scl_test/tests/test_Code_128.py", line 108, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: 'int' object does not support item assignment
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.013s
 
 FAILED (failures=1)
 
@@ -60,7 +60,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.022s
 
 OK
 
@@ -136,7 +136,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.029s
+Ran 1 test in 0.032s
 
 OK
 
@@ -195,7 +195,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.023s
+Ran 1 test in 0.009s
 
 OK
 
@@ -220,7 +220,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.022s
+Ran 1 test in 0.011s
 
 OK
 
@@ -264,8 +264,8 @@ F
 FAIL: test_run (__main__.Test_WString_to_Time.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_WString_to_Time.py", line 166, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_WString_to_Time.py", line 105, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/WString_to_Time.py", line 33, in WString_to_Time
     Strg_TO_Chars(Strg=context['String Box'], pChars=0, Cnt=context['Count'], Chars=context['WChar Array'])
     ^^^^^^^^^^^^^
@@ -274,12 +274,12 @@ NameError: name 'Strg_TO_Chars' is not defined
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_WString_to_Time.py", line 169, in test_run
+  File "/app/scl_test/tests/test_WString_to_Time.py", line 108, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: name 'Strg_TO_Chars' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.036s
+Ran 1 test in 0.019s
 
 FAILED (failures=1)
 
@@ -301,31 +301,14 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_Time_to_WString.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Time_to_WString.py", line 172, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/Time_to_WString.py", line 41, in Time_to_WString
-    context['Time Elements'][int(0)] = ''
-    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
-TypeError: 'str' object does not support item assignment
+Ran 1 test in 0.010s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Time_to_WString.py", line 175, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: 'str' object does not support item assignment
-
-----------------------------------------------------------------------
-Ran 1 test in 0.024s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -348,8 +331,8 @@ F
 FAIL: test_run (__main__.Test_Real_to_WString_Timer.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Real_to_WString_Timer.py", line 156, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_Real_to_WString_Timer.py", line 95, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/Real_to_WString_Timer.py", line 14, in Real_to_WString_Timer
     context['Real to WString Timer'] = Time_to_WString(DINT_TO_TIME(REAL_TO_DINT((context['realVal'] * context['msPerSec']))))
                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -361,12 +344,12 @@ TypeError: 'int' object does not support item assignment
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Real_to_WString_Timer.py", line 159, in test_run
+  File "/app/scl_test/tests/test_Real_to_WString_Timer.py", line 98, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: 'int' object does not support item assignment
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.011s
 
 FAILED (failures=1)
 
@@ -393,8 +376,8 @@ F
 FAIL: test_run (__main__.Test_WString_Timer_to_Real.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_WString_Timer_to_Real.py", line 156, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_WString_Timer_to_Real.py", line 95, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/WString_Timer_to_Real.py", line 14, in WString_Timer_to_Real
     context['WString Timer to Real'] = (DINT_TO_REAL(TIME_TO_DINT(WString_to_Time(context['wstring']))) / context['msPerSec'])
                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -406,12 +389,12 @@ TypeError: 'str' object does not support item assignment
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_WString_Timer_to_Real.py", line 159, in test_run
+  File "/app/scl_test/tests/test_WString_Timer_to_Real.py", line 98, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: 'str' object does not support item assignment
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.012s
 
 FAILED (failures=1)
 
@@ -433,31 +416,14 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_Int___Fill.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___Fill.py", line 158, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/Int___Fill.py", line 16, in Int___Fill
-    context['size'] = UDINT_TO_DINT(Int___CountOfElements(context['data']))
-                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+Ran 1 test in 0.021s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___Fill.py", line 161, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
-
-----------------------------------------------------------------------
-Ran 1 test in 0.024s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -475,31 +441,14 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_Int___IsFull.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___IsFull.py", line 158, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/Int___IsFull.py", line 15, in Int___IsFull
-    context['size'] = UDINT_TO_DINT(Int___CountOfElements(context['array']))
-                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+Ran 1 test in 0.011s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___IsFull.py", line 161, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
-
-----------------------------------------------------------------------
-Ran 1 test in 0.025s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -517,31 +466,14 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_Int___IsEmpty.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___IsEmpty.py", line 158, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/Int___IsEmpty.py", line 15, in Int___IsEmpty
-    context['size'] = UDINT_TO_DINT(Int___CountOfElements(context['array']))
-                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+Ran 1 test in 0.021s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___IsEmpty.py", line 161, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
-
-----------------------------------------------------------------------
-Ran 1 test in 0.024s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -562,7 +494,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.011s
 
 OK
 
@@ -584,31 +516,14 @@ FAMILY : 'Int[]'
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_Int___Search.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___Search.py", line 158, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/Int___Search.py", line 15, in Int___Search
-    context['size'] = UDINT_TO_INT(Int___CountOfElements(context['haystack']))
-                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+Ran 1 test in 0.011s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___Search.py", line 161, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
-
-----------------------------------------------------------------------
-Ran 1 test in 0.026s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -648,8 +563,8 @@ F
 FAIL: test_run (__main__.Test_Int___Split.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___Split.py", line 165, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_Int___Split.py", line 104, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/Int___Split.py", line 23, in Int___Split
     Int___Fill(value=context['null_token'], data=context['left'])
   File "/app/scl_test/transpiled/Int___Fill.py", line 16, in Int___Fill
@@ -660,12 +575,12 @@ NameError: name 'UDINT_TO_DINT' is not defined
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___Split.py", line 168, in test_run
+  File "/app/scl_test/tests/test_Int___Split.py", line 107, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: name 'UDINT_TO_DINT' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.018s
 
 FAILED (failures=1)
 
@@ -687,31 +602,14 @@ VERSION : 0.1
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_Int___CollapseLeft.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___CollapseLeft.py", line 159, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/Int___CollapseLeft.py", line 17, in Int___CollapseLeft
-    context['size'] = UDINT_TO_DINT(Int___CountOfElements(context['array']))
-                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
+Ran 1 test in 0.011s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___CollapseLeft.py", line 162, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: Int___CountOfElements() missing 1 required positional argument: 'global_dbs'
-
-----------------------------------------------------------------------
-Ran 1 test in 0.025s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -732,7 +630,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.023s
+Ran 1 test in 0.011s
 
 OK
 
@@ -757,7 +655,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.027s
+Ran 1 test in 0.011s
 
 OK
 
@@ -801,8 +699,8 @@ F
 FAIL: test_run (__main__.Test_Int___Clear.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___Clear.py", line 158, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_Int___Clear.py", line 97, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/Int___Clear.py", line 16, in Int___Clear
     Int___Fill(value=context['null_token'], data=context['array'])
   File "/app/scl_test/transpiled/Int___Fill.py", line 16, in Int___Fill
@@ -813,12 +711,12 @@ NameError: name 'UDINT_TO_DINT' is not defined
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Int___Clear.py", line 161, in test_run
+  File "/app/scl_test/tests/test_Int___Clear.py", line 100, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: name 'UDINT_TO_DINT' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.019s
 
 FAILED (failures=1)
 
@@ -860,7 +758,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.026s
+Ran 1 test in 0.013s
 
 OK
 
@@ -885,7 +783,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.027s
+Ran 1 test in 0.012s
 
 OK
 
@@ -910,7 +808,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.026s
+Ran 1 test in 0.022s
 
 OK
 
@@ -935,7 +833,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.013s
 
 OK
 
@@ -960,7 +858,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.012s
 
 OK
 
@@ -985,7 +883,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.026s
+Ran 1 test in 0.017s
 
 OK
 
@@ -1010,7 +908,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.014s
 
 OK
 
@@ -1035,7 +933,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.023s
+Ran 1 test in 0.013s
 
 OK
 
@@ -1060,7 +958,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.014s
 
 OK
 
@@ -1085,7 +983,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.023s
+Ran 1 test in 0.014s
 
 OK
 
@@ -1110,7 +1008,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.014s
 
 OK
 
@@ -1135,7 +1033,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.014s
 
 OK
 
@@ -1160,7 +1058,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.023s
+Ran 1 test in 0.014s
 
 OK
 
@@ -1185,7 +1083,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.013s
 
 OK
 
@@ -1210,7 +1108,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.023s
+Ran 1 test in 0.014s
 
 OK
 
@@ -1235,7 +1133,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.031s
+Ran 1 test in 0.030s
 
 OK
 
@@ -1262,22 +1160,29 @@ F
 FAIL: test_run (__main__.Test_Set_System_Time_from_Web_Page.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Set_System_Time_from_Web_Page.py", line 161, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 23, in Split
-    context['sub_strings'][int(context['pointer'])] = LEFT(IN=context['string_in'], L=(context['_position'] - 1))
-    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: 'str' object does not support item assignment
+  File "/app/scl_test/tests/test_Set_System_Time_from_Web_Page.py", line 100, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 24, in Split
+    Split(string_in=RIGHT(IN=context['string_in'], L=(LEN(context['string_in']) - context['_position'])), delimeter=context['delimeter'], pointer=(context['pointer'] + 1), sub_strings=context['sub_strings'])
+  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 24, in Split
+    Split(string_in=RIGHT(IN=context['string_in'], L=(LEN(context['string_in']) - context['_position'])), delimeter=context['delimeter'], pointer=(context['pointer'] + 1), sub_strings=context['sub_strings'])
+  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 24, in Split
+    Split(string_in=RIGHT(IN=context['string_in'], L=(LEN(context['string_in']) - context['_position'])), delimeter=context['delimeter'], pointer=(context['pointer'] + 1), sub_strings=context['sub_strings'])
+  [Previous line repeated 984 more times]
+  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 19, in Split
+    context['_position'] = FIND(IN1=context['string_in'], IN2=context['delimeter'])
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RecursionError: maximum recursion depth exceeded
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Set_System_Time_from_Web_Page.py", line 164, in test_run
+  File "/app/scl_test/tests/test_Set_System_Time_from_Web_Page.py", line 103, in test_run
     self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: 'str' object does not support item assignment
+AssertionError: Execution failed: maximum recursion depth exceeded
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.026s
+Ran 1 test in 0.145s
 
 FAILED (failures=1)
 
@@ -1344,7 +1249,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.017s
 
 OK
 
@@ -1369,7 +1274,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.023s
+Ran 1 test in 0.018s
 
 OK
 
@@ -1396,12 +1301,12 @@ F
 FAIL: test_run (__main__.Test_Select_Element_by_Format_Code.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Select_Element_by_Format_Code.py", line 155, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_Select_Element_by_Format_Code.py", line 94, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/Select_Element_by_Format_Code.py", line 11, in Format_Code_as_Int
     context['Format Code as Int'] = CHAR_TO_INT(STRING_TO_CHAR(LEFT(IN=context['formatCode'], L=1)))
                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scl_test/tests/test_Select_Element_by_Format_Code.py", line 81, in <lambda>
+  File "/app/scl_test/tests/test_Select_Element_by_Format_Code.py", line 40, in <lambda>
     'CHAR_TO_INT': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else int(x),
                                                                               ^^^^^^
 ValueError: invalid literal for int() with base 10: ''
@@ -1409,12 +1314,12 @@ ValueError: invalid literal for int() with base 10: ''
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Select_Element_by_Format_Code.py", line 158, in test_run
+  File "/app/scl_test/tests/test_Select_Element_by_Format_Code.py", line 97, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: invalid literal for int() with base 10: ''
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.018s
 
 FAILED (failures=1)
 
@@ -1439,7 +1344,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.017s
 
 OK
 
@@ -1466,8 +1371,8 @@ F
 FAIL: test_run (__main__.Test_Upper.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Upper.py", line 164, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_Upper.py", line 103, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/Upper.py", line 25, in Upper
     Strg_TO_Chars(Strg=context['string'], pChars=0, Cnt=context['cntChar'], Chars=context['charArr'])
     ^^^^^^^^^^^^^
@@ -1476,12 +1381,12 @@ NameError: name 'Strg_TO_Chars' is not defined
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Upper.py", line 167, in test_run
+  File "/app/scl_test/tests/test_Upper.py", line 106, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: name 'Strg_TO_Chars' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.036s
+Ran 1 test in 0.028s
 
 FAILED (failures=1)
 
@@ -1506,7 +1411,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.023s
+Ran 1 test in 0.019s
 
 OK
 
@@ -1531,7 +1436,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.019s
 
 OK
 
@@ -1558,12 +1463,12 @@ F
 FAIL: test_run (__main__.Test_Format_Output.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Format_Output.py", line 155, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_Format_Output.py", line 94, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/Format_Output.py", line 11, in Format_Code_as_Int
     context['Format Code as Int'] = CHAR_TO_INT(STRING_TO_CHAR(LEFT(IN=context['formatCode'], L=1)))
                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scl_test/tests/test_Format_Output.py", line 81, in <lambda>
+  File "/app/scl_test/tests/test_Format_Output.py", line 40, in <lambda>
     'CHAR_TO_INT': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else int(x),
                                                                               ^^^^^^
 ValueError: invalid literal for int() with base 10: ''
@@ -1571,12 +1476,12 @@ ValueError: invalid literal for int() with base 10: ''
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Format_Output.py", line 158, in test_run
+  File "/app/scl_test/tests/test_Format_Output.py", line 97, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: invalid literal for int() with base 10: ''
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.027s
+Ran 1 test in 0.019s
 
 FAILED (failures=1)
 
@@ -1601,7 +1506,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.019s
 
 OK
 
@@ -1626,7 +1531,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.023s
+Ran 1 test in 0.018s
 
 OK
 
@@ -1651,7 +1556,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.020s
 
 OK
 
@@ -1676,7 +1581,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.027s
 
 OK
 
@@ -1701,7 +1606,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.018s
 
 OK
 
@@ -1726,7 +1631,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.027s
+Ran 1 test in 0.021s
 
 OK
 
@@ -1753,8 +1658,8 @@ F
 FAIL: test_run (__main__.Test_Lower.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Lower.py", line 162, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_Lower.py", line 101, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/Lower.py", line 23, in Lower
     Strg_TO_Chars(Strg=context['string'], pChars=0, Cnt=context['cntChar'], Chars=context['charArr'])
     ^^^^^^^^^^^^^
@@ -1763,12 +1668,12 @@ NameError: name 'Strg_TO_Chars' is not defined
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Lower.py", line 165, in test_run
+  File "/app/scl_test/tests/test_Lower.py", line 104, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: name 'Strg_TO_Chars' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.036s
+Ran 1 test in 0.029s
 
 FAILED (failures=1)
 
@@ -1795,8 +1700,8 @@ F
 FAIL: test_run (__main__.Test_Strip_Sign.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Strip_Sign.py", line 160, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_Strip_Sign.py", line 99, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/Strip_Sign.py", line 21, in Strip_Sign
     context['Test Character'] = LEFT_STRING(IN=context['String Box'], L=1)
                                 ^^^^^^^^^^^
@@ -1805,12 +1710,12 @@ NameError: name 'LEFT_STRING' is not defined
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Strip_Sign.py", line 163, in test_run
+  File "/app/scl_test/tests/test_Strip_Sign.py", line 102, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: name 'LEFT_STRING' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.028s
 
 FAILED (failures=1)
 
@@ -1835,7 +1740,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.029s
 
 OK
 
@@ -1860,7 +1765,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.020s
 
 OK
 
@@ -1887,12 +1792,12 @@ F
 FAIL: test_run (__main__.Test_Format_Code_as_Int.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Format_Code_as_Int.py", line 155, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_Format_Code_as_Int.py", line 94, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/Format_Code_as_Int.py", line 11, in Format_Code_as_Int
     context['Format Code as Int'] = CHAR_TO_INT(STRING_TO_CHAR(LEFT(IN=context['formatCode'], L=1)))
                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scl_test/tests/test_Format_Code_as_Int.py", line 81, in <lambda>
+  File "/app/scl_test/tests/test_Format_Code_as_Int.py", line 40, in <lambda>
     'CHAR_TO_INT': lambda x: ord(x) if isinstance(x, str) and len(x) > 0 else int(x),
                                                                               ^^^^^^
 ValueError: invalid literal for int() with base 10: ''
@@ -1900,12 +1805,12 @@ ValueError: invalid literal for int() with base 10: ''
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Format_Code_as_Int.py", line 158, in test_run
+  File "/app/scl_test/tests/test_Format_Code_as_Int.py", line 97, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: invalid literal for int() with base 10: ''
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.021s
 
 FAILED (failures=1)
 
@@ -1930,7 +1835,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.026s
+Ran 1 test in 0.023s
 
 OK
 
@@ -1957,8 +1862,8 @@ F
 FAIL: test_run (__main__.Test_Resolve_Element_Lengths.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Resolve_Element_Lengths.py", line 160, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_Resolve_Element_Lengths.py", line 99, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/Resolve_Element_Lengths.py", line 21, in Resolve_Element_Lengths
     context['code'] = context['formatCodes'].me[int(context['pCode'])]
                       ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1967,12 +1872,12 @@ AttributeError: 'str' object has no attribute 'me'
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Resolve_Element_Lengths.py", line 163, in test_run
+  File "/app/scl_test/tests/test_Resolve_Element_Lengths.py", line 102, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: 'str' object has no attribute 'me'
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.022s
 
 FAILED (failures=1)
 
@@ -1999,8 +1904,8 @@ F
 FAIL: test_run (__main__.Test_Strip_Sign.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Strip_Sign.py", line 160, in test_run
-    func(context, global_dbs)
+  File "/app/scl_test/tests/test_Strip_Sign.py", line 99, in test_run
+    func(context=context, global_dbs=global_dbs)
   File "/app/scl_test/transpiled/Strip_Sign.py", line 21, in Strip_Sign
     context['Test Character'] = LEFT_STRING(IN=context['String Box'], L=1)
                                 ^^^^^^^^^^^
@@ -2009,12 +1914,12 @@ NameError: name 'LEFT_STRING' is not defined
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Strip_Sign.py", line 163, in test_run
+  File "/app/scl_test/tests/test_Strip_Sign.py", line 102, in test_run
     self.fail(f"Execution failed: {e}")
 AssertionError: Execution failed: name 'LEFT_STRING' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.032s
+Ran 1 test in 0.029s
 
 FAILED (failures=1)
 
@@ -2039,7 +1944,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.023s
+Ran 1 test in 0.020s
 
 OK
 
@@ -2066,22 +1971,29 @@ F
 FAIL: test_run (__main__.Test_WString_Split_Single.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_WString_Split_Single.py", line 161, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/WString_Split_Single.py", line 23, in WString_Split_Single
-    context['sub_strings'][int(context['pointer'])] = LEFT(IN=context['wstring_in'], L=(context['_position'] - 1))
-    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: 'str' object does not support item assignment
+  File "/app/scl_test/tests/test_WString_Split_Single.py", line 100, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/WString_Split_Single.py", line 24, in WString_Split_Single
+    WString_Split_Single(wstring_in=RIGHT(IN=context['wstring_in'], L=(LEN(context['wstring_in']) - context['_position'])), delimeter=context['delimeter'], pointer=(context['pointer'] + 1), sub_strings=context['sub_strings'])
+  File "/app/scl_test/transpiled/WString_Split_Single.py", line 24, in WString_Split_Single
+    WString_Split_Single(wstring_in=RIGHT(IN=context['wstring_in'], L=(LEN(context['wstring_in']) - context['_position'])), delimeter=context['delimeter'], pointer=(context['pointer'] + 1), sub_strings=context['sub_strings'])
+  File "/app/scl_test/transpiled/WString_Split_Single.py", line 24, in WString_Split_Single
+    WString_Split_Single(wstring_in=RIGHT(IN=context['wstring_in'], L=(LEN(context['wstring_in']) - context['_position'])), delimeter=context['delimeter'], pointer=(context['pointer'] + 1), sub_strings=context['sub_strings'])
+  [Previous line repeated 984 more times]
+  File "/app/scl_test/transpiled/WString_Split_Single.py", line 19, in WString_Split_Single
+    context['_position'] = FIND(IN1=context['wstring_in'], IN2=context['delimeter'])
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RecursionError: maximum recursion depth exceeded
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_WString_Split_Single.py", line 164, in test_run
+  File "/app/scl_test/tests/test_WString_Split_Single.py", line 103, in test_run
     self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: 'str' object does not support item assignment
+AssertionError: Execution failed: maximum recursion depth exceeded
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.152s
 
 FAILED (failures=1)
 
@@ -2106,7 +2018,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.021s
 
 OK
 
@@ -2131,7 +2043,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.022s
 
 OK
 
@@ -2156,7 +2068,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.026s
+Ran 1 test in 0.021s
 
 OK
 
@@ -2181,7 +2093,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.030s
+Ran 1 test in 0.029s
 
 OK
 
@@ -2208,22 +2120,24 @@ F
 FAIL: test_run (__main__.Test_Split.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Split.py", line 161, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/Split.py", line 23, in Split
-    context['sub_strings'][int(context['pointer'])] = LEFT(IN=context['string_in'], L=(context['_position'] - 1))
-    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: 'str' object does not support item assignment
+  File "/app/scl_test/tests/test_Split.py", line 100, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/Split.py", line 24, in Split
+    Split(string_in=RIGHT(IN=context['string_in'], L=(LEN(context['string_in']) - context['_position'])), delimeter=context['delimeter'], pointer=(context['pointer'] + 1), sub_strings=context['sub_strings'])
+  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 19, in Split
+    context['_position'] = FIND(IN1=context['string_in'], IN2=context['delimeter'])
+                           ^^^^
+NameError: name 'FIND' is not defined
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Split.py", line 164, in test_run
+  File "/app/scl_test/tests/test_Split.py", line 103, in test_run
     self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: 'str' object does not support item assignment
+AssertionError: Execution failed: name 'FIND' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.023s
 
 FAILED (failures=1)
 
@@ -2248,7 +2162,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.035s
 
 OK
 
@@ -2273,7 +2187,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.023s
 
 OK
 
@@ -2298,7 +2212,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.024s
+Ran 1 test in 0.023s
 
 OK
 
@@ -2323,7 +2237,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.023s
+Ran 1 test in 0.022s
 
 OK
 
@@ -2348,7 +2262,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.022s
 
 OK
 
@@ -2373,7 +2287,7 @@ Transpilation: SUCCESS
 Execution successful
 .
 ----------------------------------------------------------------------
-Ran 1 test in 0.027s
+Ran 1 test in 0.028s
 
 OK
 
@@ -2454,31 +2368,14 @@ VERSION : 1.0
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_MQTT_Sending.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_MQTT_Sending.py", line 157, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/MQTT_Sending.py", line 14, in mqttSendTCP
-    if ((context['mqttData'].sendSize + context['size']) <= context['mqttGlobals'].TCP_SENDBUFFERSIZE):
-         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~
-TypeError: unsupported operand type(s) for +: 'DotDict' and 'int'
+Ran 1 test in 0.025s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_MQTT_Sending.py", line 160, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: unsupported operand type(s) for +: 'DotDict' and 'int'
-
-----------------------------------------------------------------------
-Ran 1 test in 0.027s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -2496,31 +2393,14 @@ SCL Header:
 
 Test Output:
 Transpilation: SUCCESS
-F
-======================================================================
-FAIL: test_run (__main__.Test_MQTT_Functions.test_run)
+Execution successful
+.
 ----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_MQTT_Functions.py", line 154, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/MQTT_Functions.py", line 9, in mqttGetNextMessageID
-    context['mqttData'].nextMsgId = (context['mqttData'].nextMsgId + 1)
-                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~
-TypeError: unsupported operand type(s) for +: 'DotDict' and 'int'
+Ran 1 test in 0.029s
 
-During handling of the above exception, another exception occurred:
+OK
 
-Traceback (most recent call last):
-  File "/app/scl_test/tests/test_MQTT_Functions.py", line 157, in test_run
-    self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: unsupported operand type(s) for +: 'DotDict' and 'int'
-
-----------------------------------------------------------------------
-Ran 1 test in 0.028s
-
-FAILED (failures=1)
-
-RESULT: FAILED
+RESULT: PASSED
 
 ==================================================
 
@@ -2577,22 +2457,22 @@ F
 FAIL: test_run (__main__.Test_Unixtime.test_run)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Unixtime.py", line 167, in test_run
-    func(context, global_dbs)
-  File "/app/scl_test/transpiled/Unixtime.py", line 25, in Unixtime
-    context['days_from_BeginOfYear'][int(0)] = 0
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
-TypeError: 'int' object does not support item assignment
+  File "/app/scl_test/tests/test_Unixtime.py", line 106, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/Unixtime.py", line 37, in Unixtime
+    context['sfc1_ret_val'] = RD_SYS_T(OUT=context['CDT_systemtime'])
+                              ^^^^^^^^
+NameError: name 'RD_SYS_T' is not defined
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File "/app/scl_test/tests/test_Unixtime.py", line 170, in test_run
+  File "/app/scl_test/tests/test_Unixtime.py", line 109, in test_run
     self.fail(f"Execution failed: {e}")
-AssertionError: Execution failed: 'int' object does not support item assignment
+AssertionError: Execution failed: name 'RD_SYS_T' is not defined
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.025s
+Ran 1 test in 0.029s
 
 FAILED (failures=1)
 
@@ -2600,4 +2480,4 @@ RESULT: FAILED
 
 ==================================================
 
-Summary: 50 Passed, 40 Failed.
+Summary: 58 Passed, 32 Failed.
