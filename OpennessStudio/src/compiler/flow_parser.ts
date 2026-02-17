@@ -1,5 +1,18 @@
-import { BlockType, Connection, Network, NetworkPart, OpennessNode } from "../types.ts";
-import { ActionIR, BlockIR, CallIR, NetworkIR, ProgramIR, TypeField } from "./ir.ts";
+import {
+  BlockType,
+  Connection,
+  Network,
+  NetworkPart,
+  OpennessNode,
+} from "../types.ts";
+import {
+  ActionIR,
+  BlockIR,
+  CallIR,
+  NetworkIR,
+  ProgramIR,
+  TypeField,
+} from "./ir.ts";
 
 interface NameConNode {
   uid: string;
@@ -13,7 +26,9 @@ interface WireProjection {
 
 export function compileProgram(nodes: OpennessNode[]): ProgramIR {
   const blocks = nodes
-    .filter((node) => [BlockType.OB, BlockType.FB, BlockType.FC].includes(node.type))
+    .filter((node) =>
+      [BlockType.OB, BlockType.FB, BlockType.FC].includes(node.type)
+    )
     .map((node) => compileNode(node));
 
   return { blocks };
@@ -25,8 +40,12 @@ export function compileNode(node: OpennessNode): BlockIR {
     sourcePath: node.path,
     type: node.type,
     fields: extractFields(node.interface),
-    networks: (node.networks || []).map((net, idx) => parseNetworkToIR(net, idx + 1)),
-    sclBody: typeof node.xmlContent?.raw === "string" ? node.xmlContent.raw : undefined,
+    networks: (node.networks || []).map((net, idx) =>
+      parseNetworkToIR(net, idx + 1)
+    ),
+    sclBody: typeof node.xmlContent?.raw === "string"
+      ? node.xmlContent.raw
+      : undefined,
   };
 }
 
@@ -44,13 +63,24 @@ function parseNetworkToIR(net: Network, index: number): NetworkIR {
   const calls: CallIR[] = [];
 
   for (const part of net.parts) {
-    if (part.type === "Part" && (part.name === "Contact" || part.name === "PContact")) {
+    if (
+      part.type === "Part" &&
+      (part.name === "Contact" || part.name === "PContact")
+    ) {
       const contactExpr = buildContactExpr(part, projections, accessSymbols);
       if (contactExpr) conditions.push(contactExpr);
     }
 
-    if (part.type === "Part" && (part.name === "Coil" || part.name === "SCoil" || part.name === "RCoil")) {
-      const action = buildCoilAction(part, conditions, projections, accessSymbols);
+    if (
+      part.type === "Part" &&
+      (part.name === "Coil" || part.name === "SCoil" || part.name === "RCoil")
+    ) {
+      const action = buildCoilAction(
+        part,
+        conditions,
+        projections,
+        accessSymbols,
+      );
       if (action) actions.push(action);
     }
 
@@ -62,7 +92,11 @@ function parseNetworkToIR(net: Network, index: number): NetworkIR {
   return { index, conditions, actions, calls };
 }
 
-function buildCall(part: NetworkPart, projections: WireProjection[], accessSymbols: Map<string, string>): CallIR {
+function buildCall(
+  part: NetworkPart,
+  projections: WireProjection[],
+  accessSymbols: Map<string, string>,
+): CallIR {
   const args: Record<string, string> = {};
 
   for (const wire of projections) {
@@ -88,7 +122,12 @@ function buildCoilAction(
   projections: WireProjection[],
   accessSymbols: Map<string, string>,
 ): ActionIR | null {
-  const targetUid = findUidConnectedToPin(part.uid, "operand", projections, accessSymbols);
+  const targetUid = findUidConnectedToPin(
+    part.uid,
+    "operand",
+    projections,
+    accessSymbols,
+  );
   if (!targetUid) return null;
 
   const target = accessSymbols.get(targetUid) || "unknown_target";
@@ -104,7 +143,12 @@ function buildContactExpr(
   projections: WireProjection[],
   accessSymbols: Map<string, string>,
 ): string | null {
-  const operandUid = findUidConnectedToPin(part.uid, "operand", projections, accessSymbols);
+  const operandUid = findUidConnectedToPin(
+    part.uid,
+    "operand",
+    projections,
+    accessSymbols,
+  );
   if (!operandUid) return null;
 
   const symbol = accessSymbols.get(operandUid) || "False";
@@ -121,7 +165,9 @@ function findUidConnectedToPin(
   accessSymbols: Map<string, string>,
 ): string | null {
   for (const wire of projections) {
-    const hasPin = wire.nameCons.some((nc) => nc.uid === targetUid && nc.pin === pin);
+    const hasPin = wire.nameCons.some((nc) =>
+      nc.uid === targetUid && nc.pin === pin
+    );
     if (!hasPin) continue;
 
     const sourceUid = wire.identUids.find((uid) => accessSymbols.has(uid));
@@ -131,14 +177,20 @@ function findUidConnectedToPin(
   return null;
 }
 
-function projectWires(wires: { connections: Connection[] }[]): WireProjection[] {
+function projectWires(
+  wires: { connections: Connection[] }[],
+): WireProjection[] {
   return wires.map((wire) => {
     const identUids = wire.connections
-      .filter((conn): conn is Required<Connection> => conn.type === "IdentCon" && Boolean(conn.uid))
+      .filter((conn): conn is Required<Connection> =>
+        conn.type === "IdentCon" && Boolean(conn.uid)
+      )
       .map((conn) => conn.uid);
 
     const nameCons = wire.connections
-      .filter((conn): conn is Required<Connection> => conn.type === "NameCon" && Boolean(conn.uid) && Boolean(conn.name))
+      .filter((conn): conn is Required<Connection> =>
+        conn.type === "NameCon" && Boolean(conn.uid) && Boolean(conn.name)
+      )
       .map((conn) => ({ uid: conn.uid, pin: conn.name }));
 
     return { identUids, nameCons };
@@ -146,7 +198,8 @@ function projectWires(wires: { connections: Connection[] }[]): WireProjection[] 
 }
 
 function extractFields(iface: any): TypeField[] {
-  const sections = iface?.Sections?.Section || iface?.sections?.Section || iface?.Sections || [];
+  const sections = iface?.Sections?.Section || iface?.sections?.Section ||
+    iface?.Sections || [];
   const sectionList = Array.isArray(sections) ? sections : [sections];
   const output: TypeField[] = [];
 
@@ -174,7 +227,9 @@ function extractFields(iface: any): TypeField[] {
 }
 
 function symbolPath(part: NetworkPart): string {
-  return (part.symbol?.components || []).map((component) => sanitizeIdent(component.name)).join(".");
+  return (part.symbol?.components || []).map((component) =>
+    sanitizeIdent(component.name)
+  ).join(".");
 }
 
 function basename(path: string): string {
