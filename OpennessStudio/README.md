@@ -44,3 +44,29 @@ Open http://localhost:8000 in your browser.
    deno task render "Examples/PLC_1/Program blocks/01 Equipment/Control Panel.xml"
    ```
 5. Check `output_tree.html` for the tree view or `output_fbd.html` for the diagram.
+
+
+## PLC compiler/transpiler (new)
+
+This repository now includes a small compilation pipeline for TIA Openness LAD/FBD style blocks:
+
+- `src/compiler/flow_parser.ts`: converts raw network wires/parts into a flow-oriented IR (conditions, actions, calls).
+- `src/compiler/python_backend.ts`: transpiles this IR into typed Python modules (one module per OB/FB/FC block).
+- `src/compile_to_python.ts`: CLI orchestration that walks a PLC export folder and writes Python output.
+
+Generated output includes:
+
+- a Python file for each block (`<block_name>.py`) with:
+  - one `network_<n>()` method per network,
+  - a `cycle()` method to execute all networks in order,
+  - SCL/FC/FB calls converted into Python function calls.
+- `runtime.py` with typed aliases for common SCL/ST types (`BOOL`, `INT`, `DINT`, `REAL`, `TIME`, etc.) and helpers for contact/coil semantics.
+- `scl_stubs.py` auto-generated placeholders for unknown/missing SCL calls.
+
+Run it:
+
+```bash
+deno task compile examples/PLC_1/PLC_1/Program\ blocks generated_py
+```
+
+This architecture keeps parser and backend separated so we can add a future TypeScript backend without changing flow parsing.

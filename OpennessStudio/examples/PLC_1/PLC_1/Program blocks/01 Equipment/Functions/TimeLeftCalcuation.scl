@@ -1,0 +1,18 @@
+﻿FUNCTION "TimeLeftCalcuation" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT 
+      "diProcessTime[ms]" : DInt;
+      "diTimeDone[ms]" : DInt;
+   END_VAR
+
+   VAR_OUTPUT 
+      "diTimeLeft[s]" : DInt;
+   END_VAR
+
+
+BEGIN
+	#"diTimeLeft[s]" := (#"diProcessTime[ms]" - #"diTimeDone[ms]") / 1000;
+	
+END_FUNCTION
+

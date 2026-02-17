@@ -1,0 +1,30 @@
+﻿FUNCTION "PushDataToStation" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_IN_OUT 
+      "Work Station GD" : "UDT WorkStation";
+      WorkStationList : Array[0..9] of DInt;
+   END_VAR
+
+   VAR_TEMP 
+      iArrayLength : Int;
+      iTemp : Int;
+      iCounter : Int;
+   END_VAR
+
+
+BEGIN
+	IF #"Work Station GD".Command.xRequestData THEN
+	    #"Work Station GD".Status.tProcessTime := DINT_TO_TIME(#WorkStationList[0] * 1000);
+	    #"Work Station GD".Command.xRequestData := false;
+	    
+	    FOR #iCounter := 0 TO 8  DO
+	        #WorkStationList[#iCounter] := #WorkStationList[#iCounter + 1];
+	        ;
+	    END_FOR;
+	    
+	    ;
+	END_IF;
+	
+END_FUNCTION
+
