@@ -1,8 +1,11 @@
 # TIA Portal Openness Parser
 
-This project parses Siemens TIA Portal Openness XML and SCL files into a hierarchical tree structure, extracting metadata like Block Type (OB, FB, FC, DB, UDT), Name, Number, and network logic (LAD).
+This project parses Siemens TIA Portal Openness XML and SCL files into a
+hierarchical tree structure, extracting metadata like Block Type (OB, FB, FC,
+DB, UDT), Name, Number, and network logic (LAD).
 
 ## Technologies
+
 - Deno
 - TypeScript
 - fast-xml-parser
@@ -18,9 +21,12 @@ Open http://localhost:8000 in your browser.
 ![alt text](image.png)
 
 ## File Structure
+
 - `src/index.ts`: Entry point. Runs the parser on the `Examples` directory.
-- `src/walker.ts`: Recursively walks directories and handles file identification.
-- `src/parser.ts`: Contains logic to parse XML (using fast-xml-parser) and SCL (using regex) to extract block details.
+- `src/walker.ts`: Recursively walks directories and handles file
+  identification.
+- `src/parser.ts`: Contains logic to parse XML (using fast-xml-parser) and SCL
+  (using regex) to extract block details.
 - `src/types.ts`: TypeScript interfaces for the parsed data structure.
 - `output_tree.json`: The result of the parsing process.
 
@@ -43,30 +49,39 @@ Open http://localhost:8000 in your browser.
    ```bash
    deno task render "Examples/PLC_1/Program blocks/01 Equipment/Control Panel.xml"
    ```
-5. Check `output_tree.html` for the tree view or `output_fbd.html` for the diagram.
+5. Check `output_tree.html` for the tree view or `output_fbd.html` for the
+   diagram.
 
+## PLC compiler/transpiler
 
-## PLC compiler/transpiler (new)
+This repository now includes a small compilation pipeline for TIA Openness
+LAD/FBD style blocks:
 
-This repository now includes a small compilation pipeline for TIA Openness LAD/FBD style blocks:
+- `src/compiler/flow_parser.ts`: converts raw network wires/parts into a
+  flow-oriented IR (conditions, actions, calls).
+- `src/compiler/backends/python_backend.ts`: emits typed Python modules.
+- `src/compiler/backends/typescript_backend.ts`: emits typed TypeScript modules.
+- `src/compiler/transpiler.ts`: backend orchestration layer.
+- `src/compile_to_python.ts`: CLI orchestration that walks a PLC export folder
+  and writes Python output.
 
-- `src/compiler/flow_parser.ts`: converts raw network wires/parts into a flow-oriented IR (conditions, actions, calls).
-- `src/compiler/python_backend.ts`: transpiles this IR into typed Python modules (one module per OB/FB/FC block).
-- `src/compile_to_python.ts`: CLI orchestration that walks a PLC export folder and writes Python output.
+Generated output includes both targets:
 
-Generated output includes:
-
-- a Python file for each block (`<block_name>.py`) with:
-  - one `network_<n>()` method per network,
-  - a `cycle()` method to execute all networks in order,
-  - SCL/FC/FB calls converted into Python function calls.
-- `runtime.py` with typed aliases for common SCL/ST types (`BOOL`, `INT`, `DINT`, `REAL`, `TIME`, etc.) and helpers for contact/coil semantics.
-- `scl_stubs.py` auto-generated placeholders for unknown/missing SCL calls.
+- `generated/python/*.py`: one module per FB/FC/OB + `runtime.py` +
+  auto-generated `scl_stubs.py`.
+- `generated/typescript/*.ts`: one module per FB/FC/OB + `runtime.ts` +
+  auto-generated `scl_stubs.ts`.
+- each network is emitted as a typed `network_<n>` method/function body and SCL
+  calls are converted into method calls.
 
 Run it:
 
 ```bash
-deno task compile examples/PLC_1/PLC_1/Program\ blocks generated_py
+deno task compile "examples/PLC_1/PLC_1/Program blocks" generated python,typescript
 ```
 
-This architecture keeps parser and backend separated so we can add a future TypeScript backend without changing flow parsing.
+This architecture keeps parser and backend separated so we can add a future
+TypeScript backend without changing flow parsing.
+
+Reference parser ideas from `block_diagram_z3` can be kept in `third_party/`
+locally; this path is gitignored.

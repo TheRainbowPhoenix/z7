@@ -1,9 +1,38 @@
-import { BlockType, Network } from "../types.ts";
+import { BlockType } from "../types.ts";
+
+export type ScalarType =
+  | "Bool"
+  | "Int"
+  | "DInt"
+  | "UInt"
+  | "Real"
+  | "Time"
+  | "String"
+  | "Variant";
 
 export interface TypeField {
   name: string;
   datatype: string;
   section: string;
+}
+
+export interface CallIR {
+  name: string;
+  blockType: string;
+  args: Record<string, string>;
+}
+
+export interface ActionIR {
+  kind: "assign" | "set" | "reset";
+  target: string;
+  expression: string;
+}
+
+export interface NetworkIR {
+  index: number;
+  conditions: string[];
+  actions: ActionIR[];
+  calls: CallIR[];
 }
 
 export interface BlockIR {
@@ -15,30 +44,16 @@ export interface BlockIR {
   sclBody?: string;
 }
 
-export interface NetworkIR {
-  index: number;
-  conditions: string[];
-  actions: ActionIR[];
-  calls: CallIR[];
+export interface ProgramIR {
+  blocks: BlockIR[];
 }
 
-export interface ActionIR {
-  kind: "assign" | "set" | "reset";
-  target: string;
-  expression: string;
+export interface BackendContext {
+  program: ProgramIR;
+  outDir: string;
 }
 
-export interface CallIR {
-  name: string;
-  blockType: string;
-  args: Record<string, string>;
-}
-
-export interface CompileInput {
-  blockName?: string;
-  path: string;
-  type: BlockType;
-  networks?: Network[];
-  interface?: any;
-  xmlContent?: any;
+export interface Backend {
+  id: "python" | "typescript";
+  emit(context: BackendContext): Promise<void>;
 }
