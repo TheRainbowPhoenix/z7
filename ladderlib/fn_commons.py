@@ -32,6 +32,13 @@ def CELL_STATE_LEFT(lctx: LadderCtx, c: int, r: int) -> bool:
         return True
     return CELL_STATE(lctx, c - 1, r)
 
+def LADDER_VERTICAL_BAR(lctx: LadderCtx, n: int, r: int, c: int) -> bool:
+    if lctx and n < len(lctx.network):
+        net = lctx.network[n]
+        if r < net.rows and c < net.cols:
+            return net.cells[r][c].vertical_bar
+    return False
+
 def safe_get_register_index(lctx: LadderCtx, type_: LadderRegister, raw_idx: int) -> Tuple[int, LadderInsError]:
     if lctx is None:
         return -1, LadderInsError.LADDER_INS_ERR_FAIL

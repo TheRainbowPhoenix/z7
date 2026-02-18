@@ -84,8 +84,6 @@ def ladder_json_to_program(prg: str, lctx: LadderCtx) -> int:
 
     ladder_clear_program(lctx)
 
-    num_networks = len(data)
-
     for net_obj in data:
         if not isinstance(net_obj, dict): continue
 
@@ -176,3 +174,83 @@ def ladder_json_to_program(prg: str, lctx: LadderCtx) -> int:
                     cell.data.append(val)
 
     return 0 # JSON_ERROR_OK
+
+def ladder_program_to_json(prg: str, lctx: LadderCtx) -> int:
+    root = []
+
+    for n, net in enumerate(lctx.network):
+        net_obj = {
+            "id": n,
+            "rows": net.rows,
+            "cols": net.cols,
+            "networkData": []
+        }
+
+        for r in range(net.rows):
+            row_arr = []
+            for c in range(net.cols):
+                cell = net.cells[r][c]
+                cell_obj = {}
+
+                try:
+                    sym = STR_SYMBOL[cell.code]
+                except IndexError:
+                    sym = "INV"
+
+                cell_obj["symbol"] = sym
+                cell_obj["bar"] = cell.vertical_bar
+                cell_obj["data"] = []
+
+                # In C `get_data_name` logic is complex.
+                # Simplified port based on logic or just generic names
+                # For demo purposes, we can use generic or implement logic.
+
+                for d, val in enumerate(cell.data):
+                    data_obj = {}
+                    # Name logic
+                    name = "value"
+                    # Simplified name logic from C
+                    if cell.code in (LadderInstructions.LADDER_INS_TON, LadderInstructions.LADDER_INS_TOF, LadderInstructions.LADDER_INS_TP):
+                        name = "timer" if d == 0 else "basetime"
+                    elif cell.code in (LadderInstructions.LADDER_INS_CTU, LadderInstructions.LADDER_INS_CTD):
+                        name = "counter" if d == 0 else "preset value"
+                    # ... add more if needed
+                    data_obj["name"] = name
+
+                    type_str = "INV"
+                    if val.type < len(STR_TYPES):
+                        type_str = STR_TYPES[val.type]
+
+                    # Special handling for basetime
+                    if cell.code in (LadderInstructions.LADDER_INS_TON, LadderInstructions.LADDER_INS_TOF, LadderInstructions.LADDER_INS_TP) and d == 1:
+                         if val.type < len(STR_BASETIME):
+                             type_str = STR_BASETIME[val.type]
+
+                    data_obj["type"] = type_str
+
+                    val_str = ""
+                    if cell.code in (LadderInstructions.LADDER_INS_TON, LadderInstructions.LADDER_INS_TOF, LadderInstructions.LADDER_INS_TP) and d == 1:
+                        val_str = str(val.i32)
+                    elif val.type in (LadderRegister.LADDER_REGISTER_I, LadderRegister.LADDER_REGISTER_Q):
+                        val_str = f"{val.mp.module}.{val.mp.port}"
+                    elif val.type == LadderRegister.LADDER_REGISTER_S:
+                        val_str = str(val.value)
+                    elif val.type == LadderRegister.LADDER_REGISTER_R:
+                        val_str = f"{float(val.value):f}"
+                    else:
+                        val_str = str(val.i32)
+
+                    data_obj["value"] = val_str
+                    cell_obj["data"].append(data_obj)
+
+                row_arr.append(cell_obj)
+            net_obj["networkData"].append(row_arr)
+        root.append(net_obj)
+
+    try:
+        with open(prg, 'w') as f:
+            json.dump(root, f, indent=2)
+    except:
+        return 16 # JSON_ERROR_WRITEFILE
+
+    return 0

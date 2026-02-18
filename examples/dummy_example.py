@@ -11,7 +11,7 @@ from ladderlib.core import (
     ladder_add_foreign, ladder_task
 )
 from ladderlib.parser import ladder_json_to_program
-from .test_functions import test_ladder_instructions
+from tests.test_functions import test_ladder_instructions
 
 QTY_M = 18
 QTY_C = 8
@@ -20,9 +20,25 @@ QTY_D = 8
 QTY_R = 8
 
 def dummy_read(ctx, id_): pass
-def dummy_init_read(ctx, id_, init): return True
+def dummy_init_read(ctx, id_, init):
+    if init:
+        ctx.input[id_].i_qty = 8
+        ctx.input[id_].I = [0] * 8
+        ctx.input[id_].Ih = [0] * 8
+        ctx.input[id_].iw_qty = 8
+        ctx.input[id_].IW = [0] * 8
+        ctx.input[id_].IWh = [0] * 8
+    return True
 def dummy_write(ctx, id_): pass
-def dummy_init_write(ctx, id_, init): return True
+def dummy_init_write(ctx, id_, init):
+    if init:
+        ctx.output[id_].q_qty = 8
+        ctx.output[id_].Q = [0] * 8
+        ctx.output[id_].Qh = [0] * 8
+        ctx.output[id_].qw_qty = 8
+        ctx.output[id_].QW = [0] * 8
+        ctx.output[id_].QWh = [0] * 8
+    return True
 def dummy_on_scan_end(ctx): return False
 def dummy_on_instruction(ctx): return False
 def dummy_on_task_before(ctx): return False
