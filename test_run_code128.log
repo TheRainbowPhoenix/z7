@@ -1,0 +1,46 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/Barcode/Code 128.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Barcode/Code 128.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Barcode/Code 128.scl
+SCL Header:
+FUNCTION_BLOCK "Code 128"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      partNumber : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+F
+======================================================================
+FAIL: test_run (__main__.Test_Code_128.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Code_128.py", line 115, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/Code_128.py", line 48, in Code_128
+    context['intVals'][int(context['i'])] = 0
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: 'int' object does not support item assignment
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Code_128.py", line 118, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: 'int' object does not support item assignment
+
+----------------------------------------------------------------------
+Ran 1 test in 0.036s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+Summary: 0 Passed, 1 Failed.

@@ -1,0 +1,29 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/KP8/KP8 Driver.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/KP8/KP8 Driver.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/KP8/KP8 Driver.scl
+SCL Header:
+TYPE "KP8 Driver: Parameters: 1 Button"
+VERSION : 0.1
+   STRUCT
+      activate : Bool;   // true = button on, flase = button off
+      "color on 1" : String[10];   // color when button is in pressed state. valid entries: 'red', 'green', 'blue', 'yellow', 'white', 'off'
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.044s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+Summary: 1 Passed, 0 Failed.

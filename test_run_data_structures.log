@@ -1,0 +1,89 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/Data Structures
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Data Structures/Stack.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Data Structures/Stack.scl
+SCL Header:
+TYPE "Stack_Int.Commands"
+VERSION : 0.1
+   STRUCT
+      initialize : Bool;
+      pop : Bool;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.037s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Data Structures/Queue.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Data Structures/Queue.scl
+SCL Header:
+TYPE "Queue_Stack_Int.Input_Data"
+VERSION : 0.1
+   STRUCT
+      element : Int;
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.037s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Data Structures/Linked List.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Data Structures/Linked List.scl
+SCL Header:
+TYPE "Linked List: Node: Data"
+VERSION : 0.1
+   STRUCT
+      place_holder : Int;
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: SUCCESS
+E
+======================================================================
+ERROR: test_run (__main__.Test_Linked_List.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Linked_List.py", line 72, in test_run
+    import scl_test.transpiled.Linked_List as transpiled_module
+  File "/app/scl_test/transpiled/Linked_List.py", line 119
+    self.in = Linked_List__Method_Interface__Delete__In()
+         ^^
+SyntaxError: invalid syntax
+
+----------------------------------------------------------------------
+Ran 1 test in 0.005s
+
+FAILED (errors=1)
+
+RESULT: FAILED
+
+==================================================
+
+Summary: 2 Passed, 1 Failed.

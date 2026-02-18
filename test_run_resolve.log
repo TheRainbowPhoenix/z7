@@ -1,0 +1,29 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/String/Resolve Element Lengths.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Resolve Element Lengths.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Resolve Element Lengths.scl
+SCL Header:
+TYPE "String Buffer"
+VERSION : 0.1
+   STRUCT
+      me : Array[0..9] of String [10];
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.070s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+Summary: 1 Passed, 0 Failed.

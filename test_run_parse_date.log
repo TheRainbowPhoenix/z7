@@ -1,0 +1,30 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/String/Parse Date_And_Time Elements.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Parse Date_And_Time Elements.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Parse Date_And_Time Elements.scl
+SCL Header:
+TYPE "Byte Buffer"
+VERSION : 0.1
+   STRUCT
+      me : Array[0..7] of Byte;
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.043s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+Summary: 1 Passed, 0 Failed.

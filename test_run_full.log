@@ -1,0 +1,2177 @@
+Test Run Start: scl_test/Step7_Functions/All Functions
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Barcode/Code 128.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Barcode/Code 128.scl
+SCL Header:
+FUNCTION_BLOCK "Code 128"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      partNumber : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.117s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Code_128/Code_128.String_to_Code.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Code_128/Code_128.String_to_Code.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.066s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/DWord/DWord.To_String.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/DWord/DWord.To_String.scl
+SCL Header:
+FUNCTION "String.Trim" : String
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Data Structures/Stack.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Data Structures/Stack.scl
+SCL Header:
+TYPE "Stack_Int.Commands"
+VERSION : 0.1
+   STRUCT
+      initialize : Bool;
+      pop : Bool;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.041s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Data Structures/Queue.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Data Structures/Queue.scl
+SCL Header:
+TYPE "Queue_Stack_Int.Input_Data"
+VERSION : 0.1
+   STRUCT
+      element : Int;
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Data Structures/Linked List.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Data Structures/Linked List.scl
+SCL Header:
+TYPE "Linked List: Node: Data"
+VERSION : 0.1
+   STRUCT
+      place_holder : Int;
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.067s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Table Navigation/Table Navigation General.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Table Navigation/Table Navigation General.scl
+SCL Header:
+TYPE "PB Data: Graphic/Text List"
+VERSION : 0.1
+   STRUCT
+      actuate : Bool;
+      animate : USInt;
+...
+
+Test Output:
+Transpilation: SUCCESS
+E
+======================================================================
+ERROR: test_run (__main__.Test_Table_Navigation_General.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Table_Navigation_General.py", line 72, in test_run
+    import scl_test.transpiled.Table_Navigation_General as transpiled_module
+  File "/app/scl_test/transpiled/Table_Navigation_General.py", line 4
+    class PB_Data__Graphic/Text_List:
+                          ^
+SyntaxError: invalid syntax
+
+----------------------------------------------------------------------
+Ran 1 test in 0.002s
+
+FAILED (errors=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Byte/Byte.To_String.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Byte/Byte.To_String.scl
+SCL Header:
+FUNCTION "String.Trim" : String
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.040s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Byte/Byte.Array.Shift.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Byte/Byte.Array.Shift.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.040s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Int/Int.PseudoRandom.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Int/Int.PseudoRandom.scl
+SCL Header:
+FUNCTION_BLOCK "Int.PseudoRandom"
+TITLE = Pseudo Random Int Generator
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'Int'
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.042s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Int/Int.Summation.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Int/Int.Summation.scl
+SCL Header:
+FUNCTION "Int.Summation" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      start_index : Int;
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Time/WString to Time.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Time/WString to Time.scl
+SCL Header:
+FUNCTION "WString to Time" : Time
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "WString" : WString;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.038s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Time/Time to WString.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Time/Time to WString.scl
+SCL Header:
+FUNCTION "Time to WString" : WString
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "Time" : Time;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+F
+======================================================================
+FAIL: test_run (__main__.Test_Time_to_WString.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Time_to_WString.py", line 132, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/Time_to_WString.py", line 51, in Time_to_WString
+    context['Minutes_10s_Place'] = (context['Time_as_DInt'] / context['Milliseconds_per_10_Minutes'])
+                                    ~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ZeroDivisionError: division by zero
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Time_to_WString.py", line 135, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: division by zero
+
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Time/Real to WString Timer.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Time/Real to WString Timer.scl
+SCL Header:
+FUNCTION "Real to WString Timer" : WString
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      realVal : Real;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.049s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Time/WString Timer to Real.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Time/WString Timer to Real.scl
+SCL Header:
+FUNCTION "WString Timer to Real" : Real
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "wstring" : WString;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+F
+======================================================================
+FAIL: test_run (__main__.Test_WString_Timer_to_Real.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_WString_Timer_to_Real.py", line 116, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/WString_Timer_to_Real.py", line 17, in WString_Timer_to_Real
+    context['WString_Timer_to_Real'] = (DINT_TO_REAL(TIME_TO_DINT(WString_to_Time(context['wstring'], context=context, global_dbs=global_dbs))) / context['msPerSec'])
+                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: mock_functions.<locals>.<lambda>() got an unexpected keyword argument 'context'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_WString_Timer_to_Real.py", line 119, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: mock_functions.<locals>.<lambda>() got an unexpected keyword argument 'context'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Fill.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Fill.scl
+SCL Header:
+FUNCTION "Int[].Fill" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      value : Int;   // value that will fill array
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].IsFull.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].IsFull.scl
+SCL Header:
+FUNCTION "Int[].IsFull" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Array[*] of Int;   // array to be checked
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.036s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].IsEmpty.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].IsEmpty.scl
+SCL Header:
+FUNCTION "Int[].IsEmpty" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Array[*] of Int;   // array to be checked
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.042s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Swap.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Swap.scl
+SCL Header:
+FUNCTION "Int[].Swap" : Void
+TITLE = Swap Elements In An Array
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'Int[]'
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.043s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Search.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Search.scl
+SCL Header:
+FUNCTION "Int[].Search" : Int
+TITLE = Search Array of Integers
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'Int[]'
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.049s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].CollapseRight.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].CollapseRight.scl
+SCL Header:
+FUNCTION "Int[].CollapseRight" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      null_token : Int;   // int value used as null in your project
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.040s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Split.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Split.scl
+SCL Header:
+FUNCTION "Int[].Split" : Void
+TITLE = Split An Integer Array in Half
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'Int[]'
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].CollapseLeft.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].CollapseLeft.scl
+SCL Header:
+FUNCTION "Int[].CollapseLeft" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      null_token : Int;   // int value used as null in your project
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.037s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].CountOfElements.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].CountOfElements.scl
+SCL Header:
+FUNCTION "Int[].CountOfElements" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      data : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.040s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].ShiftLeft.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].ShiftLeft.scl
+SCL Header:
+FUNCTION "Int[].ShiftLeft" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      places : DInt;   // must be positive
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.057s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].ShiftRight.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].ShiftRight.scl
+SCL Header:
+FUNCTION "Int[].ShiftRight" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      null_token : Int;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.085s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Clear.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Array/Int/Int[].Clear.scl
+SCL Header:
+FUNCTION "Int[].Clear" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      null_token : Int;   // null representation in your project
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.044s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Stack/Int{Stack}.PseudoRandom.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Stack/Int{Stack}.PseudoRandom.scl
+SCL Header:
+FUNCTION_BLOCK "Int{Stack}.PseudoRandom"
+TITLE = Genertate Random Stack of Ints
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'Int{S}'
+...
+
+Test Output:
+Transpilation: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Timers/Timer.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Timers/Timer.scl
+SCL Header:
+TYPE "Runtime.All_Data"
+VERSION : 0.1
+   STRUCT
+      memory : LReal;
+      ellapsed : LReal;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.047s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Scroll_Speed.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Scroll_Speed.scl
+SCL Header:
+TYPE "ADP: Decoded: Scroll Speed"
+VERSION : 0.1
+   STRUCT
+      slowest : String[9] := 'slowest';
+      slow : String[9] := 'slow';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.scl
+SCL Header:
+TYPE "ADP: Encoded: Formatting: Horizontal Alignment"
+VERSION : 0.1
+   STRUCT
+      center : String[5] := '$L1';
+      left : String[5] := '$L0';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.051s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Size_and_Face.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Size_and_Face.scl
+SCL Header:
+TYPE "ADP: Decoded: Size and Face"
+VERSION : 0.1
+   STRUCT
+      bold_5 : String[11] := 'bold 5';
+      bold_11 : String[11] := 'bold 11';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.040s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Horizontal_Alignment.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Horizontal_Alignment.scl
+SCL Header:
+TYPE "ADP: Decoded: Horizontal Alignment"
+VERSION : 0.1
+   STRUCT
+      center : String[8] := 'center';
+      left : String[8] := 'left';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.043s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.scl
+SCL Header:
+TYPE "ADP: Encoded: Formatting: Size and Face"
+VERSION : 0.1
+   STRUCT
+      bold_5 : String[5] := '$1AG';
+      bold_11 : String[5] := '$1AH';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.048s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Scroll_Speed.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Scroll_Speed.scl
+SCL Header:
+TYPE "ADP: Encoded: Formatting: Scroll Speed"
+VERSION : 0.1
+   STRUCT
+      slowest : String[5] := '$15';
+      slow : String[5] := '$16';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.043s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Vertical_Alignment.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Vertical_Alignment.scl
+SCL Header:
+TYPE "ADP: Decoded: Vertical Alignment"
+VERSION : 0.1
+   STRUCT
+      bottom_hold : String[15] := 'bottom hold';
+      fill_hold : String[15] := 'fill hold';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.037s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Horizontal_Alignment.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Horizontal_Alignment.scl
+SCL Header:
+TYPE "ADP: Decoded: Horizontal Alignment"
+VERSION : 0.1
+   STRUCT
+      center : String[8] := 'center';
+      left : String[8] := 'left';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Vertical_Alignment.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Vertical_Alignment.scl
+SCL Header:
+TYPE "ADP: Encoded: Formatting: Vertical Alignment"
+VERSION : 0.1
+   STRUCT
+      middle_hold : String[5] := '$1B b';
+      fill_hold : String[5] := '$1B"b';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.070s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Size_and_Face.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Size_and_Face.scl
+SCL Header:
+TYPE "ADP: Decoded: Size and Face"
+VERSION : 0.1
+   STRUCT
+      bold_5 : String[11] := 'bold 5';
+      bold_11 : String[11] := 'bold 11';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.055s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Flashing.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Flashing.scl
+SCL Header:
+TYPE "ADP: Encoded: Formatting: Flashing"
+VERSION : 0.1
+   STRUCT
+      off : String[5] := '$070';
+      on : String[5] := '$071';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.062s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Flashing.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Flashing.scl
+SCL Header:
+TYPE "ADP: Decoded: Flash"
+VERSION : 0.1
+   STRUCT
+      off : String[8] := 'off';
+      on : String[8] := 'on';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.047s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Color.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Decode.Color.scl
+SCL Header:
+TYPE "ADP: Encoded: Formatting: Color"
+VERSION : 0.1
+   STRUCT
+      black { S7_SetPoint := 'True'} : String[5] := '$1C0';
+      blue : String[5] := '$1C8';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.041s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Color.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/ADP/ADP.Encode.Color.scl
+SCL Header:
+TYPE "ADP: Decoded: Color"
+VERSION : 0.1
+   STRUCT
+      black : String[8] := 'black';
+      blue : String[8] := 'blue';
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.043s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Web/1200/Publish_System_Time_to_Web_Page.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Web/1200/Publish_System_Time_to_Web_Page.scl
+SCL Header:
+FUNCTION "Is Symbol" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+//returns false if the input character is a number or letter of either case
+   VAR_INPUT
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.063s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Web/1200/Set_System_Time_from_Web_Page.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Web/1200/Set_System_Time_from_Web_Page.scl
+SCL Header:
+FUNCTION "Split" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      string_in : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+F
+======================================================================
+FAIL: test_run (__main__.Test_Set_System_Time_from_Web_Page.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Set_System_Time_from_Web_Page.py", line 117, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 98, in Set_System_Time_from_Web_Page
+    context['_time_as_dtl'] = String_to_DTL(context['time_as_string'], context=context, global_dbs=global_dbs)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scl_test/transpiled/Set_System_Time_from_Web_Page.py", line 73, in String_to_DTL
+    context['String_to_DTL'].YEAR = STRING_TO_UINT(context['_year'], context=context, global_dbs=global_dbs)
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: mock_functions.<locals>.<lambda>() got an unexpected keyword argument 'context'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Set_System_Time_from_Web_Page.py", line 120, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: mock_functions.<locals>.<lambda>() got an unexpected keyword argument 'context'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.059s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Nibble/Nibble.To_String.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Nibble/Nibble.To_String.scl
+SCL Header:
+FUNCTION "String.Trim" : String
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.055s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Word/Word.To_String.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Word/Word.To_String.scl
+SCL Header:
+FUNCTION "String.Trim" : String
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+VERSION : 1.0
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.059s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Load Format Codes.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Load Format Codes.scl
+SCL Header:
+FUNCTION "Load Format Codes" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+BEGIN
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.049s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Is Symbol.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Is Symbol.scl
+SCL Header:
+FUNCTION "Is Symbol" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+//returns false if the input character is a number or letter of either case
+   VAR_INPUT
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.047s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Select Element by Format Code.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Select Element by Format Code.scl
+SCL Header:
+TYPE "Elements as Strings"
+VERSION : 0.1
+   STRUCT
+      year : String[4];
+      month : String[2];
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.041s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Split_Multiple.Clean_Output.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Split_Multiple.Clean_Output.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.045s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Upper.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Upper.scl
+SCL Header:
+FUNCTION "Upper" : String
+TITLE = Upper
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.069s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Add Leading.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Add Leading.scl
+SCL Header:
+FUNCTION "Add Leading" : String
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "Leading Character" : Char;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.063s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Is Format Character.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Is Format Character.scl
+SCL Header:
+FUNCTION "Is Format Character" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      character : Char;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.041s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Format Output.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Format Output.scl
+SCL Header:
+TYPE "Elements as Strings"
+VERSION : 0.1
+   STRUCT
+      year : String[4];
+      month : String[2];
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.038s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Split_Multiple.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Split_Multiple.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.040s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/String.PercentComplete.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/String.PercentComplete.scl
+SCL Header:
+FUNCTION "String.PercentComplete" : String
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      percent_complete : Int;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.046s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Find_Multiple.Breadth.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Find_Multiple.Breadth.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Trim.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Trim.scl
+SCL Header:
+FUNCTION "Trim" : String
+TITLE = Trim
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+...
+
+Test Output:
+Transpilation: SUCCESS
+
+RESULT: TIMEOUT
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Delimeter Position.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Delimeter Position.scl
+SCL Header:
+FUNCTION "Is Symbol" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+//returns false if the input character is a number or letter of either case
+   VAR_INPUT
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Resolve Format.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Resolve Format.scl
+SCL Header:
+FUNCTION "Is Symbol" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+//returns false if the input character is a number or letter of either case
+   VAR_INPUT
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.043s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Lower.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Lower.scl
+SCL Header:
+FUNCTION "Lower" : String
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "string" : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.038s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Strip Sign.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Strip Sign.scl
+SCL Header:
+FUNCTION "Strip Sign" : String
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "string" : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Format String Elements.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Format String Elements.scl
+SCL Header:
+FUNCTION "Format String Elements" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+BEGIN
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.060s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Array.WString.Reverse.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Array.WString.Reverse.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+F
+======================================================================
+FAIL: test_run (__main__.Test_Array_WString_Reverse.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Array_WString_Reverse.py", line 121, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/Array_WString_Reverse.py", line 82, in Array_WString_Reverse
+    context['_has_data_count'] = (context['_has_data_count'] - 1)
+                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~
+TypeError: unsupported operand type(s) for -: 'NoneType' and 'int'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Array_WString_Reverse.py", line 124, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: unsupported operand type(s) for -: 'NoneType' and 'int'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Format Code as Int.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Format Code as Int.scl
+SCL Header:
+FUNCTION "Format Code as Int" : Int
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      formatCode : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.038s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Elements to Strings.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Elements to Strings.scl
+SCL Header:
+TYPE "Element Lengths"
+VERSION : 0.1
+   STRUCT
+      year : Int;
+      month : Int;
+...
+
+Test Output:
+Transpilation: SUCCESS
+
+RESULT: TIMEOUT
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Resolve Element Lengths.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Resolve Element Lengths.scl
+SCL Header:
+TYPE "String Buffer"
+VERSION : 0.1
+   STRUCT
+      me : Array[0..9] of String [10];
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.041s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Strip_Sign.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Strip_Sign.scl
+SCL Header:
+FUNCTION "Strip_Sign" : String
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "string" : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.058s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Parse Date_And_Time Elements.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Parse Date_And_Time Elements.scl
+SCL Header:
+TYPE "Byte Buffer"
+VERSION : 0.1
+   STRUCT
+      me : Array[0..7] of Byte;
+   END_STRUCT;
+...
+
+Test Output:
+Transpilation: SUCCESS
+
+RESULT: TIMEOUT
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Split_Single.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Split_Single.scl
+SCL Header:
+FUNCTION "WString.Split_Single" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      wstring_in : WString;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.112s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Find_Multiple.Depth.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Find_Multiple.Depth.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.061s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Parse Format.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Parse Format.scl
+SCL Header:
+FUNCTION "Is Symbol" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+//returns false if the input character is a number or letter of either case
+   VAR_INPUT
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.071s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Find_Multiple.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Find_Multiple.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.091s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Date_And_Time to String.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Date_And_Time to String.scl
+SCL Header:
+FUNCTION "Is Symbol" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+//returns false if the input character is a number or letter of either case
+   VAR_INPUT
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.075s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Split.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Split.scl
+SCL Header:
+FUNCTION "Split" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      string_in : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.036s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Add Leading Characters to Elements.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Add Leading Characters to Elements.scl
+SCL Header:
+TYPE "Element Lengths"
+VERSION : 0.1
+   STRUCT
+      year : Int;
+      month : Int;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.038s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/WString.Word_Wrap.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/WString.Word_Wrap.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.058s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Char.Is_Numeric.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Char.Is_Numeric.scl
+SCL Header:
+FUNCTION "Char.Is_Numeric" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      character : Char;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.043s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/DInt/DInt.Summation.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/DInt/DInt.Summation.scl
+SCL Header:
+FUNCTION "DInt.Summation" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      start_index : DInt;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.037s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/KP8/LRUD KP8 Remap.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/KP8/LRUD KP8 Remap.scl
+SCL Header:
+FUNCTION "LRUD KP8 Remap" : Int
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      btnNum : Int;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.038s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/KP8/KP8 Driver.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/KP8/KP8 Driver.scl
+SCL Header:
+TYPE "KP8 Driver: Parameters: 1 Button"
+VERSION : 0.1
+   STRUCT
+      activate : Bool;   // true = button on, flase = button off
+      "color on 1" : String[10];   // color when button is in pressed state. valid entries: 'red', 'green', 'blue', 'yellow', 'white', 'off'
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.064s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+Summary: 72 Passed, 10 Failed.

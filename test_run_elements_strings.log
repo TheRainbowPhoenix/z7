@@ -1,0 +1,30 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/String/Elements to Strings.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Elements to Strings.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Elements to Strings.scl
+SCL Header:
+TYPE "Element Lengths"
+VERSION : 0.1
+   STRUCT
+      year : Int;
+      month : Int;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+Summary: 1 Passed, 0 Failed.

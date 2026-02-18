@@ -1,0 +1,29 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/String/Select Element by Format Code.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Select Element by Format Code.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Select Element by Format Code.scl
+SCL Header:
+TYPE "Elements as Strings"
+VERSION : 0.1
+   STRUCT
+      year : String[4];
+      month : String[2];
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.061s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+Summary: 1 Passed, 0 Failed.
