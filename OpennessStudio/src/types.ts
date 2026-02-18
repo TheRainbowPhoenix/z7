@@ -28,6 +28,9 @@ export interface NetworkCallInfo {
     name: string;
     blockType: string;
     parameters: NetworkParameter[];
+    instanceName?: string;
+    instanceScope?: string;
+    instanceDbNumber?: number;
 }
 
 export interface NetworkPart {
@@ -65,10 +68,25 @@ export interface NetworkWire {
 export interface Network {
     parts: NetworkPart[];
     wires: NetworkWire[];
+    title?: string;
+    comment?: string;
+}
+
+export interface InterfaceMember {
+    name: string;
+    datatype: string;
+    defaultValue?: string;
+    comment?: string;
+    children?: InterfaceMember[];
+}
+
+export interface InterfaceSection {
+    name: string;
+    members: InterfaceMember[];
 }
 
 export interface BlockInterface {
-    sections: any[];
+    sections: InterfaceSection[];
 }
 
 export interface OpennessNode {
