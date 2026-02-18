@@ -6,6 +6,7 @@ import { isAbsolute, join } from "https://deno.land/std@0.208.0/path/mod.ts";
 import { BlockType, OpennessNode } from "./types.ts";
 import { compileProgram, sanitizeIdent } from "./compiler/flow_parser.ts";
 import { buildCallGraph } from "./compiler/call_graph.ts";
+import type { BlockIR, ProgramIR } from "./compiler/ir.ts";
 
 const app = new Application();
 const router = new Router();
@@ -14,6 +15,7 @@ const PORT = 8000;
 let rootPath = "";
 let fileMap: Record<string, string> = {};
 let symbolPathMap: Record<string, string> = {};
+let pathSymbolMap: Record<string, string> = {};
 
 function buildMapsFromTree(node: OpennessNode) {
   if (node.name) {
@@ -23,7 +25,9 @@ function buildMapsFromTree(node: OpennessNode) {
 
   if (node.type !== BlockType.Folder && node.path) {
     if (node.blockName) {
-      symbolPathMap[sanitizeIdent(node.blockName)] = node.path;
+      const symbol = sanitizeIdent(node.blockName);
+      symbolPathMap[symbol] = node.path;
+      pathSymbolMap[node.path] = symbol;
     }
   }
 
@@ -47,6 +51,7 @@ async function loadProjectTreeAndMaps(): Promise<OpennessNode> {
   const tree = await walkDirectory(rootPath);
   fileMap = {};
   symbolPathMap = {};
+  pathSymbolMap = {};
   buildMapsFromTree(tree);
   setFileMap(fileMap);
   return tree;
@@ -97,6 +102,135 @@ router.get("/api/call-graph", async (ctx) => {
       ...graph,
       nodePaths,
       edges: edgePaths,
+    };
+  } catch (e) {
+    console.error(e);
+    ctx.response.status = 500;
+    ctx.response.body = { error: String(e) };
+  }
+});
+
+function getProgram(tree: OpennessNode): ProgramIR {
+  const nodes = flattenTree(tree);
+  return compileProgram(nodes);
+}
+
+function findBlock(program: ProgramIR, symbol: string): BlockIR | undefined {
+  return program.blocks.find((b) => b.name === symbol);
+}
+
+function normalizeSymbol(value: string): string {
+  return sanitizeIdent(value);
+}
+
+router.get("/api/xref", async (ctx) => {
+  try {
+    if (!rootPath) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Root path not set" };
+      return;
+    }
+
+    const path = ctx.request.url.searchParams.get("path");
+    const symbolRaw = ctx.request.url.searchParams.get("symbol");
+
+    const tree = await loadProjectTreeAndMaps();
+    const program = getProgram(tree);
+    const graph = buildCallGraph(program);
+
+    let symbol = symbolRaw ? normalizeSymbol(symbolRaw) : "";
+    if (!symbol && path && pathSymbolMap[path]) {
+      symbol = pathSymbolMap[path];
+    }
+
+    if (!symbol) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing symbol/path for xref" };
+      return;
+    }
+
+    const block = findBlock(program, symbol);
+
+    const xrefFrom = graph.edges.filter((e) => e.from === symbol).map((e) => ({
+      kind: "calls",
+      target: e.to,
+      network: e.network,
+      blockType: e.blockType,
+      path: symbolPathMap[e.to] || null,
+      args: e.args,
+    }));
+
+    const xrefTo = graph.edges.filter((e) => e.to === symbol).map((e) => ({
+      kind: "called_by",
+      source: e.from,
+      network: e.network,
+      blockType: e.blockType,
+      path: symbolPathMap[e.from] || null,
+      args: e.args,
+    }));
+
+    const sectionInputs = (block?.fields || []).filter((f) =>
+      ["Input", "InOut"].includes(String(f.section))
+    );
+    const sectionOutputs = (block?.fields || []).filter((f) =>
+      ["Output", "InOut"].includes(String(f.section))
+    );
+
+    const writtenInBlock = Array.from(
+      new Set(
+        (block?.networks || []).flatMap((n) => n.actions.map((a) => a.target)),
+      ),
+    ).sort();
+
+    const inputRefs = xrefTo.flatMap((ref) => {
+      const caller = findBlock(program, ref.source);
+      if (!caller) return [];
+      const network = caller.networks.find((n) => n.index === ref.network);
+      if (!network) return [];
+      return network.calls
+        .filter((c) => c.name === symbol)
+        .flatMap((c) =>
+          Object.entries(c.args).map(([param, sourceExpr]) => ({
+            caller: ref.source,
+            callerPath: symbolPathMap[ref.source] || null,
+            network: ref.network,
+            parameter: param,
+            sourceExpr,
+          }))
+        );
+    });
+
+    const outputRefs = xrefTo.flatMap((ref) => {
+      const caller = findBlock(program, ref.source);
+      if (!caller) return [];
+      const network = caller.networks.find((n) => n.index === ref.network);
+      if (!network) return [];
+      return network.calls
+        .filter((c) => c.name === symbol)
+        .flatMap((c) =>
+          Object.keys(c.args).map((param) => ({
+            caller: ref.source,
+            callerPath: symbolPathMap[ref.source] || null,
+            network: ref.network,
+            parameter: param,
+          }))
+        );
+    });
+
+    ctx.response.body = {
+      symbol,
+      path: symbolPathMap[symbol] || path || null,
+      xrefFrom,
+      xrefTo,
+      inputs: {
+        interface: sectionInputs,
+        references: inputRefs,
+      },
+      outputs: {
+        interface: sectionOutputs,
+        writes: writtenInBlock,
+        references: outputRefs,
+      },
     };
   } catch (e) {
     console.error(e);

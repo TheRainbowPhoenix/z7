@@ -100,7 +100,6 @@ TypeScript backend without changing flow parsing.
 Reference parser ideas from `block_diagram_z3` can be kept in `third_party/`
 locally; this path is gitignored.
 
-
 ## Web UI call-graph navigation
 
 Open the server UI and use the **Call Graph** menu in the sidebar:
@@ -109,3 +108,20 @@ Open the server UI and use the **Call Graph** menu in the sidebar:
 - click an edge label to open the caller block that contains the call site,
 - drag nodes to move them; positions are saved in browser local storage.
 
+### Context menu / XRef workflow
+
+In the server UI, right-click on:
+
+- a tree item, or
+- an FBD/LAD call block in the main view
+
+and use:
+
+- **Show XRef from**
+- **Show XRef to**
+- **Show inputs**
+- **Show outputs**
+
+This opens a popup listing caller/callee relations and interface/usage hints.
+Entries are clickable and navigate to the corresponding file in tree + main
+view.
