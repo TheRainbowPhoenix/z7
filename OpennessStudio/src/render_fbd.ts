@@ -108,7 +108,9 @@ export async function renderFbd(filePath: string): Promise<string> {
 
   node.networks.forEach((network, index) => {
     const svgContent = layoutAndRenderNetwork(network, index + 1);
-    const titleText = escapeHtml(network.title || `Network ${index + 1}`);
+    const titleText = `Network ${index + 1}: ${
+      escapeHtml(network.title || "")
+    }`;
     const commentText = network.comment
       ? `<div class="network-comment">${escapeHtml(network.comment)}</div>`
       : "";

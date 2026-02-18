@@ -355,7 +355,16 @@
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.js"
     ></script>
-    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"
+    ></script>
+    <script>
+      if (!window.d3) {
+        document.write(
+          '<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"><\/script>',
+        );
+      }
+    </script>
   </head>
 
   <body>
