@@ -249,9 +249,7 @@ function layoutAndRenderNetwork(network: Network, netIndex: number): string {
 
         if (blockNode && accessNode) {
           // MERGE as Operand Label
-          const label = accessNode.data.symbol?.components.map((c) =>
-            c.name
-          ).join(".") || "???";
+          const label = getAccessLabel(accessNode.data);
           blockNode.operandLabel = label;
 
           nodes.delete(accessNode.id);
@@ -277,9 +275,7 @@ function layoutAndRenderNetwork(network: Network, netIndex: number): string {
       if (blockPoints.length > 0) {
         const accessNode = nodes.get(accessPoint.nodeId);
         if (accessNode) {
-          const label = accessNode.data.symbol?.components.map((c) =>
-            c.name
-          ).join(".") || "???";
+          const label = getAccessLabel(accessNode.data);
 
           // Apply label to all connected block pins
           blockPoints.forEach((bp) => {
@@ -326,6 +322,33 @@ function layoutAndRenderNetwork(network: Network, netIndex: number): string {
 
       if (driver) {
         source = { nodeId: driver.nodeId, pinName: driver.pinName || "main" };
+      } else {
+        const nodePoints = points.filter((p) => nodes.has(p.nodeId));
+        if (nodePoints.length >= 2) {
+          const inferredSourcePoint = nodePoints.find((p) => {
+            const node = nodes.get(p.nodeId);
+            if (!node || node.data.type === "Access") return false;
+            return !!defaultOutputPin(node);
+          });
+          if (inferredSourcePoint) {
+            const srcNode = nodes.get(inferredSourcePoint.nodeId)!;
+            source = {
+              nodeId: inferredSourcePoint.nodeId,
+              pinName: defaultOutputPin(srcNode) || "out",
+            };
+
+            points.forEach((p) => {
+              if (p.pinName) return;
+              const node = nodes.get(p.nodeId);
+              if (!node) return;
+              if (p.nodeId === inferredSourcePoint.nodeId) {
+                p.pinName = source!.pinName;
+              } else {
+                p.pinName = defaultInputPin(node) || "in";
+              }
+            });
+          }
+        }
       }
     }
 
@@ -700,14 +723,18 @@ function renderNodeSvg(node: GraphNode): string {
   let svg = "";
 
   if (data.type === "Access") {
-    const text = data.symbol?.components.map((c) => c.name).join(".") || "???";
+    const text = getAccessLabel(data);
     svg += `<g transform="translate(${x}, ${y})">
             <text x="0" y="20" class="variable-text">${text}</text>
         </g>`;
   } else {
     // Map Name
     let title = data.name || data.type;
-    if (BLOCK_NAME_MAP[title]) title = BLOCK_NAME_MAP[title];
+    if (title === "Contact" && data.negated?.includes("operand")) {
+      title = "NOT Contact";
+    } else if (BLOCK_NAME_MAP[title]) {
+      title = BLOCK_NAME_MAP[title];
+    }
 
     const typeLabel = data.type === "Call" ? formatCallTypeLabel(data) : "";
 
@@ -744,6 +771,33 @@ function renderNodeSvg(node: GraphNode): string {
         </g>`;
   }
   return svg;
+}
+
+function getAccessLabel(part: NetworkPart): string {
+  const symbolPath = part.symbol?.components.map((c) => c.name).join(".");
+  if (symbolPath) return symbolPath;
+  const constantType = part.constant?.constantType || "";
+  const constantValue = part.constant?.constantValue || "";
+  if (constantType || constantValue) {
+    return constantType && constantValue
+      ? `${constantType}#${constantValue}`
+      : (constantValue || constantType);
+  }
+  return "???";
+}
+
+function defaultOutputPin(node: GraphNode): string | undefined {
+  return node.outputs.find((p) => p.name === "ENO")?.name ||
+    node.outputs.find((p) => p.name === "out")?.name ||
+    node.outputs.find((p) => p.name === "out1")?.name ||
+    node.outputs[0]?.name;
+}
+
+function defaultInputPin(node: GraphNode): string | undefined {
+  return node.inputs.find((p) => p.name === "EN")?.name ||
+    node.inputs.find((p) => p.name === "in")?.name ||
+    node.inputs.find((p) => p.name === "in1")?.name ||
+    node.inputs[0]?.name;
 }
 
 function renderPins(pins: GraphPin[], width: number) {

@@ -257,6 +257,15 @@ function parseNetwork(compileUnit: any): Network | null {
           ? a.Symbol.Component
           : [a.Symbol.Component])
         : [];
+      const constant = a.Constant
+        ? {
+          constantType: a.Constant.ConstantType || a.Constant["ConstantType"] ||
+            undefined,
+          constantValue: a.Constant.ConstantValue ||
+            a.Constant["ConstantValue"] || undefined,
+        }
+        : undefined;
+
       parts.push({
         uid: a["@_UId"],
         type: "Access",
@@ -268,6 +277,7 @@ function parseNetwork(compileUnit: any): Network | null {
             accessModifierPos: comp["@_AccessModifierPos"],
           })),
         },
+        constant,
       });
     });
   }
