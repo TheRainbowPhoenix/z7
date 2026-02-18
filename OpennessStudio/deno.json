@@ -1,10 +1,11 @@
 {
-    "tasks": {
-        "start": "deno run --allow-read --allow-write src/index.ts",
-        "html": "deno run --allow-read --allow-write src/generate_html.ts",
-        "render": "deno run --allow-read --allow-write src/render_fbd.ts"
-    },
-    "imports": {
-        "npm:fast-xml-parser": "npm:fast-xml-parser@4.3.2"
-    }
+  "tasks": {
+    "start": "deno run --allow-read --allow-write src/index.ts",
+    "html": "deno run --allow-read --allow-write src/generate_html.ts",
+    "render": "deno run --allow-read --allow-write src/render_fbd.ts",
+    "compile": "deno run --allow-read --allow-write src/compile_to_python.ts"
+  },
+  "imports": {
+    "npm:fast-xml-parser": "npm:fast-xml-parser@4.3.2"
+  }
 }
