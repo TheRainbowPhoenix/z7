@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLCopen LD Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .ladder-grid {
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+    <div class="max-w-6xl mx-auto p-6">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-800">PLCopen LD Visualizer</h1>
+            <p class="text-slate-600">Fixed Parallel (OR) Positional Rendering</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-1 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">XML Source</h2>
+                <textarea id="xmlInput" class="w-full h-[600px] font-mono text-xs p-3 bg-slate-900 text-emerald-400 rounded-lg outline-none"></textarea>
+                <button id="renderBtn" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition-transform active:scale-95">Update Preview</button>
+            </div>
+
+            <div class="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div id="status" class="mb-2 text-xs font-mono text-slate-400">Ready</div>
+                <div class="overflow-auto border border-slate-100 rounded-lg ladder-grid bg-white" style="min-height: 600px;">
+                    <svg id="ladderSvg" width="1000" height="1000" viewBox="0 0 1000 1000">
+                        <!-- Rails and components drawn here -->
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const xmlInput = document.getElementById('xmlInput');
+        const svg = document.getElementById('ladderSvg');
+
+        // XML now has corrected positions: START (400,100) and RUN (400,160)
+        const initialXml = `<?xml version="1.0" ?>
+<project xmlns="http://www.plcopen.org/xml/tc6_0201">
+  <types>
+    <pous>
+      <pou name="ProgramMain" pouType="program">
+        <body>
+          <LD>
+            <leftPowerRail localId="0"><position x="40" y="0"/></leftPowerRail>
+            <contact localId="1" negated="true">
+              <position x="100" y="100"/><connectionPointIn><connection refLocalId="0"/></connectionPointIn>
+              <variable>ESTOP</variable>
+            </contact>
+            <contact localId="2" negated="true">
+              <position x="250" y="100"/><connectionPointIn><connection refLocalId="1"/></connectionPointIn>
+              <variable>STOP</variable>
+            </contact>
+            <contact localId="3" negated="false">
+              <position x="400" y="100"/><connectionPointIn><connection refLocalId="2"/></connectionPointIn>
+              <variable>START</variable>
+            </contact>
+            <contact localId="4" negated="false">
+              <position x="400" y="160"/><connectionPointIn><connection refLocalId="2"/></connectionPointIn>
+              <variable>RUN</variable>
+            </contact>
+            <coil localId="5">
+              <position x="850" y="100"/>
+              <connectionPointIn>
+                <connection refLocalId="3"/>
+                <connection refLocalId="4"/>
+              </connectionPointIn>
+              <variable>RUN</variable>
+            </coil>
+            <contact localId="6" negated="false">
+              <position x="100" y="280"/><connectionPointIn><connection refLocalId="0"/></connectionPointIn>
+              <variable>RUN</variable>
+            </contact>
+            <coil localId="7">
+              <position x="850" y="280"/><connectionPointIn><connection refLocalId="6"/></connectionPointIn>
+              <variable>MOTOR</variable>
+            </coil>
+          </LD>
+        </body>
+      </pou>
+    </pous>
+  </types>
+</project>`;
+
+        xmlInput.value = initialXml;
+
+        function render() {
+            try {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlInput.value, "text/xml");
+                svg.innerHTML = '<line x1="40" y1="0" x2="40" y2="1000" stroke="#cbd5e1" stroke-width="4" />';
+                
+                const nodes = {};
+                const ldNode = xmlDoc.getElementsByTagName("LD")[0];
+                if(!ldNode) return;
+                
+                Array.from(ldNode.children).forEach(el => {
+                    const id = el.getAttribute('localId');
+                    if (!id) return;
+                    const pos = el.getElementsByTagName('position')[0];
+                    nodes[id] = {
+                        type: el.tagName,
+                        x: parseInt(pos.getAttribute('x')),
+                        y: parseInt(pos.getAttribute('y')),
+                        var: el.getElementsByTagName('variable')[0]?.textContent,
+                        neg: el.getAttribute('negated') === 'true',
+                        conns: Array.from(el.getElementsByTagName('connection')).map(c => c.getAttribute('refLocalId'))
+                    };
+                });
+
+                Object.values(nodes).forEach(node => {
+                    if (node.type === 'leftPowerRail') return;
+
+                    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                    g.setAttribute("transform", `translate(${node.x}, ${node.y-20})`);
+                    
+                    if (node.type === 'contact') {
+                        g.innerHTML = `<line x1="10" y1="0" x2="10" y2="40" stroke="#1e293b" stroke-width="2.5"/>
+                                       <line x1="30" y1="0" x2="30" y2="40" stroke="#1e293b" stroke-width="2.5"/>
+                                       ${node.neg ? '<line x1="5" y1="35" x2="35" y2="5" stroke="#f43f5e" stroke-width="2"/>' : ''}
+                                       <text x="20" y="-8" text-anchor="middle" font-size="11" font-weight="bold" fill="#334155">${node.var}</text>`;
+                    } else if (node.type === 'coil') {
+                        g.innerHTML = `<path d="M5,0 C0,10 0,30 5,40 M35,0 C40,10 40,30 35,40" fill="none" stroke="#1e293b" stroke-width="2.5"/>
+                                       <text x="20" y="-8" text-anchor="middle" font-size="11" font-weight="bold" fill="#334155">${node.var}</text>`;
+                    }
+                    svg.appendChild(g);
+
+                    node.conns.forEach(refId => {
+                        const parent = nodes[refId];
+                        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                        let d = "";
+                        if (refId === "0") {
+                            d = `M 40 ${node.y} L ${node.x} ${node.y}`;
+                        } else if (parent) {
+                            const startX = parent.x + 40;
+                            const startY = parent.y;
+                            // Multi-segment wire logic for parallel branches
+                            if (startY === node.y) {
+                                d = `M ${startX} ${startY} L ${node.x} ${node.y}`;
+                            } else {
+                                // "Knee" logic for vertical split
+                                const kneeX = startX + 10;
+                                d = `M ${startX} ${startY} L ${kneeX} ${startY} L ${kneeX} ${node.y} L ${node.x} ${node.y}`;
+                            }
+                        }
+                        path.setAttribute("d", d);
+                        path.setAttribute("stroke", "#94a3b8");
+                        path.setAttribute("stroke-width", "2");
+                        path.setAttribute("fill", "none");
+                        svg.insertBefore(path, svg.firstChild);
+                    });
+                });
+                document.getElementById('status').innerText = "Rendered: " + Object.keys(nodes).length + " components.";
+            } catch (e) {
+                document.getElementById('status').innerText = "Error: " + e.message;
+            }
+        }
+
+        document.getElementById('renderBtn').addEventListener('click', render);
+        window.onload = render;
+    </script>
+</body>
+</html>
