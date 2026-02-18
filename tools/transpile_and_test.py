@@ -77,7 +77,9 @@ def generate_test(module_name, program, output_dir):
         context_setup = "        context = DotDict({\n"
 
         for decl in func.var_decls:
-            if decl.section_type in ['VAR_INPUT', 'VAR_IN_OUT', 'VAR_OUTPUT', 'VAR', 'VAR CONSTANT', 'VAR_TEMP']:
+            # Only include inputs, outputs, and in-outs in the context passed to the function.
+            st = decl.section_type.strip().upper()
+            if st in ['VAR_INPUT', 'VAR_IN_OUT', 'VAR INPUT', 'VAR IN_OUT']:
                 for name, type_spec, init_val in decl.vars:
                     # Sanitize name
                     sanitized_name = sanitize(name)
@@ -141,7 +143,7 @@ def mock_functions():
         'Strip_Sign': lambda **kwargs: kwargs.get('WString', ''),
         'Add_Leading': lambda **kwargs: kwargs.get('String', ''),
         'LEFT': lambda IN, L: IN[:L] if isinstance(IN, str) else IN,
-        'RIGHT': lambda IN, L: IN[-L:] if isinstance(IN, str) else IN,
+        'RIGHT': lambda IN, L: (IN[-int(L):] if int(L) > 0 else '') if isinstance(IN, str) else IN,
         'LEN': len,
         'DELETE': lambda IN, L, P: IN[:P-1] + IN[P-1+L:] if isinstance(IN, str) else IN,
         'MID': lambda IN, L, P: IN[P-1:P-1+L] if isinstance(IN, str) else IN,

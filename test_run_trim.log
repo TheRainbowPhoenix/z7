@@ -1,0 +1,23 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/String/Trim.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Trim.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Trim.scl
+SCL Header:
+FUNCTION "Trim" : String
+TITLE = Trim
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : Machado
+FAMILY : 'String'
+...
+
+Test Output:
+Transpilation: SUCCESS
+
+RESULT: TIMEOUT
+
+==================================================
+
+Summary: 0 Passed, 1 Failed.

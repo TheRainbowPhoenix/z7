@@ -1,0 +1,30 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/String/Array.WString.Reverse.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Array.WString.Reverse.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Array.WString.Reverse.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.034s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+Summary: 1 Passed, 0 Failed.

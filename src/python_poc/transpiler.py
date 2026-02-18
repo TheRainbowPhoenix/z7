@@ -6,6 +6,7 @@ class Transpiler:
         self.generated_code = ""
         self.types_map = {} # SCL type name -> Python class name
         self.in_class = False
+        self.current_function_name = None
 
     def indent(self):
         return "    " * self.indent_level
@@ -143,6 +144,7 @@ class Transpiler:
         # We generate a function that takes 'context' and 'global_dbs'
         # context will hold all INPUT, OUTPUT, IN_OUT, TEMP variables.
         func_name = self.sanitize_name(node.name)
+        self.current_function_name = func_name
 
         # Define function to accept positional args (mapped to inputs) and kw-only context
         code = f"def {func_name}(*args, context=None, global_dbs=None, **kwargs):\n"
@@ -215,6 +217,7 @@ class Transpiler:
              code += f"{self.indent()}return context.get('{func_name}')\n"
 
         self.indent_level -= 1
+        self.current_function_name = None
         return code
 
     def visit_Block(self, node):
@@ -369,6 +372,8 @@ class Transpiler:
         return "break"
 
     def visit_ReturnStmt(self, node):
+        if self.current_function_name:
+            return f"return context.get('{self.current_function_name}')"
         return "return"
 
     def visit_GotoStmt(self, node):

@@ -1,0 +1,47 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/String/Array.WString.Reverse.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/String/Array.WString.Reverse.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/String/Array.WString.Reverse.scl
+SCL Header:
+FUNCTION "Array.Any.Length" : UDInt
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      "array" : Variant;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Warning: Failed to import sibling module Table_Navigation_General: invalid syntax (Table_Navigation_General.py, line 4)
+F
+======================================================================
+FAIL: test_run (__main__.Test_Array_WString_Reverse.test_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Array_WString_Reverse.py", line 116, in test_run
+    func(context=context, global_dbs=global_dbs)
+  File "/app/scl_test/transpiled/Array_WString_Reverse.py", line 82, in Array_WString_Reverse
+    context['_has_data_count'] = (context['_has_data_count'] - 1)
+                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~
+TypeError: unsupported operand type(s) for -: 'NoneType' and 'int'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/scl_test/tests/test_Array_WString_Reverse.py", line 119, in test_run
+    self.fail(f"Execution failed: {e}")
+AssertionError: Execution failed: unsupported operand type(s) for -: 'NoneType' and 'int'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.039s
+
+FAILED (failures=1)
+
+RESULT: FAILED
+
+==================================================
+
+Summary: 0 Passed, 1 Failed.
