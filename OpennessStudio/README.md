@@ -71,6 +71,11 @@ Generated output includes both targets:
   auto-generated `scl_stubs.py`.
 - `generated/typescript/*.ts`: one module per FB/FC/OB + `runtime.ts` +
   auto-generated `scl_stubs.ts`.
+- global exploration artifacts at output root:
+  - `call_graph.json` (machine-readable nodes/edges),
+  - `call_graph.dot` (Graphviz),
+  - `call_graph.mmd` (Mermaid),
+  - `call_graph.md` (xref-style table for quick navigation).
 - each network is emitted as a typed `network_<n>` method/function body and SCL
   calls are converted into method calls.
 

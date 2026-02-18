@@ -2,6 +2,10 @@ import { walkDirectory } from "./walker.ts";
 import { OpennessNode } from "./types.ts";
 import { compileProgram } from "./compiler/flow_parser.ts";
 import { emitProgram } from "./compiler/transpiler.ts";
+import {
+  buildCallGraph,
+  emitCallGraphArtifacts,
+} from "./compiler/call_graph.ts";
 import { pythonBackend } from "./compiler/backends/python_backend.ts";
 import { typescriptBackend } from "./compiler/backends/typescript_backend.ts";
 
@@ -23,11 +27,17 @@ async function main() {
 
   await emitProgram(program, outputRoot, backends);
 
+  const graph = buildCallGraph(program);
+  await emitCallGraphArtifacts(graph, outputRoot);
+
   console.log(`Compiled ${program.blocks.length} blocks from: ${inputRoot}`);
   console.log(
     `Emitted targets: ${backends.map((b) => b.id).join(", ") || "none"}`,
   );
   console.log(`Output directory: ${outputRoot}`);
+  console.log(
+    `Call graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges`,
+  );
 }
 
 function flatten(root: OpennessNode): OpennessNode[] {
