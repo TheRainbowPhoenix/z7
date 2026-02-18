@@ -1,448 +1,685 @@
 <!DOCTYPE html>
 <html lang="en">
-
-<head>
+  <head>
     <meta charset="UTF-8">
     <title>Openness Studio</title>
     <style>
-        body {
-            margin: 0;
-            display: flex;
-            height: 100vh;
-            font-family: 'Segoe UI', sans-serif;
-            background: #1e1e1e;
-            color: #ccc;
-        }
+      body {
+        margin: 0;
+        display: flex;
+        height: 100vh;
+        font-family: "Segoe UI", sans-serif;
+        background: #1e1e1e;
+        color: #ccc;
+      }
 
-        #sidebar {
-            width: 300px;
-            background: #252526;
-            border-right: 1px solid #333;
-            overflow-y: auto;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-        }
+      #sidebar {
+        width: 320px;
+        background: #252526;
+        border-right: 1px solid #333;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
 
-        #sidebar h3 {
-            font-size: 14px;
-            text-transform: uppercase;
-            color: #888;
-            padding-left: 10px;
-            margin-top: 0;
-        }
+      #sidebar h3 {
+        font-size: 14px;
+        text-transform: uppercase;
+        color: #888;
+        padding: 12px 10px 8px 10px;
+        margin: 0;
+      }
 
-        #file-tree {
-            flex: 1;
-            overflow-y: auto;
-        }
+      #menu {
+        display: flex;
+        gap: 6px;
+        padding: 0 10px 10px 10px;
+        border-bottom: 1px solid #333;
+      }
 
-        .tree-item {
-            padding: 4px 5px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            font-size: 13px;
-            white-space: nowrap;
-            user-select: none;
-        }
+      .menu-btn {
+        background: #2d2d30;
+        color: #ccc;
+        border: 1px solid #3a3a3a;
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
 
-        .tree-item:hover {
-            background: #2a2d2e;
-        }
+      .menu-btn.active {
+        background: #094771;
+        color: #fff;
+        border-color: #0e639c;
+      }
 
-        .tree-item.selected {
-            background: #37373d;
-            color: #fff;
-        }
+      #file-tree,
+      #graph-panel {
+        flex: 1;
+        overflow: auto;
+        padding: 8px;
+      }
 
-        .tree-indent {
-            width: 15px;
-            display: inline-block;
-        }
+      .hidden {
+        display: none !important;
+      }
 
-        .icon {
-            margin-right: 6px;
-            width: 16px;
-            text-align: center;
-            display: inline-block;
-        }
+      .tree-item {
+        padding: 4px 5px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        font-size: 13px;
+        white-space: nowrap;
+        user-select: none;
+      }
 
-        /* Tree Icons */
-        .icon.folder::before {
-            content: "📁";
-            font-size: 14px;
-        }
+      .tree-item:hover {
+        background: #2a2d2e;
+      }
 
-        .icon.folder.open::before {
-            content: "📂";
-        }
+      .tree-item.selected {
+        background: #37373d;
+        color: #fff;
+      }
 
-        .icon.file.xml::before {
-            content: "📄";
-            color: #ffd700;
-        }
+      .icon {
+        margin-right: 6px;
+        width: 16px;
+        text-align: center;
+        display: inline-block;
+      }
 
-        /* Fallback */
-        .icon.file.scl::before {
-            content: "📝";
-            color: #87cefa;
-        }
+      .icon.folder::before {
+        content: "📁";
+        font-size: 14px;
+      }
 
-        .icon.file.db::before {
-            content: "🗃️";
-            font-size: 14px;
-        }
+      .icon.folder.open::before {
+        content: "📂";
+      }
 
-        /* DB Icon */
-        .chevron {
-            width: 16px;
-            text-align: center;
-            color: #ccc;
-            font-size: 10px;
-            margin-right: 2px;
-        }
+      .icon.file.xml::before {
+        content: "📄";
+        color: #ffd700;
+      }
 
-        .chevron::before {
-            content: "▶";
-        }
+      .icon.file.scl::before {
+        content: "📝";
+        color: #87cefa;
+      }
 
-        .chevron.open::before {
-            content: "▼";
-        }
+      .icon.file.db::before {
+        content: "🗃️";
+        font-size: 14px;
+      }
 
-        .chevron.hidden {
-            visibility: hidden;
-        }
+      .chevron {
+        width: 16px;
+        text-align: center;
+        color: #ccc;
+        font-size: 10px;
+        margin-right: 2px;
+      }
 
-        #main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: #1e1e1e;
-            overflow: hidden;
-        }
+      .chevron::before {
+        content: "▶";
+      }
 
-        #editor-container {
-            width: 100%;
-            height: 100%;
-        }
+      .chevron.open::before {
+        content: "▼";
+      }
 
-        /* FBD View */
-        .fbd-view {
-            padding: 20px;
-            overflow: auto;
-            height: 100%;
-            box-sizing: border-box;
-            /* background: #f0f0f0; */
-        }
+      .chevron.hidden {
+        visibility: hidden;
+      }
 
-        /* White bg for SVG visibility logic */
-        .fbd-view svg {
-            background: #f0f0f0;
-        }
+      #main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: #1e1e1e;
+        overflow: hidden;
+      }
 
-        /* DB View styling is injected by server but we can ensure container is scrollable */
-        .db-view-container {
-            padding: 0;
-            height: 100%;
-            overflow: auto;
-        }
+      #editor-container {
+        width: 100%;
+        height: 100%;
+      }
+
+      .fbd-view {
+        padding: 20px;
+        overflow: auto;
+        height: 100%;
+        box-sizing: border-box;
+      }
+
+      .fbd-view svg {
+        background: #f0f0f0;
+      }
+
+      .db-view-container {
+        padding: 0;
+        height: 100%;
+        overflow: auto;
+      }
+
+      .graph-header {
+        color: #bbb;
+        font-size: 12px;
+        margin-bottom: 8px;
+        line-height: 1.5;
+      }
+
+      #graph-canvas {
+        width: 100%;
+        height: calc(100% - 52px);
+        border: 1px solid #333;
+        background: #1c1c1d;
+      }
+
+      .graph-node {
+        cursor: move;
+      }
+
+      .graph-node circle {
+        stroke: #222;
+        stroke-width: 1.5;
+      }
+
+      .graph-node text {
+        fill: #fff;
+        font-size: 11px;
+        pointer-events: none;
+      }
+
+      .graph-link {
+        stroke: #777;
+        stroke-width: 1.6;
+        marker-end: url(#arrowhead);
+      }
+
+      .edge-label {
+        fill: #ddd;
+        font-size: 10px;
+        cursor: pointer;
+        text-decoration: underline;
+      }
+
+      .graph-help {
+        color: #888;
+        font-size: 11px;
+        margin-top: 6px;
+      }
     </style>
-    <!-- Monaco Editor Loader -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.js"></script>
-</head>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.js"
+    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  </head>
 
-<body>
+  <body>
     <div id="sidebar">
-        <h3>Explorer</h3>
-        <div id="file-tree">Loading...</div>
+      <h3>Explorer</h3>
+      <div id="menu">
+        <button id="btn-tree" class="menu-btn active">Tree</button>
+        <button id="btn-graph" class="menu-btn">Call Graph</button>
+      </div>
+      <div id="file-tree">Loading...</div>
+      <div id="graph-panel" class="hidden">
+        <div class="graph-header">
+          Global OB/FB/FC call graph.<br>
+          Click a node to open its block. Click an edge label to open the caller
+          block and jump to linked logic.
+        </div>
+        <svg id="graph-canvas"></svg>
+        <div class="graph-help">
+          Drag nodes to reposition. Positions persist in local storage.
+        </div>
+      </div>
     </div>
     <div id="main">
-        <div id="editor-container"></div>
+      <div id="editor-container"></div>
     </div>
 
     <script>
-        const API_BASE = "http://localhost:8000";
-        let editor = null;
-        let selectedPath = "";
+      let editor = null;
+      let selectedPath = "";
+      let graphPayload = null;
+      let graphSimulation = null;
 
-        require.config({
-            paths: {
-                'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs'
-            }
-        });
+      const graphStorageKey = () =>
+        `openness-call-graph-pos:${location.pathname}`;
 
-        // Proxy worker for CDN
-        window.MonacoEnvironment = {
-            getWorkerUrl: function (workerId, label) {
-                return `data:text/javascript;charset=utf-8,${encodeURIComponent(`
+      require.config({
+        paths: {
+          "vs":
+            "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs",
+        },
+      });
+
+      window.MonacoEnvironment = {
+        getWorkerUrl: function () {
+          return `data:text/javascript;charset=utf-8,${
+            encodeURIComponent(`
                     self.MonacoEnvironment = {
                         baseUrl: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/'
                     };
-                    importScripts('https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/base/worker/workerMain.js');`
-                )}`;
-            }
-        };
+                    importScripts('https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/base/worker/workerMain.js');`)
+          }`;
+        },
+      };
 
-        // Init Monaco
-        require(['vs/editor/editor.main'], function () {
-            // Placeholder init
+      require(["vs/editor/editor.main"], function () {});
+
+      function setMenu(view) {
+        const treeBtn = document.getElementById("btn-tree");
+        const graphBtn = document.getElementById("btn-graph");
+        const treePanel = document.getElementById("file-tree");
+        const graphPanel = document.getElementById("graph-panel");
+
+        if (view === "tree") {
+          treeBtn.classList.add("active");
+          graphBtn.classList.remove("active");
+          treePanel.classList.remove("hidden");
+          graphPanel.classList.add("hidden");
+        } else {
+          treeBtn.classList.remove("active");
+          graphBtn.classList.add("active");
+          treePanel.classList.add("hidden");
+          graphPanel.classList.remove("hidden");
+          if (graphPayload) {
+            renderCallGraph(graphPayload);
+          }
+        }
+      }
+
+      document.getElementById("btn-tree").addEventListener(
+        "click",
+        () => setMenu("tree"),
+      );
+      document.getElementById("btn-graph").addEventListener(
+        "click",
+        () => setMenu("graph"),
+      );
+
+      async function loadTree() {
+        const res = await fetch("/api/tree");
+        const data = await res.json();
+        const treeRoot = document.getElementById("file-tree");
+        treeRoot.innerHTML = "";
+        renderTree(data, treeRoot);
+      }
+
+      async function loadCallGraph() {
+        const res = await fetch("/api/call-graph");
+        graphPayload = await res.json();
+        renderCallGraph(graphPayload);
+      }
+
+      function renderTree(node, container, level = 0) {
+        const div = document.createElement("div");
+        const row = document.createElement("div");
+        row.className = "tree-item";
+        row.style.paddingLeft = (level * 10) + "px";
+        row.setAttribute("data-path", node.path || "");
+
+        let displayName = node.name;
+        let iconClass = "icon";
+        const isFolder = node.type === "Folder" ||
+          node.type === "Group";
+        let isDb = false;
+
+        if (isFolder) {
+          iconClass += " folder";
+        } else {
+          if (node.name && node.name.endsWith(".xml")) {
+            if (node.type === "DB") {
+              iconClass += " file db";
+              isDb = true;
+            } else {
+              iconClass += " file xml";
+            }
+          } else if (
+            node.name && node.name.toLowerCase().endsWith(".scl")
+          ) {
+            iconClass += " file scl";
+          } else {
+            iconClass += " file xml";
+          }
+
+          if (node.blockName) {
+            displayName = `${node.blockName} [${node.type}${
+              node.number !== undefined ? node.number : ""
+            }]`;
+          }
+        }
+
+        const chevron = document.createElement("span");
+        chevron.className = "chevron";
+        const hasChildren = node.children && node.children.length > 0;
+        if (!hasChildren) chevron.classList.add("hidden");
+
+        const icon = document.createElement("span");
+        icon.className = iconClass;
+
+        const label = document.createElement("span");
+        label.textContent =
+          displayName + (isDb && !displayName.includes("[DB"))
+            ? " [DB]"
+            : "";
+
+        row.appendChild(chevron);
+        row.appendChild(icon);
+        row.appendChild(label);
+        div.appendChild(row);
+        container.appendChild(div);
+
+        let childrenContainer = null;
+        if (hasChildren) {
+          childrenContainer = document.createElement("div");
+          childrenContainer.style.display = "none";
+          div.appendChild(childrenContainer);
+
+          node.children.forEach((child) =>
+            renderTree(child, childrenContainer, level + 1)
+          );
+        }
+
+        row.onclick = (e) => {
+          e.stopPropagation();
+          document.querySelectorAll(".tree-item").forEach((el) =>
+            el.classList.remove("selected")
+          );
+          row.classList.add("selected");
+          selectedPath = node.path || "";
+
+          if (isFolder) {
+            if (childrenContainer) {
+              const isClosed =
+                childrenContainer.style.display === "none";
+              childrenContainer.style.display = isClosed
+                ? "block"
+                : "none";
+              if (isClosed) {
+                chevron.classList.add("open");
+                icon.classList.add("open");
+              } else {
+                chevron.classList.remove("open");
+                icon.classList.remove("open");
+              }
+            }
+          } else if (node.path) {
+            openFile(node.path);
+          }
+        };
+      }
+
+      async function openFile(path) {
+        const container = document.getElementById("editor-container");
+
+        if (editor) {
+          editor.dispose();
+          editor = null;
+        }
+        container.innerHTML =
+          '<div style="color: #666; padding: 20px;">Loading...</div>';
+
+        const res = await fetch(
+          `/api/file?path=${encodeURIComponent(path)}`,
+        );
+        if (!res.ok) {
+          container.innerHTML = "Error loading file";
+          return;
+        }
+        const data = await res.json();
+        container.innerHTML = "";
+
+        if (data.type === "fbd") {
+          container.innerHTML =
+            `<div class="fbd-view">${data.content}</div>`;
+          container.querySelectorAll("[data-filepath]").forEach(
+            (link) => {
+              link.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const dp = link.getAttribute("data-filepath");
+                if (dp) {
+                  openFile(dp);
+                }
+              });
+            },
+          );
+        } else if (data.type === "db") {
+          container.innerHTML =
+            `<div class="db-view-container">${data.content}</div>`;
+        } else {
+          editor = monaco.editor.create(container, {
+            value: data.content,
+            language: "pascal",
+            theme: "vs-dark",
+            readOnly: true,
+            automaticLayout: true,
+          });
+        }
+
+        selectInTree(path);
+      }
+
+      function selectInTree(path) {
+        document.querySelectorAll(".tree-item").forEach((el) =>
+          el.classList.remove("selected")
+        );
+        const allItems = document.querySelectorAll(".tree-item");
+        let targetItem = null;
+
+        allItems.forEach((el) => {
+          if (el.getAttribute("data-path") === path) {
+            targetItem = el;
+          }
         });
 
-        // Fetch Tree
-        async function loadTree() {
-            const res = await fetch('/api/tree');
-            const data = await res.json();
-            const treeRoot = document.getElementById('file-tree');
-            treeRoot.innerHTML = "";
-            renderTree(data, treeRoot);
+        if (!targetItem) return;
+
+        targetItem.classList.add("selected");
+        let parent = targetItem.parentElement;
+        while (parent && parent.id !== "file-tree") {
+          if (parent.style.display === "none") {
+            parent.style.display = "block";
+            const folderRow = parent.previousSibling;
+            if (
+              folderRow && folderRow.classList.contains("tree-item")
+            ) {
+              const chev = folderRow.querySelector(".chevron");
+              const icon = folderRow.querySelector(".icon");
+              if (chev) chev.classList.add("open");
+              if (icon) icon.classList.add("open");
+            }
+          }
+          parent = parent.parentElement;
         }
 
-        function renderTree(node, container, level = 0) {
-            // Sort children: Folders first, then Files
-            // (Backend already handles some sort but let's be sure or rely on order)
+        targetItem.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
 
-            const div = document.createElement('div');
+      function persistNodePositions(nodes) {
+        const payload = {};
+        nodes.forEach((n) => {
+          payload[n.id] = { x: n.x, y: n.y, fx: n.fx, fy: n.fy };
+        });
+        localStorage.setItem(
+          graphStorageKey(),
+          JSON.stringify(payload),
+        );
+      }
 
-            // Item Row
-            const row = document.createElement('div');
-            row.className = 'tree-item';
-            row.style.paddingLeft = (level * 10) + 'px';
-            row.setAttribute('data-path', node.path);
-
-            // Name formatting
-            let displayName = node.name;
-            let iconClass = "icon";
-            let isFolder = node.type === 'Folder' || node.type === 'Group';
-            let isDb = false;
-
-            if (isFolder) {
-                iconClass += " folder";
-            } else {
-                // Determine type and formatted name
-                if (node.name.endsWith('.xml')) {
-                    // Check if it is a DB? Backend provides type in node if populated correctly.
-                    // The walker populated node.type = BlockType.DB etc.
-                    if (node.type === 'DB' || node.type === 'GlobalDB') {
-                        isDb = true;
-                        iconClass += " file db";
-                    } else {
-                        iconClass += " file xml";
-                    }
-                } else if (node.name.endsWith('.scl')) {
-                    iconClass += " file scl";
-                }
-
-                // Format: Name [TypeNumber]
-                // Example: node.blockName could be used if available, or construct it
-                let typeShort = node.type;
-                if (typeShort === 'OrganizationBlock') typeShort = 'OB';
-                if (typeShort === 'FunctionBlock') typeShort = 'FB';
-                if (typeShort === 'Function') typeShort = 'FC';
-                if (typeShort === 'GlobalDB') typeShort = 'DB';
-                if (typeShort === 'DataBlock') typeShort = 'DB'; // generic
-
-                // For XML (FBD/DB) usually has number
-                if (node.number !== undefined) {
-                    // Trim extension for display
-                    const cleanName = node.name.replace(/\.(xml|scl)$/i, "");
-                    displayName = `${cleanName} [${typeShort}${node.number}]`;
-                } else if (node.name.endsWith('.scl')) {
-                    // SCL files might not have number parsed but we know the type
-                    const cleanName = node.name.replace(/\.(xml|scl)$/i, "");
-                    displayName = `${cleanName} [${typeShort}]`;
-                }
+      function loadPersistedPositions(nodes, width, height) {
+        const raw = localStorage.getItem(graphStorageKey());
+        if (!raw) return;
+        try {
+          const pos = JSON.parse(raw);
+          nodes.forEach((n) => {
+            if (pos[n.id]) {
+              const p = pos[n.id];
+              n.x = p.x ?? width / 2;
+              n.y = p.y ?? height / 2;
+              n.fx = p.fx ?? n.x;
+              n.fy = p.fy ?? n.y;
             }
+          });
+        } catch {
+          // ignore malformed local storage
+        }
+      }
 
-            // Cheat for DB Equipment which we know is DB4 if parse failed
-            if (node.name.includes("DB Equipment.xml") && !node.number) {
-                displayName = "DB Equipment [DB4]";
-                isDb = true;
-                iconClass = "icon file db";
+      function renderCallGraph(payload) {
+        const svg = d3.select("#graph-canvas");
+        const container = document.getElementById("graph-panel");
+        const width = container.clientWidth - 20;
+        const height = Math.max(460, container.clientHeight - 78);
+
+        svg.attr("width", width).attr("height", height);
+        svg.selectAll("*").remove();
+
+        const nodes = payload.nodes.map((n) => ({
+          id: n.name,
+          kind: n.kind,
+        }));
+        const links = payload.edges.map((e) => ({
+          source: e.from,
+          target: e.to,
+          network: e.network,
+          blockType: e.blockType,
+          label: `N${e.network} ${e.blockType}`,
+          fromPath: e.fromPath,
+          toPath: e.toPath,
+        }));
+
+        loadPersistedPositions(nodes, width, height);
+
+        const defs = svg.append("defs");
+        defs.append("marker")
+          .attr("id", "arrowhead")
+          .attr("viewBox", "-0 -5 10 10")
+          .attr("refX", 18)
+          .attr("refY", 0)
+          .attr("orient", "auto")
+          .attr("markerWidth", 6)
+          .attr("markerHeight", 6)
+          .append("path")
+          .attr("d", "M 0,-5 L 10 ,0 L 0,5")
+          .attr("fill", "#777");
+
+        graphSimulation = d3.forceSimulation(nodes)
+          .force(
+            "link",
+            d3.forceLink(links).id((d) => d.id).distance(160),
+          )
+          .force("charge", d3.forceManyBody().strength(-800))
+          .force("center", d3.forceCenter(width / 2, height / 2))
+          .force("collide", d3.forceCollide().radius(60));
+
+        const link = svg.append("g")
+          .selectAll("line")
+          .data(links)
+          .join("line")
+          .attr("class", "graph-link");
+
+        const edgeLabels = svg.append("g")
+          .selectAll("text")
+          .data(links)
+          .join("text")
+          .attr("class", "edge-label")
+          .text((d) => d.label)
+          .on("click", (event, d) => {
+            event.stopPropagation();
+            if (d.fromPath) {
+              setMenu("tree");
+              openFile(d.fromPath);
             }
+          });
 
-            // Chevron
-            const chevron = document.createElement('span');
-            chevron.className = 'chevron';
-            if (!isFolder || !node.children || node.children.length === 0) {
-                chevron.classList.add('hidden');
-            }
-            row.appendChild(chevron);
+        const node = svg.append("g")
+          .selectAll("g")
+          .data(nodes)
+          .join("g")
+          .attr("class", "graph-node")
+          .call(
+            d3.drag()
+              .on("start", dragstarted)
+              .on("drag", dragged)
+              .on("end", dragended),
+          );
 
-            // Icon
-            const icon = document.createElement('span');
-            icon.className = iconClass;
-            row.appendChild(icon);
+        node.append("circle")
+          .attr("r", 24)
+          .attr(
+            "fill",
+            (d) => d.kind === "internal" ? "#0e639c" : "#6a9955",
+          );
 
-            const text = document.createElement('span');
-            text.textContent = displayName;
-            row.appendChild(text);
+        node.append("text")
+          .attr("text-anchor", "middle")
+          .attr("dy", 4)
+          .text((d) =>
+            d.id.length > 16 ? `${d.id.slice(0, 16)}…` : d.id
+          );
 
-            div.appendChild(row);
-            container.appendChild(div);
+        node.on("click", (event, d) => {
+          event.stopPropagation();
+          const path = payload.nodePaths?.[d.id];
+          if (path) {
+            setMenu("tree");
+            openFile(path);
+          }
+        });
 
-            // Children Container (Hidden by default?)
-            let childrenContainer = null;
-            if (node.children && node.children.length > 0) {
-                childrenContainer = document.createElement('div');
-                // childrenContainer.style.display = 'none'; // Default closed? User didn't specify, but "collapsible" implies toggle.
-                // Let's default open for root, closed for subfolders? Or just open.
-                // "make the folder collapsible or extended by click"
-                if (level > 0) childrenContainer.style.display = 'none';
-                else {
-                    chevron.classList.add('open');
-                    icon.classList.add('open');
-                }
+        graphSimulation.on("tick", () => {
+          link
+            .attr("x1", (d) => d.source.x)
+            .attr("y1", (d) => d.source.y)
+            .attr("x2", (d) => d.target.x)
+            .attr("y2", (d) => d.target.y);
 
-                node.children.forEach(child => renderTree(child, childrenContainer, level + 1));
-                div.appendChild(childrenContainer);
-            }
+          edgeLabels
+            .attr("x", (d) => (d.source.x + d.target.x) / 2)
+            .attr("y", (d) => (d.source.y + d.target.y) / 2 - 6);
 
-            // Click Handler
-            row.onclick = (e) => {
-                e.stopPropagation();
+          node.attr("transform", (d) => `translate(${d.x},${d.y})`);
+        });
 
-                // Select highlight
-                document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
-                row.classList.add('selected');
-                selectedPath = node.path;
-
-                if (isFolder) {
-                    // Toggle
-                    if (childrenContainer) {
-                        const isClosed = childrenContainer.style.display === 'none';
-                        childrenContainer.style.display = isClosed ? 'block' : 'none';
-                        if (isClosed) {
-                            chevron.classList.add('open');
-                            icon.classList.add('open');
-                        } else {
-                            chevron.classList.remove('open');
-                            icon.classList.remove('open');
-                        }
-                    }
-                } else {
-                    openFile(node.path);
-                }
-            };
+        function dragstarted(event, d) {
+          if (!event.active) graphSimulation.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
         }
 
-        async function openFile(path) {
-            console.log("Opening: ", path);
-            const container = document.getElementById('editor-container');
-            // Don't clear immediately to avoid flicker if we want, but better to show loading state for now
-            // But if we dispose editor, we must clear or it stays valid until GC?
-            // Actually, dispose removes the DOM node of editor usually? No, just internals.
-
-            // Dispose previous editor instance aggressively to avoid contamination/worker issues
-            if (editor) {
-                editor.dispose();
-                editor = null;
-            }
-            container.innerHTML = '<div style="color: #666; padding: 20px;">Loading...</div>';
-
-            const res = await fetch(`/api/file?path=${encodeURIComponent(path)}`);
-            if (!res.ok) {
-                container.innerHTML = "Error loading file";
-                return;
-            }
-            const data = await res.json();
-
-            // Clear loading text
-            container.innerHTML = '';
-
-            if (data.type === 'fbd') {
-                container.innerHTML = `<div class="fbd-view">${data.content}</div>`;
-
-                // Attach click handlers to FBD links
-                container.querySelectorAll('[data-filepath]').forEach(link => {
-                    link.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        // Recursive mapping needed? 
-                        const dp = link.getAttribute('data-filepath');
-                        // Find in tree to select?
-                        openFile(dp);
-                    });
-                });
-            } else if (data.type === 'db') {
-                container.innerHTML = `<div class="db-view-container">${data.content}</div>`;
-            } else {
-                // SCL / Text
-                // ALWAYS create new editor instance for safety as requested
-                if (!editor || editor.getModel().getLanguageId() !== 'pascal') {
-                    if (editor) {
-                        editor.dispose();
-                    }
-                    editor = monaco.editor.create(container, {
-                        value: data.content,
-                        language: 'pascal',
-                        theme: 'vs-dark',
-                        readOnly: true,
-                        automaticLayout: true
-                    });
-                } else {
-                    monaco.editor.setModelLanguage(editor.getModel(), 'pascal');
-                    editor.setValue(data.content);
-                }
-            }
-
-            // Update Tree Selection UI
-            selectInTree(path);
+        function dragged(event, d) {
+          d.fx = event.x;
+          d.fy = event.y;
         }
 
-        function selectInTree(path) {
-            // Remove old selection
-            document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
-
-            // Find the tree item with matching node path
-            // We stored path on the row element? No, we need to find it.
-            // Let's add data-path attribute to tree items
-            const allItems = document.querySelectorAll('.tree-item');
-            let targetItem = null;
-
-            // Normalize path for comparison (server returns absolute, local might differ slightly in casing on windows)
-            // But usually exact match or casing issues. 
-            // We can just iterate.
-
-            // Wait, we need to update renderTree to store the path on the DOM element first!
-            // See renderTree update below.
-
-            allItems.forEach(el => {
-                if (el.getAttribute('data-path') === path) {
-                    targetItem = el;
-                }
-            });
-
-            if (targetItem) {
-                targetItem.classList.add('selected');
-
-                // Expand parents
-                let parent = targetItem.parentElement;
-                while (parent && parent.id !== 'file-tree') {
-                    if (parent.style.display === 'none') {
-                        parent.style.display = 'block';
-                        // Update chevron/icon of the parent folder
-                        // parent.previousSibling is the folder row
-                        const folderRow = parent.previousSibling;
-                        if (folderRow && folderRow.classList.contains('tree-item')) {
-                            const chev = folderRow.querySelector('.chevron');
-                            const icon = folderRow.querySelector('.icon');
-                            if (chev) chev.classList.add('open');
-                            if (icon) icon.classList.add('open');
-                        }
-                    }
-                    parent = parent.parentElement;
-                }
-
-                // Scroll into view
-                setTimeout(() => {
-                    targetItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 100);
-            }
+        function dragended(event, d) {
+          if (!event.active) graphSimulation.alphaTarget(0);
+          d.fx = event.x;
+          d.fy = event.y;
+          persistNodePositions(nodes);
         }
+      }
 
-        loadTree();
+      window.addEventListener("resize", () => {
+        if (
+          !document.getElementById("graph-panel").classList.contains(
+            "hidden",
+          ) && graphPayload
+        ) {
+          renderCallGraph(graphPayload);
+        }
+      });
+
+      Promise.all([loadTree(), loadCallGraph()]);
     </script>
-</body>
-
+  </body>
 </html>

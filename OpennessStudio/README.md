@@ -99,3 +99,13 @@ TypeScript backend without changing flow parsing.
 
 Reference parser ideas from `block_diagram_z3` can be kept in `third_party/`
 locally; this path is gitignored.
+
+
+## Web UI call-graph navigation
+
+Open the server UI and use the **Call Graph** menu in the sidebar:
+
+- click a node to open that block in the tree and main view,
+- click an edge label to open the caller block that contains the call site,
+- drag nodes to move them; positions are saved in browser local storage.
+
