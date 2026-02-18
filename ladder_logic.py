@@ -54,7 +54,7 @@ class Canvas:
         # Pad row if necessary
         while len(row_str) <= self.col:
             row_str.append(" ")
-            
+
         row_str[self.col] = text[0]
         self.lines[self.row] = "".join(row_str)
 
@@ -205,7 +205,7 @@ class TextParser(SchematicParser):
             col += 1
 
         if col == len(line): return
-        
+
         char = line[col]
         if char == "[":
             self._scan_in(rung, row, col + 1, count)
@@ -289,12 +289,12 @@ class TextRenderer(SchematicRenderer):
             self.canvas.right()
             self.visit(a)
             self.canvas.set_marker(top_left)
-        
+
         self.canvas.down()
         self.canvas.draw("| ")
         self.canvas.left()
         self.canvas.down()
-        
+
         bottom_left = self.canvas.get_marker()
         self.canvas.draw("+")
         self.canvas.right()
@@ -335,12 +335,12 @@ class TextRenderer(SchematicRenderer):
         self.canvas.clear()
         tree_visitor = TreeVisitor(self)
         not_visitor = NotVisitor(tree_visitor)
-        
+
         for instr in instructions:
             not_visitor.visit(instr)
         if not_visitor.pending:
             not_visitor.parent.visit(not_visitor.pending)
-            
+
         lines = self.canvas.get_lines()
         return "||" + "||\n||".join(lines) + "||"
 
@@ -388,22 +388,22 @@ class PLCopenRenderer:
         self.current_y = 100
         self.left_rail_id = "0"
         self.stack: List[LogicTree] = []
-        
+
     def _add_headers(self):
         # fileHeader
         now = datetime.now().isoformat()
-        ET.SubElement(self.root, "fileHeader", 
-                      companyName="Beckhoff Automation GmbH", 
-                      productName="TwinCAT PLC Control", 
-                      productVersion="3.5.13.20", 
+        ET.SubElement(self.root, "fileHeader",
+                      companyName="Beckhoff Automation GmbH",
+                      productName="TwinCAT PLC Control",
+                      productVersion="3.5.13.20",
                       creationDateTime=now)
-        
+
         # contentHeader
         ch = ET.SubElement(self.root, "contentHeader", name="Basic_Com", modificationDateTime=now)
         coord = ET.SubElement(ch, "coordinateInfo")
         for tag in ["fbd", "ld", "sfc"]:
             ET.SubElement(ET.SubElement(coord, tag), "scaling", x="1", y="1")
-        
+
         addData = ET.SubElement(ch, "addData")
         data = ET.SubElement(addData, "data", name="http://www.3s-software.com/plcopenxml/projectinformation", handleUnknown="implementation")
         ET.SubElement(data, "ProjectInformation")
@@ -412,21 +412,21 @@ class PLCopenRenderer:
         """Walks instructions to categorize variables automatically."""
         inputs = set()
         outputs = set()
-        
+
         for instr in instructions:
             if instr[0] == 'in': inputs.add(instr[1])
             if instr[0] == 'out': outputs.add(instr[1])
-            
+
         in_out = inputs.intersection(outputs)
         pure_inputs = inputs - in_out
         pure_outputs = outputs - in_out
-        
-        # For this demo, let's assume specific logic: 
+
+        # For this demo, let's assume specific logic:
         # ESTOP is usually an input, START/STOP are locals/inputs, etc.
         # But we will follow your provided mapping logic.
-        
+
         iface = ET.SubElement(pou, "interface")
-        
+
         groups = {
             "inputVars": pure_inputs,
             "outputVars": pure_outputs,
@@ -443,14 +443,14 @@ class PLCopenRenderer:
                     ET.SubElement(t, "BOOL")
                     init = ET.SubElement(v, "initialValue")
                     ET.SubElement(init, "simpleValue", value="FALSE")
-                    
+
     def _create_element(self, tag: str, var: str, negated: bool = False) -> LogicTree:
         cid = str(self.connection_id)
         self.connection_id += 1
         attrs = {"localId": cid}
         if tag == "contact":
             attrs["negated"] = "true" if negated else "false"
-        
+
         el = ET.SubElement(self.ld, tag, **attrs)
         ET.SubElement(el, "variable").text = var
         # Initial element is 1 unit wide (150px) and 0 units high (offset-wise)
@@ -472,19 +472,19 @@ class PLCopenRenderer:
 
     def render(self, instructions: List[List[Any]]) -> str:
         self._add_headers()
-        
+
         types = ET.SubElement(self.root, "types")
         ET.SubElement(types, "dataTypes")
         pous = ET.SubElement(types, "pous")
-        
+
         # Note: changed to functionBlock per request
         pou = ET.SubElement(pous, "pou", name="ProgramMain", pouType="functionBlock")
-        
+
         self._create_interface(pou, instructions)
-        
+
         body = ET.SubElement(pou, "body")
         self.ld = ET.SubElement(body, "LD")
-        
+
         # Left Rail
         rail = ET.SubElement(self.ld, "leftPowerRail", localId="0")
         ET.SubElement(rail, "position", x="40", y="0")
@@ -540,14 +540,14 @@ class PLCopenRenderer:
                 self.connection_id += 1
                 coil = ET.SubElement(self.ld, "coil", localId=cid)
                 ET.SubElement(coil, "variable").text = instr[1]
-                
+
                 if self.stack:
                     tree = self.stack.pop()
-                    
+
                     # 1. Connect logic heads to left rail
                     for h in tree.heads:
                         self._add_conn(h, [self.left_rail_id])
-                    
+
                     # 2. Connection coil to logic tails
                     self._add_conn(cid, tree.tails)
                     self._set_pos(cid, 850, self.current_y)
@@ -557,7 +557,7 @@ class PLCopenRenderer:
                     cursor_x = 100
                     # This is a simplified layout engine:
                     processed_ids = set()
-                    
+
                     # For this specific task, we map the known IDs manually to match your layout
                     # A full generic layout engine would require a recursive tree walk
                     for idx, lid in enumerate(tree.ids):
@@ -571,7 +571,7 @@ class PLCopenRenderer:
                         else:
                             current_x = 100 + (idx * 150)
                             if idx > 3: current_x -= 150 # Adjust for parallel branch width
-                        
+
                         self._set_pos(lid, current_x, self.current_y + y_offset)
 
                 self.current_y += 200

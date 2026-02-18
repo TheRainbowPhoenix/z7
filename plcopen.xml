@@ -1,0 +1,145 @@
+<?xml version="1.0" ?>
+<project xmlns="http://www.plcopen.org/xml/tc6_0201">
+  <fileHeader companyName="Beckhoff Automation GmbH" productName="TwinCAT PLC Control" productVersion="3.5.13.20" creationDateTime="2026-02-18T19:23:56.308572"/>
+  <contentHeader name="Basic_Com" modificationDateTime="2026-02-18T19:23:56.308572">
+    <coordinateInfo>
+      <fbd>
+        <scaling x="1" y="1"/>
+      </fbd>
+      <ld>
+        <scaling x="1" y="1"/>
+      </ld>
+      <sfc>
+        <scaling x="1" y="1"/>
+      </sfc>
+    </coordinateInfo>
+    <addData>
+      <data name="http://www.3s-software.com/plcopenxml/projectinformation" handleUnknown="implementation">
+        <ProjectInformation/>
+      </data>
+    </addData>
+  </contentHeader>
+  <types>
+    <dataTypes/>
+    <pous>
+      <pou name="ProgramMain" pouType="functionBlock">
+        <interface>
+          <inputVars>
+            <variable name="ESTOP">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="FALSE"/>
+              </initialValue>
+            </variable>
+            <variable name="START">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="FALSE"/>
+              </initialValue>
+            </variable>
+            <variable name="STOP">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="FALSE"/>
+              </initialValue>
+            </variable>
+          </inputVars>
+          <outputVars>
+            <variable name="MOTOR">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="FALSE"/>
+              </initialValue>
+            </variable>
+          </outputVars>
+          <inOutVars>
+            <variable name="RUN">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="FALSE"/>
+              </initialValue>
+            </variable>
+          </inOutVars>
+        </interface>
+        <body>
+          <LD>
+            <leftPowerRail localId="0">
+              <position x="40" y="0"/>
+            </leftPowerRail>
+            <contact localId="1" negated="true">
+              <variable>ESTOP</variable>
+              <connectionPointIn>
+                <connection refLocalId="0"/>
+              </connectionPointIn>
+              <position x="100" y="100"/>
+            </contact>
+            <contact localId="2" negated="true">
+              <variable>STOP</variable>
+              <connectionPointIn>
+                <connection refLocalId="1"/>
+              </connectionPointIn>
+              <position x="250" y="100"/>
+            </contact>
+            <contact localId="3" negated="false">
+              <variable>START</variable>
+              <connectionPointIn>
+                <connection refLocalId="2"/>
+              </connectionPointIn>
+              <position x="400" y="100"/>
+            </contact>
+            <contact localId="4" negated="false">
+              <variable>STOP</variable>
+              <connectionPointIn>
+                <connection refLocalId="2"/>
+              </connectionPointIn>
+              <position x="400" y="160"/>
+            </contact>
+            <contact localId="5" negated="false">
+              <variable>RUN</variable>
+              <connectionPointIn>
+                <connection refLocalId="2"/>
+              </connectionPointIn>
+              <position x="550" y="100"/>
+            </contact>
+            <coil localId="6">
+              <variable>RUN</variable>
+              <connectionPointIn>
+                <connection refLocalId="3"/>
+                <connection refLocalId="4"/>
+                <connection refLocalId="5"/>
+              </connectionPointIn>
+              <position x="850" y="100"/>
+            </coil>
+            <contact localId="7" negated="false">
+              <variable>RUN</variable>
+              <connectionPointIn>
+                <connection refLocalId="0"/>
+              </connectionPointIn>
+              <position x="100" y="300"/>
+            </contact>
+            <coil localId="8">
+              <variable>MOTOR</variable>
+              <connectionPointIn>
+                <connection refLocalId="7"/>
+              </connectionPointIn>
+              <position x="850" y="300"/>
+            </coil>
+          </LD>
+        </body>
+      </pou>
+    </pous>
+  </types>
+  <instances>
+    <configurations/>
+  </instances>
+</project>
