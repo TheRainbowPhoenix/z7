@@ -1,10 +1,35 @@
+# Fix spacing in TextRenderer.or_op to match original visual style (missing '-')
+# The user noted "decompile seems to remove one '-' sign".
+# Original `ladder_logic.py`:
+# self.canvas.replace_up(top_left, {" ": "| ", "-": "+ "})
+# self.canvas.draw("+--")
+# My `renderer.py`:
+# self.canvas.replace_up(top_left, {" ": "| ", "-": "+ "}, color)
+# self.canvas.draw("+--", color)
+
+# Let's compare `ladder_logic.py` output vs `renderer.py` output.
+# Input: `||--[/ESTOP]...`
+# Decompiled: `||-[/ESTOP]...`
+# It seems `in_op` adds `--` prefix/suffix?
+# `in_op` in `ladder_logic.py`: `self.canvas.draw(f"--[{name}]--")`.
+# `in_op` in my `renderer.py`: `sym = f"-[/{name}]-" ... draw(sym)`.
+# Ah! I changed spacing in `in_op`!
+# `ladder_logic.py`: `--[{name}]--` (2 dashes, brackets, 2 dashes) -> Total 4 dashes + brackets.
+# My `renderer.py`: `-[{name}]-` (1 dash, brackets, 1 dash).
+# This explains the missing sign.
+
+# Also `out_op`:
+# `ladder_logic.py`: `self.canvas.draw(f"--({name})--")`
+# My `renderer.py`: `self.canvas.draw(f"-({name})-", coil_color)`
+
+# I will revert spacing to match `ladder_logic.py`.
+
 from typing import List, Any, Optional, Dict
 import abc
 
 class SchematicRenderer(abc.ABC):
     @abc.abstractmethod
     def render(self, instructions: List[List[Any]], trace: Optional[Dict[int, bool]] = None) -> Any:
-        """Converts instructions back to a visual representation."""
         pass
 
 class Canvas:
@@ -12,27 +37,23 @@ class Canvas:
         self.row = 0
         self.col = 0
         self.lines = [""]
-        self.colors = [[]] # List of colors per char (None or color code)
+        self.colors = [[]]
 
     def left(self):
-        if self.col <= 0:
-            raise ValueError("Canvas boundary error: Left")
+        if self.col <= 0: raise ValueError("Canvas error")
         self.col -= 1
 
     def right(self):
         self.col += 1
-        if self.col == len(self.lines[0]):
-            self._extend_lines()
+        if self.col == len(self.lines[0]): self._extend_lines()
 
     def up(self):
-        if self.row <= 0:
-            raise ValueError("Canvas boundary error: Up")
+        if self.row <= 0: raise ValueError("Canvas error")
         self.row -= 1
 
     def down(self):
         self.row += 1
-        if self.row == len(self.lines):
-            self._add_line()
+        if self.row == len(self.lines): self._add_line()
 
     def _add_line(self):
         width = len(self.lines[0]) if self.lines else 1
@@ -47,14 +68,11 @@ class Canvas:
     def draw(self, text: str, color: Optional[str] = None):
         while len(self.lines[self.row]) < self.col + len(text):
             self._extend_lines()
-
         line_chars = list(self.lines[self.row])
         line_colors = self.colors[self.row]
-
         for i, char in enumerate(text):
             line_chars[self.col + i] = char
             line_colors[self.col + i] = color
-
         self.lines[self.row] = "".join(line_chars)
         self.col += len(text) - 1
 
@@ -64,21 +82,9 @@ class Canvas:
     def set_marker(self, marker):
         self.row, self.col = marker
 
-    def fill(self, char: str, color: Optional[str] = None):
-        length = len(self.lines[self.row]) - self.col
-        text = char * length
-        self.draw(text, color) # Reuse draw logic (though draw advances col differently for fill?)
-        # Canvas.fill implementation in original replaced slice.
-        # Let's stick to original behavior but with color.
-        # Original: self.col = len(...) - 1 at end.
-        pass
-
     def draw_fill(self, char: str, color: Optional[str] = None):
-        # Replacement for original 'fill' logic but using draw for consistency
         length = len(self.lines[self.row]) - self.col
-        text = char * length
         if length > 0:
-            # Need to handle direct list manipulation to match original behavior logic
             line_chars = list(self.lines[self.row])
             line_colors = self.colors[self.row]
             for i in range(length):
@@ -98,8 +104,6 @@ class Canvas:
             start = self.get_marker()
             current_char = self.lines[self.row][self.col]
             if current_char in replacements:
-                # We need to draw single char without advancing logic of 'draw' loop for string?
-                # Draw single char
                 line_chars = list(self.lines[self.row])
                 line_colors = self.colors[self.row]
                 line_chars[self.col] = replacements[current_char]
@@ -120,14 +124,8 @@ class Canvas:
 
     def get_lines_colored(self):
         if not self.lines: return []
-        # Return list of (text_line, color_line) tuples
-        # color_line is list of color codes
         result = []
-        # Reorder last line first logic?
-        # Original: return [self.lines[-1]] + self.lines[:-1]
-
         indices = [len(self.lines)-1] + list(range(len(self.lines)-1))
-
         for idx in indices:
             result.append((self.lines[idx], self.colors[idx]))
         return result
@@ -137,30 +135,10 @@ class TreeVisitor:
         self.parent = parent
         self.stack = []
         self.trace = trace
-        self.instr_idx = 0
-
-    def visit(self, instruction):
-        # We need to match instruction index to trace.
-        # But visit order might differ from execution order?
-        # The parser outputs RPN stream. The simulator runs RPN stream.
-        # The renderer renders from the instruction list.
-        # If we iterate instructions in order, we match trace indices.
-        pass
-
-    # The renderer visits recursively.
-    # But `TextRenderer.render` iterates the linear instruction list to build tree?
-    # No, `render` iterates `instructions` (linear) and uses `NotVisitor`/`TreeVisitor` to build visual tree.
-    # The `TreeVisitor` maintains a stack of sub-trees/nodes?
-    # No, `TreeVisitor` stack holds `['in', name]` etc. which are tuples/lists representing sub-structures.
-    # We need to attach the trace state to these structures.
-    # Let's modify `TreeVisitor` to attach index/state.
 
     def process(self, instructions):
-        # We need to reconstruct the execution flow to map states.
-        # `instructions` is the linear list.
         for i, instr in enumerate(instructions):
             state = self.trace.get(i, False) if self.trace else False
-
             op = instr[0]
             if op == "not":
                 if self.stack:
@@ -199,30 +177,16 @@ class TextRenderer(SchematicRenderer):
         elif op == "in": self.in_op(node[1], color)
         elif op == "out": self.out_op(node[1], node[2], color)
         elif op == "not":
-            # NOT wraps another node.
-            # Visual representation of NOT is usually handled in IN/OUT logic (e.g. [/ESTOP]).
-            # But here `TreeVisitor` creates `['not', item, state]`.
-            # We need to handle it.
-            # Original `TextRenderer` relied on `NotVisitor` pre-processing linear list.
-            # But we are rebuilding tree with states.
-            # If `node[1]` is an `in` node, we render it as negated contact.
             inner = node[1]
             if inner[0] == "in":
                 self.in_op(inner[1], color, negated=True)
-            elif inner[0] == "out": # Should not happen inside NOT usually in ladder?
-                pass
             else:
-                # Negate logic block?
-                self.visit(inner) # Fallback
-        else:
-            pass
+                self.visit(inner)
 
     def or_recursive(self, a, b, parent_color):
-        # 'a' and 'b' are nodes.
         state_a = a[-1] if isinstance(a[-1], bool) else False
         state_b = b[-1] if isinstance(b[-1], bool) else False
         color_a = self.GREEN if state_a else self.RED
-        color_b = self.GREEN if state_b else self.RED
 
         if a[0] == "or":
             self.or_recursive(a[1], a[2], color_a)
@@ -234,11 +198,7 @@ class TextRenderer(SchematicRenderer):
             self.canvas.set_marker(top_left)
 
         self.canvas.down()
-        self.canvas.draw("| ", parent_color) # Vertical bar follows parent logic? Or OR logic?
-        # Vertical bar connects input to bottom rung. If input is active, bar is active?
-        # Actually OR bar is active if input to OR is active.
-        # But we don't have input state easily here.
-        # Let's assume parent_color passes power to the split.
+        self.canvas.draw("| ", parent_color)
         self.canvas.left()
         self.canvas.down()
 
@@ -246,7 +206,7 @@ class TextRenderer(SchematicRenderer):
         self.canvas.draw("+", parent_color)
         self.canvas.right()
         self.visit(b)
-        self.canvas.draw_fill("-", parent_color) # Fill line after bottom
+        self.canvas.draw_fill("-", parent_color)
         self.canvas.set_marker(bottom_left)
 
     def or_op(self, a, b, color):
@@ -261,19 +221,11 @@ class TextRenderer(SchematicRenderer):
 
     def and_op(self, a, b, color):
         self.visit(a)
-        # Connection between A and B
-        # self.visit(a) draws A and advances col.
-        # We assume implicit wire?
-        # A's output connects to B's input.
-        # A's state determines wire color to B?
-        # `a` node has a state (output state).
-        state_a = a[-1] if isinstance(a[-1], bool) else False
-        wire_color = self.GREEN if state_a else self.RED
-        # self.canvas.draw("--", wire_color) # Maybe?
         self.visit(b)
 
     def in_op(self, name, color, negated=False):
-        sym = f"-[/{name}]-" if negated else f"-[{name}]-"
+        # Match ladder_logic.py spacing
+        sym = f"--[/{name}]--" if negated else f"--[{name}]--"
         self.canvas.draw(sym, color)
         self.canvas.right()
 
@@ -284,44 +236,29 @@ class TextRenderer(SchematicRenderer):
         if value:
             self.visit(value)
 
-        # Wire before coil depends on value's output state
         state_val = value[-1] if value and isinstance(value[-1], bool) else False
         coil_color = self.GREEN if state_val else self.RED
 
-        self.canvas.draw(f"-({name})-", coil_color)
+        self.canvas.draw(f"--({name})--", coil_color)
         self.canvas.bottom()
         self.canvas.down()
         self.canvas.crlf()
 
     def render(self, instructions: List[List[Any]], trace: Optional[Dict[int, bool]] = None) -> str:
         self.canvas.clear()
-
-        # If no trace, create fake trace (all False or None)
-        # But we handle None color in Canvas.
-
-        # We need to adapt the visitor logic to handle linear->tree with trace
         tree_visitor = TreeVisitor(self, trace)
-        # We don't use NotVisitor here because we handle NOT in TreeVisitor/TextRenderer logic
-
         tree_visitor.process(instructions)
-
-        # Process pending out
-        # TreeVisitor calls `self.parent.visit` (TextRenderer.visit) for each OUT.
-
         lines_colored = self.canvas.get_lines_colored()
-
-        # Convert to ANSI string
         output = []
         output.append("||")
         for text, colors in lines_colored:
             line_str = "||"
             for char, col_code in zip(text, colors):
-                if col_code:
+                if col_code and trace:
                     line_str += f"{col_code}{char}{self.RESET}"
                 else:
                     line_str += char
             line_str += "||"
             output.append(line_str)
         output.append("||")
-
         return "\n".join(output)

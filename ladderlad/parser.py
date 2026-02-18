@@ -33,6 +33,10 @@ class TextParser(SchematicParser):
     def _scan(self, rung, row, col, count):
         if row >= len(rung): return # Safety check
         line = rung[row]
+
+        # Guard col against length
+        if col >= len(line): return
+
         while col < len(line) and line[col] == "-":
             col += 1
 
@@ -50,7 +54,6 @@ class TextParser(SchematicParser):
         elif char == " ":
             pass
         else:
-            # End of line or unrecognized
             pass
 
     def _scan_in(self, rung, row, col, count):
@@ -79,35 +82,28 @@ class TextParser(SchematicParser):
 
     def _scan_or(self, rung, row, col, count):
         end = rung[row].find("+", col + 1)
-        # find can return -1 if not found, check safety
-        if end == -1: return # Invalid syntax?
+        if end == -1:
+            end = len(rung[row])
         self._scan_or_block(rung, row, col, end, 0)
         self._scan_and(rung, row, end + 1, count + 1)
 
     def _scan_or_block(self, rung, row, col, end, count):
         if row >= len(rung): return
 
-        if rung[row][col] == "+":
-            # Extract content between + and +
-            line = rung[row][col+1:end]
+        char = rung[row][col]
+        if char == "+":
+            safe_end = min(end, len(rung[row]))
+            line = rung[row][col+1:safe_end]
             sub_instr = []
-
-            # Temporarily replace self.instructions to capture sub-scan results
             temp_instr = self.instructions
             self.instructions = sub_instr
-
-            # Recursively scan the extracted line
-            # Passing 0 as count resets context for the sub-block
-            # Passing [line] creates a mini-rung for the scanner
             self._scan([line], 0, 0, 0)
-
-            # Restore instructions and append results
             self.instructions = temp_instr
             self.instructions.extend(sub_instr)
 
             if count > 0: self.instructions.append(["or"])
             self._scan_or_block(rung, row + 1, col, end, count + 1)
-        elif rung[row][col] == "|":
+        elif char == "|":
             self._scan_or_block(rung, row + 1, col, end, count)
 
     def _scan_and(self, rung, row, col, count):
