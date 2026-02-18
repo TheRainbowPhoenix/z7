@@ -354,6 +354,7 @@
       <button data-action="xref-to">Show XRef to</button>
       <button data-action="show-inputs">Show inputs</button>
       <button data-action="show-outputs">Show outputs</button>
+      <button data-action="type-xref">Show type XRef</button>
     </div>
 
     <div id="xref-modal-backdrop"></div>
@@ -459,6 +460,41 @@
         renderCallGraph(graphPayload);
       }
 
+      async function loadLocalTypes() {
+        const res = await fetch("/api/local-types");
+        const data = await res.json();
+        const list = document.getElementById("local-types-list");
+        if (!data.types || data.types.length === 0) {
+          list.innerHTML =
+            '<div class="muted">No local types found.</div>';
+          return;
+        }
+
+        list.innerHTML = "";
+        data.types.forEach((t) => {
+          const row = document.createElement("div");
+          row.className = "type-item";
+          row.innerHTML =
+            `<span class=\"type-name\" title=\"${t.name}\">${t.name}</span><span class=\"type-meta\">${t.sizeBytes}B · ${t.usageCount} uses</span>`;
+          row.addEventListener("click", () => {
+            if (t.path) {
+              setMenu("tree");
+              openFile(t.path);
+            }
+          });
+          row.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            openContextMenu(e.clientX, e.clientY, {
+              kind: "type",
+              typeName: t.name,
+              path: t.path || "",
+              symbol: "",
+            });
+          });
+          list.appendChild(row);
+        });
+      }
+
       function renderTree(node, container, level = 0) {
         const div = document.createElement("div");
         const row = document.createElement("div");
@@ -511,6 +547,7 @@
           e.preventDefault();
           if (isFolder) return;
           openContextMenu(e.clientX, e.clientY, {
+            kind: "block",
             symbol: row.getAttribute("data-symbol") || "",
             path: row.getAttribute("data-path") || "",
           });
@@ -594,7 +631,11 @@
             const symbol = sanitizeIdent(
               block.getAttribute("data-blockname") || "",
             );
-            openContextMenu(e.clientX, e.clientY, { symbol, path });
+            openContextMenu(e.clientX, e.clientY, {
+              kind: "block",
+              symbol,
+              path,
+            });
           });
         });
       }
@@ -790,6 +831,16 @@
         menu.style.left = `${x}px`;
         menu.style.top = `${y}px`;
         menu.style.display = "block";
+
+        const isType = target?.kind === "type";
+        menu.querySelectorAll("button").forEach((btn) => {
+          const action = btn.getAttribute("data-action");
+          if (action === "type-xref") {
+            btn.style.display = isType ? "block" : "none";
+          } else {
+            btn.style.display = isType ? "none" : "block";
+          }
+        });
       }
 
       function closeContextMenu() {
@@ -873,6 +924,30 @@
       async function handleContextAction(action) {
         if (!currentContextTarget) return;
         try {
+          if (action === "type-xref") {
+            const res = await fetch(
+              `/api/type-xref?type=${
+                encodeURIComponent(currentContextTarget.typeName || "")
+              }`,
+            );
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
+            showModal(
+              `Type XRef: ${data.type.name} (${data.type.sizeBytes} bytes)`,
+              `<div class="modal-section"><h4>Usage count: ${data.type.usageCount}</h4>${
+                renderXrefList(
+                  (data.usages || []).map((u) => ({
+                    source: u.blockName,
+                    path: u.path,
+                    parameter: `${u.section}.${u.member}`,
+                  })),
+                  "",
+                )
+              }</div>`,
+            );
+            return;
+          }
+
           const data = await getXrefData(currentContextTarget);
           if (action === "xref-from") {
             showModal(
@@ -953,7 +1028,7 @@
         }
       });
 
-      Promise.all([loadTree(), loadCallGraph()]);
+      Promise.all([loadTree(), loadCallGraph(), loadLocalTypes()]);
     </script>
   </body>
 </html>

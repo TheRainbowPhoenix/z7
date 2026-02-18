@@ -125,3 +125,14 @@ and use:
 This opens a popup listing caller/callee relations and interface/usage hints.
 Entries are clickable and navigate to the corresponding file in tree + main
 view.
+
+### Local types panel
+
+At the bottom of the sidebar, the **Local types** panel lists discovered
+UDT/local structures with:
+
+- computed size (bytes),
+- usage count in parsed interfaces/code references.
+
+Right-click a type and choose **Show type XRef** to list where that type is
+used; entries are clickable to jump to files.

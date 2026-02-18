@@ -17,6 +17,21 @@ let fileMap: Record<string, string> = {};
 let symbolPathMap: Record<string, string> = {};
 let pathSymbolMap: Record<string, string> = {};
 
+interface TypeUsageRef {
+  path: string;
+  blockName: string;
+  ownerType: string;
+  section: string;
+  member: string;
+}
+
+interface LocalTypeInfo {
+  name: string;
+  path: string | null;
+  sizeBytes: number;
+  usageCount: number;
+}
+
 function buildMapsFromTree(node: OpennessNode) {
   if (node.name) {
     const key = node.name.replace(/\.(xml|scl)$/i, "");
@@ -231,6 +246,230 @@ router.get("/api/xref", async (ctx) => {
         writes: writtenInBlock,
         references: outputRefs,
       },
+    };
+  } catch (e) {
+    console.error(e);
+    ctx.response.status = 500;
+    ctx.response.body = { error: String(e) };
+  }
+});
+
+function extractSectionMembers(
+  iface: any,
+): Array<{ section: string; name: string; datatype: string }> {
+  const sections = iface?.Sections?.Section || iface?.sections?.Section ||
+    iface?.Sections || [];
+  const sectionList = Array.isArray(sections) ? sections : [sections];
+  const out: Array<{ section: string; name: string; datatype: string }> = [];
+
+  for (const sec of sectionList) {
+    const sectionName = sec?.["@_Name"] || sec?.Name || "Unknown";
+    const members = sec?.Member || [];
+    const memberList = Array.isArray(members) ? members : [members];
+    for (const m of memberList) {
+      if (!m) continue;
+      const name = m?.["@_Name"] || m?.Name;
+      const datatype = m?.["@_Datatype"] || m?.Datatype || "Variant";
+      if (!name) continue;
+      out.push({
+        section: String(sectionName),
+        name: String(name),
+        datatype: String(datatype),
+      });
+    }
+  }
+  return out;
+}
+
+function normalizeTypeName(value: string): string {
+  return sanitizeIdent(String(value || "").replace(/"/g, ""));
+}
+
+function parseStringSize(datatype: string): number | null {
+  const m = datatype.match(/string\s*\[(\d+)\]/i);
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (!Number.isFinite(n)) return null;
+  return n + 2;
+}
+
+function isPrimitiveType(datatype: string): boolean {
+  const t = datatype.trim().toLowerCase();
+  if (/^string\s*\[\d+\]$/.test(t)) return true;
+  const basic = new Set([
+    "bool",
+    "byte",
+    "char",
+    "word",
+    "int",
+    "uint",
+    "dword",
+    "dint",
+    "udint",
+    "real",
+    "time",
+    "lreal",
+    "lint",
+    "ulint",
+    "date_and_time",
+    "variant",
+  ]);
+  return basic.has(t);
+}
+
+function collectLocalTypesAndUsages(
+  tree: OpennessNode,
+): { types: LocalTypeInfo[]; usageMap: Record<string, TypeUsageRef[]> } {
+  const nodes = flattenTree(tree);
+  const typeDefs = new Map<
+    string,
+    { path: string | null; members: Array<{ datatype: string }> }
+  >();
+
+  for (const node of nodes) {
+    if (node.type !== BlockType.UDT || !node.blockName) continue;
+    const name = normalizeTypeName(node.blockName);
+    const members = extractSectionMembers(node.interface).map((m) => ({
+      datatype: m.datatype,
+    }));
+    typeDefs.set(name, { path: node.path || null, members });
+  }
+
+  // Also include discovered custom datatypes even when UDT definitions are outside current root.
+  for (const node of nodes) {
+    const members = extractSectionMembers(node.interface);
+    for (const m of members) {
+      if (isPrimitiveType(m.datatype)) continue;
+      const t = normalizeTypeName(m.datatype);
+      if (!t) continue;
+      if (!typeDefs.has(t)) typeDefs.set(t, { path: null, members: [] });
+    }
+  }
+
+  const usageMap: Record<string, TypeUsageRef[]> = {};
+  for (const key of typeDefs.keys()) usageMap[key] = [];
+
+  for (const node of nodes) {
+    const ownerType = node.type === BlockType.Folder ? "Folder" : node.type;
+    const blockName = node.blockName || node.name;
+    const members = extractSectionMembers(node.interface);
+    for (const m of members) {
+      const t = normalizeTypeName(m.datatype);
+      if (!(t in usageMap)) continue;
+      usageMap[t].push({
+        path: node.path,
+        blockName,
+        ownerType,
+        section: m.section,
+        member: m.name,
+      });
+    }
+  }
+
+  const memo = new Map<string, number>();
+  const sizingStack = new Set<string>();
+
+  function sizeofDatatype(datatype: string): number {
+    const t = datatype.trim();
+    const strSz = parseStringSize(t);
+    if (strSz !== null) return strSz;
+
+    const basic: Record<string, number> = {
+      "bool": 1,
+      "byte": 1,
+      "char": 1,
+      "word": 2,
+      "int": 2,
+      "uint": 2,
+      "dword": 4,
+      "dint": 4,
+      "udint": 4,
+      "real": 4,
+      "time": 4,
+      "lreal": 8,
+      "lint": 8,
+      "ulint": 8,
+      "date_and_time": 8,
+    };
+    const k = t.toLowerCase();
+    if (basic[k] !== undefined) return basic[k];
+
+    const tn = normalizeTypeName(t);
+    if (!typeDefs.has(tn)) return 4;
+    return sizeofLocalType(tn);
+  }
+
+  function sizeofLocalType(typeName: string): number {
+    if (memo.has(typeName)) return memo.get(typeName)!;
+    if (sizingStack.has(typeName)) return 0;
+    sizingStack.add(typeName);
+    const def = typeDefs.get(typeName);
+    if (!def) return 0;
+    let total = 0;
+    for (const member of def.members) total += sizeofDatatype(member.datatype);
+    sizingStack.delete(typeName);
+    memo.set(typeName, total);
+    return total;
+  }
+
+  const types: LocalTypeInfo[] = [...typeDefs.entries()].map(([name, def]) => ({
+    name,
+    path: def.path,
+    sizeBytes: sizeofLocalType(name),
+    usageCount: usageMap[name]?.length || 0,
+  })).sort((a, b) =>
+    b.usageCount - a.usageCount || a.name.localeCompare(b.name)
+  );
+
+  return { types, usageMap };
+}
+
+router.get("/api/local-types", async (ctx) => {
+  try {
+    if (!rootPath) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Root path not set" };
+      return;
+    }
+
+    const tree = await loadProjectTreeAndMaps();
+    const data = collectLocalTypesAndUsages(tree);
+    ctx.response.body = { types: data.types };
+  } catch (e) {
+    console.error(e);
+    ctx.response.status = 500;
+    ctx.response.body = { error: String(e) };
+  }
+});
+
+router.get("/api/type-xref", async (ctx) => {
+  try {
+    if (!rootPath) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Root path not set" };
+      return;
+    }
+
+    const typeNameRaw = ctx.request.url.searchParams.get("type");
+    if (!typeNameRaw) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing type query parameter" };
+      return;
+    }
+
+    const tree = await loadProjectTreeAndMaps();
+    const { types, usageMap } = collectLocalTypesAndUsages(tree);
+    const typeName = normalizeTypeName(typeNameRaw);
+    const info = types.find((t) => t.name === typeName);
+    if (!info) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: `Type not found: ${typeName}` };
+      return;
+    }
+
+    ctx.response.body = {
+      type: info,
+      usages: usageMap[typeName] || [],
     };
   } catch (e) {
     console.error(e);
