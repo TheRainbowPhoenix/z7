@@ -3,3 +3,6 @@ third_party/block_diagram_z3_master.zip
 OpennessStudio/generated/
 OpennessStudio/generated_py/
 OpennessStudio/examples/PLC_1/
+OpennessStudio/generated/images/
+OpennessStudio/generated/call_graph.png
+OpennessStudio/generated/call_graph.svg

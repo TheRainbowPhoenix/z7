@@ -79,6 +79,15 @@ Generated output includes both targets:
 - each network is emitted as a typed `network_<n>` method/function body and SCL
   calls are converted into method calls.
 
+Render the global call graph image:
+
+```bash
+python tools_render_call_graph.py
+```
+
+This writes `generated/images/call_graph.png` and
+`generated/images/call_graph.svg` (both ignored by git).
+
 Run it:
 
 ```bash
