@@ -4,7 +4,8 @@ import json
 
 def sanitize_name(name):
     if not name: return "UNKNOWN"
-    return re.sub(r'[^a-zA-Z0-9_]', '_', name)
+    # Allow dots for member access
+    return re.sub(r'[^a-zA-Z0-9_.]', '_', name)
 
 class LadParser:
     def __init__(self, filepath):

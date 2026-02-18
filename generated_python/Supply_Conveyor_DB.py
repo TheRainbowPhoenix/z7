@@ -8,6 +8,6 @@ class Supply_Conveyor_DB(BaseBlock):
         self.xEdgeMemory2: bool = False
         self.xEdgeMemory3: bool = False
 
-def run(self):
-    """Executes the block logic."""
-    pass
+    def run(self):
+        """Executes the block logic."""
+        pass

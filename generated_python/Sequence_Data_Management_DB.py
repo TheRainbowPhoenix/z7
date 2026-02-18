@@ -7,6 +7,6 @@ class Sequence_Data_Management_DB(BaseBlock):
         self.WorkStationList2: DotDict = DotDict({})
         self.WorkStationList3: DotDict = DotDict({})
 
-def run(self):
-    """Executes the block logic."""
-    pass
+    def run(self):
+        """Executes the block logic."""
+        pass

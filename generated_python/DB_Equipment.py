@@ -8,6 +8,6 @@ class DB_Equipment(BaseBlock):
         self.Station3: DotDict = DotDict({})
         self.SupplyStation: DotDict = DotDict({})
 
-def run(self):
-    """Executes the block logic."""
-    pass
+    def run(self):
+        """Executes the block logic."""
+        pass

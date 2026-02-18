@@ -17,6 +17,6 @@ class Work_Station1_DB(BaseBlock):
         self.StationConveyorControl_Instance: DotDict = DotDict({})
         self.StationProcessControl_Instance: DotDict = DotDict({})
 
-def run(self):
-    """Executes the block logic."""
-    pass
+    def run(self):
+        """Executes the block logic."""
+        pass

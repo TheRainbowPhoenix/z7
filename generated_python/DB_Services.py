@@ -5,6 +5,6 @@ class DB_Services(BaseBlock):
     def __init__(self, **kwargs):
         self.DataManager: DotDict = DotDict({})
 
-def run(self):
-    """Executes the block logic."""
-    pass
+    def run(self):
+        """Executes the block logic."""
+        pass

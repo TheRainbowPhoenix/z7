@@ -10,6 +10,6 @@ class Control_Panel2_DB(BaseBlock):
         self.Work_Station_DB: DotDict = kwargs.get('Work_Station_DB', DotDict({}))
         self.diProcessTime: int = 0
 
-def run(self):
-    """Executes the block logic."""
-    pass
+    def run(self):
+        """Executes the block logic."""
+        pass

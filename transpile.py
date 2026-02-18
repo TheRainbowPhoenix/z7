@@ -7,7 +7,7 @@ sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 from compiler.lad_parser import LadParser
 from compiler.scl_parser import SclParser
-from compiler.transpiler import Transpiler, sanitize_name
+from compiler.transpiler import Transpiler, sanitize_identifier
 
 INPUT_DIR = "extracted_plc"
 OUTPUT_DIR = "generated_python"
@@ -53,7 +53,7 @@ def main():
             transpiler = Transpiler(block_data, block_name)
             code = transpiler.generate()
 
-            out_name = sanitize_name(block_name)
+            out_name = sanitize_identifier(block_name)
             out_path = os.path.join(OUTPUT_DIR, f"{out_name}.py")
             with open(out_path, "w") as f:
                 f.write(code)
@@ -80,7 +80,7 @@ def main():
             transpiler = Transpiler(block_data, block_data['name'])
             code = transpiler.generate()
 
-            out_name = sanitize_name(block_data['name'])
+            out_name = sanitize_identifier(block_data['name'])
             out_path = os.path.join(OUTPUT_DIR, f"{out_name}.py")
             with open(out_path, "w") as f:
                 f.write(code)

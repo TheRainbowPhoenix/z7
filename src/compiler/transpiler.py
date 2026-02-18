@@ -1,14 +1,22 @@
 import textwrap
 import re
 
-def sanitize_name(name):
+def sanitize_identifier(name):
+    """Sanitizes names for Python identifiers (classes, methods, variable definitions)."""
     if not name: return "UNKNOWN"
     return re.sub(r'[^a-zA-Z0-9_]', '_', name).strip('_')
+
+def sanitize_variable_name(name):
+    """Sanitizes names for variable access (allows dots)."""
+    if not name: return "UNKNOWN"
+    name = name.replace('"', '').replace("'", "")
+    # Allow dots for member access
+    return re.sub(r'[^a-zA-Z0-9_.]', '_', name).strip('_')
 
 class Transpiler:
     def __init__(self, block_data, block_name):
         self.block_data = block_data
-        self.block_name = sanitize_name(block_name)
+        self.block_name = sanitize_identifier(block_name)
         self.imports = set()
         self.methods = []
         self.init_lines = []
@@ -27,7 +35,7 @@ class Transpiler:
 
         code = f"class {self.block_name}(BaseBlock):\n"
         code += self._indent("\n".join(self.init_lines), 1) + "\n\n"
-        code += "\n\n".join(self.methods) + "\n"
+        code += self._indent("\n\n".join(self.methods), 1) + "\n"
 
         return full_code + "\n" + code
 
@@ -43,7 +51,7 @@ class Transpiler:
                     if part.get('type') == 'Call':
                         call_name = part.get('call_name')
                         if call_name:
-                            import_name = sanitize_name(call_name)
+                            import_name = sanitize_identifier(call_name)
                             if import_name != self.block_name:
                                 self.imports.add(f"from generated_python.{import_name} import {import_name}")
 
@@ -68,7 +76,7 @@ class Transpiler:
 
         for section, vars in interface.items():
             for var in vars:
-                name = sanitize_name(var['name'])
+                name = sanitize_identifier(var['name'])
                 default = get_default(var['type'])
                 py_type = get_py_type(var['type'])
                 if section in ['Input', 'InOut']:
@@ -115,7 +123,7 @@ class Transpiler:
                             if c2['type'] == 'IdentCon':
                                 part = uid_to_part.get(c2['uid'])
                                 if part and part.get('variable'):
-                                    return sanitize_name(part['variable'])
+                                    return sanitize_variable_name(part['variable'])
             return None
 
         def get_logic(uid, pin_name, visited=None):
@@ -164,21 +172,21 @@ class Transpiler:
         for part in parts:
             if part['type'] == 'Call':
                 en_logic = get_logic(part['uid'], 'en')
-                call_name = sanitize_name(part.get('call_name', 'Unknown'))
-                instance = sanitize_name(part.get('instance', ''))
+                call_name = sanitize_identifier(part.get('call_name', 'Unknown'))
+                instance = sanitize_variable_name(part.get('instance', ''))
 
                 params = []
                 for p in part.get('parameters', []):
-                    p_name = p['name']
-                    var = get_variable(part['uid'], p_name)
+                    p_name = sanitize_identifier(p['name'])
+                    var = get_variable(part['uid'], p['name'])
                     if var:
-                        params.append(f"{sanitize_name(p_name)}=self.{var}")
+                        params.append(f"{p_name}=self.{var}")
 
                 param_str = ", ".join(params)
 
                 lines.append(f"if {en_logic}:")
                 if instance:
-                    lines.append(f"    if not hasattr(self, '{instance}'): self.{instance} = {call_name}()")
+                    lines.append(f"    if not isinstance(self.{instance}, {call_name}): self.{instance} = {call_name}()")
                     for p in params:
                         k, v = p.split('=', 1)
                         lines.append(f"    self.{instance}.{k} = {v}")
@@ -189,7 +197,7 @@ class Transpiler:
         for part in parts:
             if part['type'] in ['Coil', 'SCoil', 'RCoil']:
                 logic = get_logic(part['uid'], 'in')
-                var = get_variable(part['uid'], 'operand') or sanitize_name(part.get('variable', 'Unknown'))
+                var = get_variable(part['uid'], 'operand') or sanitize_variable_name(part.get('variable', 'Unknown'))
 
                 if part['type'] == 'Coil':
                     if part.get('negated'):
@@ -207,11 +215,7 @@ class Transpiler:
         body = self.block_data['body']
         lines = ["def run(self):"]
 
-        # Preprocess to ensure multi-line structure
-        # Insert newline before keywords if they are preceded by space or start of line
-        # And after ;
         processed_body = body.replace(';', ';\n')
-        # Keywords (excluding THEN, TO, DO to keep them on same line if possible)
         keywords = ['IF', 'ELSE', 'ELSIF', 'END_IF', 'FOR', 'END_FOR', 'CASE', 'END_CASE', 'WHILE', 'END_WHILE']
         for kw in keywords:
             processed_body = re.sub(r'\b' + kw + r'\b', f'\n{kw} ', processed_body)
@@ -223,19 +227,16 @@ class Transpiler:
             line = line.strip()
             if not line or line.startswith('//'): continue
 
-            # Remove comments
             if '//' in line:
                 line = line.split('//')[0].strip()
 
             if line.startswith('IF '):
-                # Check for THEN
                 if 'THEN' in line:
                     cond = line[3:line.find('THEN')].strip()
                     cond = self._scl_repl(cond).replace('=', '==').replace(':=', '==')
                     lines.append(f"{'    '*indent}if {cond}:")
                     indent += 1
                 else:
-                    # THEN on next line?
                     lines.append(f"{'    '*indent}# Unhandled IF format: {line}")
 
             elif line.startswith('ELSIF '):
@@ -259,10 +260,8 @@ class Transpiler:
                 lines.append(f"{'    '*indent}pass")
 
             elif line.startswith('FOR ') and 'TO' in line:
-                 parts = line.split() # FOR i := 0 TO 10 DO
-                 # Need careful parsing
                  try:
-                     var_assign = line[3:line.find('TO')].strip() # i := 0
+                     var_assign = line[3:line.find('TO')].strip()
                      if ':=' in var_assign:
                          var, start = var_assign.split(':=')
                          var = self._scl_repl(var.strip())
@@ -287,23 +286,29 @@ class Transpiler:
                 rhs = self._scl_repl(parts[1].strip().rstrip(';'))
                 lines.append(f"{'    '*indent}{lhs} = {rhs}")
 
+            elif line == 'EXIT;' or line == 'EXIT':
+                lines.append(f"{'    '*indent}break")
+
             else:
                 lines.append(f"{'    '*indent}# {line}")
 
         self.methods.append("\n".join(lines))
 
     def _scl_repl(self, text):
-        # Handle Boolean literals first
         text = re.sub(r'\bTRUE\b', 'True', text, flags=re.IGNORECASE)
         text = re.sub(r'\bFALSE\b', 'False', text, flags=re.IGNORECASE)
 
-        # Handle #"Var" -> self.Var
-        text = re.sub(r'#"([^"]+)"', lambda m: "self." + sanitize_name(m.group(1)), text)
-        # Handle #Var -> self.Var
-        text = re.sub(r'#([a-zA-Z0-9_]+)', lambda m: "self." + sanitize_name(m.group(1)), text)
+        # SCL var access can be Complex.Path
+        # Regex to find identifiers starting with # or quoted
 
-        # Handle "GlobalVar" -> self.GlobalVar
-        text = re.sub(r'"([^"]+)"', lambda m: "self." + sanitize_name(m.group(1)), text)
+        def replace_var(match):
+            # Extract name, remove quotes/hash
+            raw = match.group(1) or match.group(2)
+            return "self." + sanitize_variable_name(raw)
+
+        text = re.sub(r'#"([^"]+)"', replace_var, text)
+        text = re.sub(r'#([a-zA-Z0-9_]+)', replace_var, text)
+        text = re.sub(r'"([^"]+)"', replace_var, text)
 
         return text
 

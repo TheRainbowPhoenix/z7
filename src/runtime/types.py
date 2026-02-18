@@ -19,6 +19,15 @@ class DotDict(dict):
     def __setattr__(self, name, value):
         self[name] = value
 
+    def __getitem__(self, key):
+        try:
+            return super().__getitem__(key)
+        except KeyError:
+            # For array indexing like self.Arr[0]
+            mock = RecursiveMock()
+            self[key] = mock
+            return mock
+
 class RecursiveMock:
     """
     A mock object that returns itself for any attribute access or call.
@@ -28,6 +37,11 @@ class RecursiveMock:
 
     def __call__(self, *args, **kwargs):
         return self
+
+    def __int__(self): return 0
+    def __float__(self): return 0.0
+    def __str__(self): return "RecursiveMock"
+    def __iter__(self): return iter([]) # Iterate empty list
 
     def __bool__(self):
         return False

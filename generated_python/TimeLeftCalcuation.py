@@ -7,5 +7,5 @@ class TimeLeftCalcuation(BaseBlock):
         self.diTimeDone: int = kwargs.get('diTimeDone', 0)
         self.diTimeLeft: int = 0
 
-def run(self):
-    self.diTimeLeft_s = (self.diProcessTime_ms - self.diTimeDone_ms) / 1000
+    def run(self):
+        self.diTimeLeft_s = (self.diProcessTime_ms - self.diTimeDone_ms) / 1000
