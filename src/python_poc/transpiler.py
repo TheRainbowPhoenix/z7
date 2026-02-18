@@ -26,6 +26,10 @@ class Transpiler:
         code = "import math\n"
         code += "from src.python_poc.runtime import DotDict, RecursiveMock\n\n"
 
+        # Helper for Array Initialization
+        code += "def Init_Array(size, default_val):\n"
+        code += "    return DotDict({i: default_val for i in range(size)})\n\n"
+
         # Generate types first
         for type_decl in node.types:
             code += self.visit(type_decl) + "\n\n"
@@ -38,7 +42,7 @@ class Transpiler:
         if not isinstance(name, str):
             name = str(name)
 
-        sanitized = name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
+        sanitized = name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_').replace('/', '_or_')
 
         import keyword
         if keyword.iskeyword(sanitized):
@@ -63,6 +67,12 @@ class Transpiler:
             elif "STRING" in type_upper or "WSTRING" in type_upper:
                 return "DotDict({})"
             elif "ARRAY" in type_upper:
+                # Try to extract size?
+                # Parser format: Array[start..end] of type
+                # But here type_spec is just the string.
+                # If we want correct size init, we need to parse it or use dynamic init.
+                # For now, let's use DotDict({}) but maybe Init_Array if we could.
+                # But get_default_val returns string code.
                 return "DotDict({})"
             elif "VARIANT" in type_upper:
                 return "DotDict({})"
@@ -192,7 +202,24 @@ class Transpiler:
 
                 if init_val:
                     val_code = self.visit(init_val)
-                    code += f"{self.indent()}if '{sanitized_name}' not in context: context['{sanitized_name}'] = {val_code}\n"
+                    # Check if array init
+                    if "Array" in str(type_spec) and "[" in str(type_spec) and ".." in str(type_spec):
+                         # Extract size. Format: Array[start..end] ...
+                         try:
+                             import re
+                             match = re.search(r"Array\[(\d+)\.\.(\d+)\]", str(type_spec))
+                             if match:
+                                 start = int(match.group(1))
+                                 end = int(match.group(2))
+                                 size = end - start + 1
+                                 code += f"{self.indent()}if '{sanitized_name}' not in context: context['{sanitized_name}'] = Init_Array({size}, {val_code})\n"
+                             else:
+                                 # Fallback
+                                 code += f"{self.indent()}if '{sanitized_name}' not in context: context['{sanitized_name}'] = {val_code}\n"
+                         except:
+                             code += f"{self.indent()}if '{sanitized_name}' not in context: context['{sanitized_name}'] = {val_code}\n"
+                    else:
+                        code += f"{self.indent()}if '{sanitized_name}' not in context: context['{sanitized_name}'] = {val_code}\n"
                 elif needs_init or decl.section_type in ['VAR', 'VAR_TEMP']:
                      # Init with default value based on type
                      default_val = self.get_default_val(type_spec)

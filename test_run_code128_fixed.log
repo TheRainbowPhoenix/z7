@@ -1,0 +1,29 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/Barcode/Code 128.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Barcode/Code 128.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Barcode/Code 128.scl
+SCL Header:
+FUNCTION_BLOCK "Code 128"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      partNumber : String;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.038s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+Summary: 1 Passed, 0 Failed.

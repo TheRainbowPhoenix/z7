@@ -1,0 +1,29 @@
+Test Run Start: scl_test/Step7_Functions/All Functions/Table Navigation/Table Navigation General.scl
+==================================================
+
+TEST: scl_test/Step7_Functions/All Functions/Table Navigation/Table Navigation General.scl
+--------------------------------------------------
+Expectation: Transpilation and Unit Test should pass.
+SCL File: scl_test/Step7_Functions/All Functions/Table Navigation/Table Navigation General.scl
+SCL Header:
+TYPE "PB Data: Graphic/Text List"
+VERSION : 0.1
+   STRUCT
+      actuate : Bool;
+      animate : USInt;
+...
+
+Test Output:
+Transpilation: SUCCESS
+Execution successful
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.045s
+
+OK
+
+RESULT: PASSED
+
+==================================================
+
+Summary: 1 Passed, 0 Failed.

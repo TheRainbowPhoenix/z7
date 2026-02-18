@@ -40,7 +40,7 @@ def sanitize(name):
     if not isinstance(name, str):
         name = str(name)
 
-    sanitized = name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_')
+    sanitized = name.replace('"', '').replace('.', '_').replace('[', '_').replace(']', '_').replace(' ', '_').replace('{', '_').replace('}', '_').replace(':', '_').replace('&', '_and_').replace('/', '_or_')
 
     import keyword
     if keyword.iskeyword(sanitized):
