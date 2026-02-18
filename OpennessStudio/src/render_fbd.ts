@@ -146,6 +146,10 @@ export async function renderFbd(filePath: string): Promise<string> {
         .iface-table th { background: #333; color: #ddd; }
         .iface-section-row td { background: #2a2a2a; color: #9cdcfe; font-weight: 600; }
         .iface-name { white-space: nowrap; }
+        .iface-member-row { cursor: default; }
+        .iface-member-row[data-has-children="true"] { cursor: pointer; }
+        .iface-toggle { display: inline-block; width: 12px; color: #9cdcfe; }
+        .iface-hidden { display: none; }
         svg { background-color: #f0f0f0; display: block; } 
         
         /* SVG Styles */
@@ -831,6 +835,7 @@ function renderOperandLabel(node: GraphNode, width: number) {
 function renderInterfaceTable(blockInterface?: BlockInterface): string {
   if (!blockInterface?.sections?.length) return "";
 
+  ifaceRowCounter = 0;
   const rows: string[] = [];
   for (const section of blockInterface.sections) {
     rows.push(
@@ -839,7 +844,7 @@ function renderInterfaceTable(blockInterface?: BlockInterface): string {
       }</td></tr>`,
     );
     for (const member of section.members) {
-      renderInterfaceMemberRows(rows, member, 0);
+      renderInterfaceMemberRows(rows, member, 0, undefined);
     }
   }
 
@@ -853,24 +858,37 @@ function renderInterfaceTable(blockInterface?: BlockInterface): string {
     </table>`;
 }
 
+let ifaceRowCounter = 0;
+
 function renderInterfaceMemberRows(
   rows: string[],
   member: InterfaceMember,
   depth: number,
+  parentId?: string,
 ) {
+  const rowId = `iface-row-${ifaceRowCounter++}`;
   const indent = "&nbsp;".repeat(depth * 4);
-  const marker = member.children && member.children.length ? "▸ " : "";
-  rows.push(`<tr>
-      <td class="iface-name">${indent}${marker}${
-    escapeHtml(member.name || "")
-  }</td>
+  const hasChildren = !!(member.children && member.children.length);
+  const marker = hasChildren ? "▸" : "";
+  rows.push(
+    `<tr class="iface-member-row${
+      depth > 0 ? " iface-hidden" : ""
+    }" data-row-id="${rowId}" data-parent-id="${
+      parentId || ""
+    }" data-depth="${depth}" data-has-children="${
+      hasChildren ? "true" : "false"
+    }" data-expanded="false">
+      <td class="iface-name">${indent}<span class="iface-toggle">${marker}</span>${
+      escapeHtml(member.name || "")
+    }</td>
       <td>${escapeHtml(member.datatype || "")}</td>
       <td>${escapeHtml(member.defaultValue || "")}</td>
       <td>${escapeHtml(member.comment || "")}</td>
-    </tr>`);
+    </tr>`,
+  );
 
   for (const child of member.children || []) {
-    renderInterfaceMemberRows(rows, child, depth + 1);
+    renderInterfaceMemberRows(rows, child, depth + 1, rowId);
   }
 }
 

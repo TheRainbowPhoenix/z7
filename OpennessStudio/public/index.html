@@ -86,6 +86,7 @@
       .icon {
         margin-right: 6px;
         width: 16px;
+        min-width: 16px;
         height: 16px;
         display: inline-block;
         background-repeat: no-repeat;
@@ -217,6 +218,37 @@
         color: #888;
         font-size: 11px;
         margin-top: 6px;
+      }
+
+      .graph-usage {
+        margin-top: 10px;
+        border: 1px solid #333;
+        background: #1c1c1d;
+      }
+
+      .graph-usage table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+
+      .graph-usage th,
+      .graph-usage td {
+        border-bottom: 1px solid #333;
+        padding: 6px 8px;
+        text-align: left;
+      }
+
+      .graph-usage th {
+        position: sticky;
+        top: 0;
+        background: #252526;
+      }
+
+      .usage-link {
+        color: #4fc1ff;
+        cursor: pointer;
+        text-decoration: underline;
       }
 
       #context-menu {
@@ -355,6 +387,7 @@
       <button data-action="xref-to">Show XRef to</button>
       <button data-action="show-inputs">Show inputs</button>
       <button data-action="show-outputs">Show outputs</button>
+      <button data-action="show-in-call-graph">Show in call graph</button>
       <button data-action="type-xref">Show type XRef</button>
     </div>
 
@@ -373,6 +406,7 @@
       let graphSimulation = null;
       let treeData = null;
       let currentContextTarget = null;
+      let graphFocusSymbol = null;
 
       const graphStorageKey = () =>
         `openness-call-graph-pos:${location.pathname}`;
@@ -549,7 +583,8 @@
           if (isFolder) return;
           openContextMenu(e.clientX, e.clientY, {
             kind: "block",
-            symbol: row.getAttribute("data-symbol") || "",
+            symbol: row.getAttribute("data-symbol") ||
+              sanitizeIdent(node.name || ""),
             path: row.getAttribute("data-path") || "",
           });
         });
@@ -596,6 +631,7 @@
           container.innerHTML =
             `<div class="fbd-view">${data.content}</div>`;
           attachFbdHandlers(container);
+          initIfaceTableTree(container);
         } else if (data.type === "db") {
           container.innerHTML =
             `<div class="db-view-container">${data.content}</div>`;
@@ -638,6 +674,71 @@
               path,
             });
           });
+        });
+      }
+
+      function initIfaceTableTree(container) {
+        const rows = Array.from(
+          container.querySelectorAll(".iface-member-row"),
+        );
+        if (!rows.length) return;
+
+        rows.forEach((row) => {
+          if (Number(row.getAttribute("data-depth") || 0) > 0) {
+            row.classList.add("iface-hidden");
+          }
+        });
+
+        rows.forEach((row) => {
+          if (row.getAttribute("data-has-children") !== "true") return;
+          row.addEventListener("click", () => {
+            const expanded =
+              row.getAttribute("data-expanded") === "true";
+            row.setAttribute(
+              "data-expanded",
+              expanded ? "false" : "true",
+            );
+            const toggle = row.querySelector(".iface-toggle");
+            if (toggle) toggle.textContent = expanded ? "▸" : "▾";
+            const rowId = row.getAttribute("data-row-id") || "";
+            setIfaceChildrenVisibility(container, rowId, !expanded);
+          });
+        });
+      }
+
+      function setIfaceChildrenVisibility(
+        container,
+        parentId,
+        isVisible,
+      ) {
+        const children = Array.from(
+          container.querySelectorAll(
+            `.iface-member-row[data-parent-id="${parentId}"]`,
+          ),
+        );
+        children.forEach((child) => {
+          if (isVisible) {
+            child.classList.remove("iface-hidden");
+          } else {
+            child.classList.add("iface-hidden");
+            child.setAttribute("data-expanded", "false");
+            const toggle = child.querySelector(".iface-toggle");
+            if (
+              toggle &&
+              child.getAttribute("data-has-children") === "true"
+            ) {
+              toggle.textContent = "▸";
+            }
+          }
+
+          const childId = child.getAttribute("data-row-id") || "";
+          const childExpanded =
+            child.getAttribute("data-expanded") === "true";
+          setIfaceChildrenVisibility(
+            container,
+            childId,
+            isVisible && childExpanded,
+          );
         });
       }
 
@@ -775,7 +876,12 @@
           .attr("r", 24)
           .attr(
             "fill",
-            (d) => d.kind === "internal" ? "#0e639c" : "#6a9955",
+            (d) => {
+              if (graphFocusSymbol && d.id === graphFocusSymbol) {
+                return "#d19a00";
+              }
+              return d.kind === "internal" ? "#0e639c" : "#6a9955";
+            },
           );
 
         node.append("text")
@@ -1000,6 +1106,13 @@
                 )
               }</div>`,
             );
+            return;
+          }
+
+          if (action === "show-in-call-graph") {
+            graphFocusSymbol = currentContextTarget.symbol || null;
+            setMenu("graph");
+            if (graphPayload) renderCallGraph(graphPayload);
             return;
           }
 
