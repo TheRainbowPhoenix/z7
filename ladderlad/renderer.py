@@ -1,29 +1,3 @@
-# Fix spacing in TextRenderer.or_op to match original visual style (missing '-')
-# The user noted "decompile seems to remove one '-' sign".
-# Original `ladder_logic.py`:
-# self.canvas.replace_up(top_left, {" ": "| ", "-": "+ "})
-# self.canvas.draw("+--")
-# My `renderer.py`:
-# self.canvas.replace_up(top_left, {" ": "| ", "-": "+ "}, color)
-# self.canvas.draw("+--", color)
-
-# Let's compare `ladder_logic.py` output vs `renderer.py` output.
-# Input: `||--[/ESTOP]...`
-# Decompiled: `||-[/ESTOP]...`
-# It seems `in_op` adds `--` prefix/suffix?
-# `in_op` in `ladder_logic.py`: `self.canvas.draw(f"--[{name}]--")`.
-# `in_op` in my `renderer.py`: `sym = f"-[/{name}]-" ... draw(sym)`.
-# Ah! I changed spacing in `in_op`!
-# `ladder_logic.py`: `--[{name}]--` (2 dashes, brackets, 2 dashes) -> Total 4 dashes + brackets.
-# My `renderer.py`: `-[{name}]-` (1 dash, brackets, 1 dash).
-# This explains the missing sign.
-
-# Also `out_op`:
-# `ladder_logic.py`: `self.canvas.draw(f"--({name})--")`
-# My `renderer.py`: `self.canvas.draw(f"-({name})-", coil_color)`
-
-# I will revert spacing to match `ladder_logic.py`.
-
 from typing import List, Any, Optional, Dict
 import abc
 
@@ -262,3 +236,18 @@ class TextRenderer(SchematicRenderer):
             output.append(line_str)
         output.append("||")
         return "\n".join(output)
+
+    def render_il(self, instructions: List[List[Any]], trace: Optional[Dict[int, bool]] = None) -> str:
+        # Render instruction list (Assembly like)
+        lines = []
+        for i, instr in enumerate(instructions):
+            state = trace.get(i, False) if trace else False
+            color = self.GREEN if state else self.RED
+            op = instr[0].upper()
+            args = " ".join(str(a) for a in instr[1:])
+
+            line_str = f"{i:03d}: {op:<4} {args}"
+            if trace:
+                line_str = f"{color}{line_str}{self.RESET}"
+            lines.append(line_str)
+        return "\n".join(lines)
