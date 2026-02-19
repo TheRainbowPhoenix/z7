@@ -1,16 +1,20 @@
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Callable
 
 class Simulator:
     def __init__(self):
         self.variables: Dict[str, bool] = {}
         self.accumulators: List[bool] = []
         self.trace: Dict[int, bool] = {} # Map instruction index to output state
+        self.callbacks: Dict[str, Callable] = {}
 
-    def set_variable(self, name: str, value: bool):
+    def set_variable(self, name: str, value: Any):
         self.variables[name] = value
 
-    def get_variable(self, name: str) -> bool:
+    def get_variable(self, name: str) -> Any:
         return self.variables.get(name, False)
+
+    def register_function(self, name: str, callback: Callable):
+        self.callbacks[name] = callback
 
     def reset(self):
         self.variables = {}
@@ -27,7 +31,7 @@ class Simulator:
 
             if op == "in":
                 name = instr[1]
-                val = self.get_variable(name)
+                val = bool(self.get_variable(name))
                 stack.append(val)
 
             elif op == "not":
@@ -55,42 +59,50 @@ class Simulator:
                 self.set_variable(name, val)
 
             elif op == "call":
-                # ['call', 'BLOCKNAME', 'arg1', 'arg2'...]
-                # Simulating blocks in RPN is tricky without standard memory model.
-                # Assuming EN/ENO logic:
-                # Top of stack is EN (Enable).
-                # If EN is true, execute block logic.
-                # Push ENO (Enable Out) to stack.
-                # Block arguments might be variables (like timers).
-
                 en = stack.pop() if stack else False
                 block_name = instr[1]
                 args = instr[2:]
 
-                eno = en # Default ENO pass-through
+                # Check for registered callback first
+                if block_name in self.callbacks:
+                    # Callback signature: (simulator_instance, enable_in, args) -> (enable_out, result_value)
+                    # Or simpler: just returns result, ENO=EN?
+                    # Let's assume standard (en, args) -> (eno, val)
+                    try:
+                        eno, val = self.callbacks[block_name](self, en, args)
+                    except Exception as e:
+                        print(f"Error calling {block_name}: {e}")
+                        eno = en
+                        val = False
 
-                if block_name == "TON":
-                    # Args: [TimerName, Preset]
-                    # Logic: If EN true, accumulate.
-                    # We need persistent storage for timer state.
-                    # self.variables can store simple types.
-                    # self.accumulators is list?
-                    # Let's assume TimerName is a variable key prefix.
+                    stack.append(val)
+                    # We might want to push ENO too if the logic supports it, but RPN here expects 1 result.
+                    # Usually block result is Q. ENO is implicit flow?
+                    # Our 'val' tracks logic flow color.
+                    # So 'val' should be logic flow (ENO? or Q?).
+                    # If connected to coil, it should be Q?
+                    # In ladder, --{ }-- usually passes ENO.
+                    # Q is often an output pin assigned to var.
+                    # But if used in expression --{ }--( ), the value passed is usually ENO.
+                    # BUT for TON, we returned Q in previous logic?
+                    # "val = self.get_variable(done_key)" -> Q.
+                    pass
+
+                elif block_name == "TON":
                     if len(args) >= 2:
                         t_name = args[0]
                         try:
-                            preset = int(str(args[1]).replace('s','').replace('ms','')) # naive parsing
+                            preset = int(str(args[1]).replace('s','').replace('ms',''))
                         except:
                             preset = 0
 
-                        # State: t_name.ACC, t_name.Q (Done)
                         acc_key = f"{t_name}.ACC"
-                        done_key = f"{t_name}.Q" # Usually output?
+                        done_key = f"{t_name}.Q"
 
                         acc = self.variables.get(acc_key, 0)
 
                         if en:
-                            acc += 1 # Simulation tick
+                            acc += 1
                             if acc >= preset:
                                 acc = preset
                                 self.set_variable(done_key, True)
@@ -101,24 +113,18 @@ class Simulator:
                             self.set_variable(done_key, False)
 
                         self.set_variable(acc_key, acc)
-
-                        # TON usually doesn't affect ENO, or ENO=EN.
-                        # Output of TON block in ladder is Q?
-                        # In RPN ladder, usually blocks have output pins.
-                        # The block call might not push Q to stack, but update variable.
-                        # Users access T1.Q later?
-                        # Or does the block push Q?
-                        # If schematic is `--[ ]--{TON}--( )--`, then result of TON is on stack.
-                        # result of TON is Q.
-                        val = self.get_variable(done_key)
+                        val = self.get_variable(done_key) # Return Q? Or ENO?
+                        # If we return Q, we can do --{TON}--(Q).
+                        # If we return ENO, we can chain blocks.
+                        # Standard TON in ladder usually has Q pin.
+                        # If embedded in rung, it usually passes power (ENO) or Q?
+                        # Let's return Q for now as per previous logic.
                         stack.append(val)
                 else:
-                    # Generic: pass EN to ENO
-                    stack.append(eno)
-                    val = eno
+                    val = en # Default passthrough
+                    stack.append(val)
 
             else:
                 pass
 
-            # Store state for this instruction (used for coloring)
             self.trace[idx] = val
