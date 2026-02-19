@@ -133,6 +133,11 @@ class TreeVisitor:
             elif op == "out":
                 val = self.stack.pop() if self.stack else None
                 self.parent.visit(["out", instr[1], val, state])
+            elif op == "call":
+                prev = self.stack.pop() if self.stack else None
+                # Don't visit (draw) yet! Push node to stack.
+                node = ["call", instr[1], instr[2:], prev, state]
+                self.stack.append(node)
 
 class TextRenderer(SchematicRenderer):
     def __init__(self):
@@ -150,6 +155,7 @@ class TextRenderer(SchematicRenderer):
         elif op == "and": self.and_op(node[1], node[2], color)
         elif op == "in": self.in_op(node[1], color)
         elif op == "out": self.out_op(node[1], node[2], color)
+        elif op == "call": self.call_op(node[1], node[2], node[3], color)
         elif op == "not":
             inner = node[1]
             if inner[0] == "in":
@@ -202,6 +208,21 @@ class TextRenderer(SchematicRenderer):
         sym = f"--[/{name}]--" if negated else f"--[{name}]--"
         self.canvas.draw(sym, color)
         self.canvas.right()
+
+    def call_op(self, block_name, args, prev, color):
+        marker = self.canvas.get_marker()
+        self.canvas.draw_fill("-", color) # Wire to block
+        self.canvas.set_marker(marker)
+
+        if prev:
+            self.visit(prev)
+
+        # Draw block
+        # Format: {BLOCK args}
+        arg_str = " ".join(args)
+        text = f"{{ {block_name} {arg_str} }}"
+        self.canvas.draw(text, color)
+        self.canvas.right() # Advance? draw does it.
 
     def out_op(self, name, value, color):
         marker = self.canvas.get_marker()

@@ -49,6 +49,8 @@ class TextParser(SchematicParser):
             self._scan_out(rung, row, col + 1, count)
         elif char == "{":
             self._scan_system(rung, row, col + 1, count)
+        elif char == "<":
+            self._scan_call(rung, row, col + 1, count)
         elif char == "+":
             self._scan_or(rung, row, col, count)
         elif char == " ":
@@ -77,7 +79,21 @@ class TextParser(SchematicParser):
     def _scan_system(self, rung, row, col, count):
         end = rung[row].find("}", col)
         name = rung[row][col:end]
-        self.instructions.append(name.split(" "))
+        # Existing logic for system blocks? Usually splits into list.
+        # Mapping to 'call' opcode for consistency?
+        # Original: name.split(" ") -> e.g. ['TON', 'T1', '5s']
+        # We can wrap this in a 'call' opcode or leave as list.
+        parts = name.split(" ")
+        # If parts[0] is upper, treat as call?
+        self.instructions.append(['call'] + parts)
+        self._scan_and(rung, row, end + 1, count + 1)
+
+    def _scan_call(self, rung, row, col, count):
+        # Support <BLOCK ARGS> syntax
+        end = rung[row].find(">", col)
+        content = rung[row][col:end]
+        parts = content.split(" ")
+        self.instructions.append(['call'] + parts)
         self._scan_and(rung, row, end + 1, count + 1)
 
     def _scan_or(self, rung, row, col, count):
