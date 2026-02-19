@@ -13,15 +13,11 @@ def get_state():
     if not shm.connect():
         return {}
 
-    # Read I0 (Inputs)
-    # SHM I0 offset is 0.
     i_byte = shm.mm[0]
     estop = bool(i_byte & 1)
     stop = bool(i_byte & 2)
     start = bool(i_byte & 4)
 
-    # Read Q0 (Outputs)
-    # SHM Q0 offset is 65536
     q_byte = shm.mm[65536]
     run = bool(q_byte & 1)
     motor = bool(q_byte & 2)
@@ -37,28 +33,28 @@ def index():
 <!DOCTYPE html>
 <html>
 <head>
-    <title>LadderLad HMI (Flask+SSE)</title>
+    <title>LadderLad HMI</title>
     <style>
         body { font-family: sans-serif; text-align: center; padding: 20px; background: #222; color: #fff; }
-        .lamp { width: 60px; height: 60px; border-radius: 50%; border: 4px solid #555; display: inline-block; margin: 20px; background: #444; transition: all 0.2s; }
+        .lamp { width: 60px; height: 60px; border-radius: 50%; border: 4px solid #555; display: inline-block; margin: 20px; background: #444; transition: all 0.1s; }
         .lamp.on { background: #0f0; box-shadow: 0 0 20px #0f0; border-color: #fff; }
         .btn { padding: 20px 40px; font-size: 1.2em; margin: 10px; cursor: pointer; border: none; border-radius: 5px; background: #666; color: #fff; user-select: none; }
-        .btn:active { background: #888; transform: translateY(2px); }
+        .btn:active { transform: translateY(2px); }
+        .btn:disabled { background: #444; color: #888; cursor: not-allowed; transform: none; }
         .btn.red { background: #a33; }
-        .btn.red:active { background: #c55; }
         .btn.green { background: #383; }
-        .btn.green:active { background: #5a5; }
+        .log { margin-top: 20px; font-family: monospace; font-size: 0.8em; color: #aaa; }
         .panel { background: #333; padding: 20px; border-radius: 10px; display: inline-block; margin-top: 20px; }
-        h1 { color: #aaa; }
     </style>
 </head>
 <body>
     <h1>Motor Control HMI</h1>
 
     <div class="panel">
-        <button class="btn red" onmousedown="set('ESTOP', true)" onmouseup="set('ESTOP', false)" onmouseleave="set('ESTOP', false)">ESTOP</button>
-        <button class="btn red" onmousedown="set('STOP', true)" onmouseup="set('STOP', false)" onmouseleave="set('STOP', false)">STOP</button>
-        <button class="btn green" onmousedown="set('START', true)" onmouseup="set('START', false)" onmouseleave="set('START', false)">START</button>
+        <!-- Using custom handlers to prevent multi-firing and handle async ack -->
+        <button id="btn_estop" class="btn red" onmousedown="press('ESTOP')" onmouseup="release('ESTOP')" onmouseleave="release('ESTOP')">ESTOP</button>
+        <button id="btn_stop" class="btn red" onmousedown="press('STOP')" onmouseup="release('STOP')" onmouseleave="release('STOP')">STOP</button>
+        <button id="btn_start" class="btn green" onmousedown="press('START')" onmouseup="release('START')" onmouseleave="release('START')">START</button>
     </div>
 
     <div class="panel">
@@ -66,13 +62,48 @@ def index():
         <div>MOTOR RUN</div>
     </div>
 
+    <div id="log" class="log"></div>
+
     <script>
-        function set(key, val) {
-            fetch('/api/control', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({[key]: val})
-            });
+        const state = { ESTOP: false, STOP: false, START: false };
+
+        function log(msg) {
+            const el = document.getElementById('log');
+            el.innerText = msg;
+        }
+
+        async function send(key, val) {
+            const btn = document.getElementById('btn_' + key.toLowerCase());
+            // btn.disabled = true; // Don't disable on press, hinders release?
+            // Disable only prevents new clicks. But we need mouseup.
+            // Let's just track pending state.
+
+            log(`Sending ${key}=${val}...`);
+            try {
+                const resp = await fetch('/api/control', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({[key]: val})
+                });
+                const res = await resp.json();
+                log(`Ack ${key}=${val} (${res.status})`);
+            } catch (e) {
+                log(`Error ${key}=${val}: ${e}`);
+            } finally {
+                // btn.disabled = false;
+            }
+        }
+
+        function press(key) {
+            if (state[key]) return; // Already pressed
+            state[key] = true;
+            send(key, true);
+        }
+
+        function release(key) {
+            if (!state[key]) return; // Already released
+            state[key] = false;
+            send(key, false);
         }
 
         const evtSource = new EventSource("/api/stream");
@@ -82,6 +113,9 @@ def index():
             if (data.outputs.MOTOR) led.classList.add('on');
             else led.classList.remove('on');
         };
+        evtSource.onerror = function(e) {
+            log("SSE Error/Reconnecting...");
+        };
     </script>
 </body>
 </html>
@@ -90,38 +124,51 @@ def index():
 @app.route('/api/control', methods=['POST'])
 def control():
     if not shm.connect():
+        print("SHM Connect Failed in Control")
         return {"error": "shm"}, 500
 
     data = request.json
-    # Read-Modify-Write logic on I0 byte
-    b = shm.mm[0]
+    print(f"Control Request: {data}")
 
-    if "ESTOP" in data:
-        if data["ESTOP"]: b |= 1
-        else: b &= ~1
+    try:
+        b = shm.mm[0]
+        original_b = b
 
-    if "STOP" in data:
-        if data["STOP"]: b |= 2
-        else: b &= ~2
+        if "ESTOP" in data:
+            if data["ESTOP"]: b |= 1
+            else: b &= ~1
 
-    if "START" in data:
-        if data["START"]: b |= 4
-        else: b &= ~4
+        if "STOP" in data:
+            if data["STOP"]: b |= 2
+            else: b &= ~2
 
-    shm.mm[0] = b
-    return {"status": "ok"}
+        if "START" in data:
+            if data["START"]: b |= 4
+            else: b &= ~4
+
+        shm.mm[0] = b
+        print(f"SHM Write: 0x{original_b:02X} -> 0x{b:02X}")
+
+    except Exception as e:
+        print(f"SHM Write Error: {e}")
+        return {"error": str(e)}, 500
+
+    return {"status": "ok", "ib0": b}
 
 @app.route('/api/stream')
 def stream():
     def event_stream():
         last_state = None
         while True:
-            state = get_state()
-            state_str = json.dumps(state)
-            if state_str != last_state:
-                yield f"data: {state_str}\n\n"
-                last_state = state_str
-            time.sleep(0.05) # 20Hz update
+            try:
+                state = get_state()
+                state_str = json.dumps(state)
+                if state_str != last_state:
+                    yield f"data: {state_str}\n\n"
+                    last_state = state_str
+            except Exception as e:
+                print(f"Stream Error: {e}")
+            time.sleep(0.05)
 
     return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
 
@@ -130,4 +177,5 @@ if __name__ == "__main__":
         print("Creating dummy SHM...")
 
     print("Starting Flask HMI on port 8000...")
+    # Threaded=True is default in recent Flask but explicit helps.
     app.run(host='0.0.0.0', port=8000, threaded=True)
