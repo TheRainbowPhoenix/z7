@@ -51,6 +51,11 @@ class SHMInterface:
         val = self.mm[OFFSET_INPUTS + byte_offset]
         return bool(val & (1 << bit_offset))
 
+    def read_output_bit(self, byte_offset, bit_offset) -> bool:
+        if not self.mm: return False
+        val = self.mm[OFFSET_OUTPUTS + byte_offset]
+        return bool(val & (1 << bit_offset))
+
     def write_output_bit(self, byte_offset, bit_offset, value: bool):
         if not self.mm: return
         offset = OFFSET_OUTPUTS + byte_offset
