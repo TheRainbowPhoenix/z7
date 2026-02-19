@@ -1,3 +1,4 @@
+import sys; sys.path.insert(0, '.')
 from ladderlad.engine import LadderEngine
 from ladderlad.simulator import Simulator
 

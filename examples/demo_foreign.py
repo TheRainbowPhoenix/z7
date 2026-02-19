@@ -1,3 +1,4 @@
+import sys; sys.path.insert(0, '.')
 # Just a placeholder for foreign demo to satisfy plan
 # Logic covers calling foreign function.
 import time

@@ -1,3 +1,4 @@
+import sys; sys.path.insert(0, '.')
 import time
 import threading
 from ladderlib.ladder import LadderCtx, LadderInstructions, LadderRegister, LadderState, ModulePort
