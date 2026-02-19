@@ -21,10 +21,12 @@ class SHMInterface:
         self.f = None
 
     def connect(self) -> bool:
+        # Check if already connected and valid
+        if self.mm and not self.mm.closed:
+            return True
+
         if not os.path.exists(self.filename):
             # Create a dummy file for testing if z7 server is not running
-            # Size must cover at least DB1? DB_START + 2*DB_SIZE (approx 458KB+)
-            # 1MB is safe.
             try:
                 with open(self.filename, "wb") as f:
                     f.write(b'\x00' * (1024 * 1024))
@@ -33,11 +35,15 @@ class SHMInterface:
                 return False
 
         try:
+            # Ensure previous handles are closed
+            self.close()
+
             self.f = open(self.filename, "r+b")
             self.mm = mmap.mmap(self.f.fileno(), 0)
             return True
         except Exception as e:
             print(f"SHM Connection Error: {e}")
+            self.close() # Cleanup on failure
             return False
 
     def close(self):
