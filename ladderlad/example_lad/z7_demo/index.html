@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Z7 Demo HMI</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .lamp {
+            width: 50px; height: 50px; border-radius: 50%;
+            background: #ccc; display: inline-block;
+            margin: 10px;
+        }
+        .lamp.on { background: #0f0; box-shadow: 0 0 10px #0f0; }
+        .button {
+            padding: 10px 20px; margin: 10px; cursor: pointer;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Z7 PLC Control</h1>
+
+    <div>
+        <div id="motorLamp" class="lamp"></div>
+        <span>Motor Status</span>
+    </div>
+
+    <div>
+        <button class="button" onclick="sendCommand('start')">Start</button>
+        <button class="button" onclick="sendCommand('stop')">Stop</button>
+    </div>
+
+    <div>
+        <p>Debug: Start=<span id="startStatus">?</span>, Stop=<span id="stopStatus">?</span></p>
+    </div>
+
+    <script>
+        const motorLamp = document.getElementById('motorLamp');
+        const startSpan = document.getElementById('startStatus');
+        const stopSpan = document.getElementById('stopStatus');
+
+        // SSE
+        const evtSource = new EventSource("/api/events");
+        evtSource.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+
+            if (data.motor) motorLamp.classList.add('on');
+            else motorLamp.classList.remove('on');
+
+            startSpan.textContent = data.start ? "ON" : "OFF";
+            stopSpan.textContent = data.stop ? "ON" : "OFF"; // Stop is NC, so ON means Safe (Closed)
+        };
+
+        async function sendCommand(cmd) {
+            await fetch('/api/control', {
+                method: 'POST',
+                body: JSON.stringify({ cmd })
+            });
+        }
+    </script>
+</body>
+</html>
