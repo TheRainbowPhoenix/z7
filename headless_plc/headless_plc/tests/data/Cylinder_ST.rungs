@@ -1,0 +1,190 @@
+version: 2
+aoi:
+  name: Cylinder_ST
+  description: >-
+    Pneumatic cylinder control with extend/retract sensors and timeouts
+    (Structured Text)
+  tags:
+    input:
+      - name: In_ExtSensor
+        dataType: BOOL
+        description: Extended position sensor
+      - name: In_RetSensor
+        dataType: BOOL
+        description: Retracted position sensor
+      - name: Cmd_Extend
+        dataType: BOOL
+        description: Command to extend cylinder
+      - name: Cmd_Retract
+        dataType: BOOL
+        description: Command to retract cylinder
+      - name: Cmd_Reset
+        dataType: BOOL
+        description: Clear timeout errors
+      - name: Val_ExtTime
+        dataType: DINT
+        defaultValue: 5000
+        description: Extend timeout in ms
+      - name: Val_RetTime
+        dataType: DINT
+        defaultValue: 5000
+        description: Retract timeout in ms
+    output:
+      - name: Out_Extend
+        dataType: BOOL
+        description: Extend solenoid output
+      - name: Out_Retract
+        dataType: BOOL
+        description: Retract solenoid output
+      - name: Sts_Extended
+        dataType: BOOL
+        description: Cylinder is extended
+      - name: Sts_Retracted
+        dataType: BOOL
+        description: Cylinder is retracted
+      - name: Err_ExtTimeout
+        dataType: BOOL
+        description: Extend motion timed out
+      - name: Err_RetTimeout
+        dataType: BOOL
+        description: Retract motion timed out
+    local:
+      - name: Tmr_Ext
+        dataType: FBD_TIMER
+        description: Extend timeout timer
+        defaultValue:
+          EnableIn: 1
+      - name: Tmr_Ret
+        dataType: FBD_TIMER
+        description: Retract timeout timer
+        defaultValue:
+          EnableIn: 1
+  routines:
+    Logic:
+      type: st
+      content: >-
+        /* Pneumatic Cylinder Control
+
+        Click "Start" to run the simulation.
+
+        Toggle Cmd_Extend or Cmd_Retract to move the cylinder.
+
+        Set In_ExtSensor or In_RetSensor to confirm position.
+
+        If the cylinder doesn't reach position in time, a timeout error latches.
+
+        Use Cmd_Reset to clear errors. */
+
+
+        // Extend command: stop retract, start extend.
+
+        IF Cmd_Extend THEN
+          Out_Retract := 0;
+          Out_Extend := 1;
+        END_IF;
+
+
+        // Retract command: stop extend, start retract.
+
+        IF Cmd_Retract THEN
+          Out_Extend := 0;
+          Out_Retract := 1;
+        END_IF;
+
+
+        // Sensor status feedback.
+
+        Sts_Extended := In_ExtSensor;
+
+        Sts_Retracted := In_RetSensor;
+
+
+        // Extend timeout: timer runs while extending without sensor
+        confirmation.
+
+        Tmr_Ext.PRE := Val_ExtTime;
+
+        Tmr_Ext.TimerEnable := Out_Extend AND NOT Sts_Extended AND NOT
+        Cmd_Reset;
+
+        Tmr_Ext.Reset := NOT Tmr_Ext.TimerEnable;
+
+        TONR(Tmr_Ext);
+
+
+        // Seal-in extend timeout error until reset.
+
+        Err_ExtTimeout := (Tmr_Ext.DN OR Err_ExtTimeout) AND NOT Cmd_Reset;
+
+
+        // Retract timeout: timer runs while retracting without sensor
+        confirmation.
+
+        Tmr_Ret.PRE := Val_RetTime;
+
+        Tmr_Ret.TimerEnable := Out_Retract AND NOT Sts_Retracted AND NOT
+        Cmd_Reset;
+
+        Tmr_Ret.Reset := NOT Tmr_Ret.TimerEnable;
+
+        TONR(Tmr_Ret);
+
+
+        // Seal-in retract timeout error until reset.
+
+        Err_RetTimeout := (Tmr_Ret.DN OR Err_RetTimeout) AND NOT Cmd_Reset;
+  testing:
+    content: |-
+      const run = (inputs = {}) => AOITestKit.run(inputs).outputs;
+
+      describe('Cylinder AOI', () => {
+        it('extends on command', () => {
+          const out = run({ Cmd_Extend: 1 });
+          expect(out.Out_Extend).toBe(1);
+          expect(out.Out_Retract).toBe(0);
+        });
+
+        it('retracts on command', () => {
+          const out = run({ Cmd_Retract: 1 });
+          expect(out.Out_Retract).toBe(1);
+          expect(out.Out_Extend).toBe(0);
+        });
+
+        it('retract overrides extend when both commanded', () => {
+          const out = run({ Cmd_Extend: 1, Cmd_Retract: 1 });
+          expect(out.Out_Retract).toBe(1);
+          expect(out.Out_Extend).toBe(0);
+        });
+
+        it('reports extended from sensor', () => {
+          const out = run({ In_ExtSensor: 1 });
+          expect(out.Sts_Extended).toBe(1);
+          expect(out.Sts_Retracted).toBe(0);
+        });
+
+        it('reports retracted from sensor', () => {
+          const out = run({ In_RetSensor: 1 });
+          expect(out.Sts_Retracted).toBe(1);
+          expect(out.Sts_Extended).toBe(0);
+        });
+
+        it('seals extend timeout error', () => {
+          const out = run({ Err_ExtTimeout: 1 });
+          expect(out.Err_ExtTimeout).toBe(1);
+        });
+
+        it('seals retract timeout error', () => {
+          const out = run({ Err_RetTimeout: 1 });
+          expect(out.Err_RetTimeout).toBe(1);
+        });
+
+        it('clears extend timeout on reset', () => {
+          const out = run({ Err_ExtTimeout: 1, Cmd_Reset: 1 });
+          expect(out.Err_ExtTimeout).toBe(0);
+        });
+
+        it('clears retract timeout on reset', () => {
+          const out = run({ Err_RetTimeout: 1, Cmd_Reset: 1 });
+          expect(out.Err_RetTimeout).toBe(0);
+        });
+      });

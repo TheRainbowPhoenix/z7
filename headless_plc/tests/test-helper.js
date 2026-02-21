@@ -1,6 +1,7 @@
 // AOI Test Kit Implementation
 import { compileLadderLogic, compileStructuredText, createExecutionContext } from '../compiler/index.js';
 import { getMembersForDataType } from '../core/utils/tag-utils.js';
+import { STRuntime } from '../compiler/languages/st/runtime/runtime.js';
 
 class Expectation {
     constructor(actual) {
@@ -22,6 +23,12 @@ class Expectation {
     toBeLessThan(expected) {
         if (!(this.actual < expected)) {
             throw new Error(`Expected ${this.actual} to be < ${expected}`);
+        }
+    }
+
+    toBeDefined() {
+        if (this.actual === undefined) {
+            throw new Error(`Expected value to be defined, but got undefined`);
         }
     }
 }
@@ -49,11 +56,23 @@ export function it(name, fn) {
 export class AOITestKit {
     constructor(aoi) {
         this.aoi = aoi;
+        // The parser might not return tags as an array if the source was structured differently or if it failed silently.
+        // Also handling if tags is undefined.
+        const tags = Array.isArray(aoi.tags) ? aoi.tags : [];
         this.context = {
-            tags: aoi.tags.map(tag => ({
-                ...tag,
-                members: getMembersForDataType(tag.dataType)
-            }))
+            tags: tags.map(tag => {
+                const membersList = getMembersForDataType(tag.dataType);
+                const members = {};
+                if (membersList && membersList.length > 0) {
+                    membersList.forEach(m => {
+                        members[m.key] = { dataType: m.type };
+                    });
+                }
+                return {
+                    ...tag,
+                    members
+                };
+            })
         };
 
         const logicRoutine = aoi.routines.Logic;
@@ -83,30 +102,91 @@ export class AOITestKit {
 
         // Initialize variables based on tags
         this.aoi.tags.forEach(tag => {
-            let initialValue;
-            if (inputs[tag.name] !== undefined) {
-                initialValue = inputs[tag.name];
-            } else if (tag.defaultValue !== undefined) {
-                 initialValue = tag.defaultValue;
+            // Determine the base value (skeleton or scalar default)
+            let baseValue;
+            const members = getMembersForDataType(tag.dataType);
+
+            if (tag.dimension && tag.dimension > 0) {
+                // Array initialization
+                const count = tag.dimension;
+                const arr = new Array(count).fill(0);
+                if (members && members.length > 0) {
+                    // Array of structures
+                    const skeleton = {};
+                    members.forEach(m => { skeleton[m.key] = 0; });
+                    for(let i=0; i<count; i++) arr[i] = { ...skeleton };
+                } else {
+                    // Array of scalars
+                    let scalarDef = 0;
+                    if (tag.dataType === 'REAL') scalarDef = 0.0;
+                    arr.fill(scalarDef);
+                }
+                baseValue = arr;
+            } else if (members && members.length > 0) {
+                // It's a structure: create skeleton
+                const skeleton = {};
+                members.forEach(m => { skeleton[m.key] = 0; });
+                baseValue = skeleton;
             } else {
-                 // Default zero values
-                 if (tag.dataType === 'BOOL') initialValue = 0;
-                 else if (tag.dataType === 'DINT') initialValue = 0;
-                 else if (tag.dataType === 'REAL') initialValue = 0.0;
-                 else initialValue = {}; // Structures
+                // Scalar
+                if (tag.dataType === 'BOOL') baseValue = 0;
+                else if (tag.dataType === 'DINT') baseValue = 0;
+                else if (tag.dataType === 'REAL') baseValue = 0.0;
+                else baseValue = 0;
             }
-            vars.set(tag.name, initialValue);
+
+            // Determine the provided value (Input -> Default -> Base)
+            let providedValue;
+            if (inputs[tag.name] !== undefined) {
+                providedValue = inputs[tag.name];
+            } else if (tag.defaultValue !== undefined) {
+                providedValue = tag.defaultValue;
+            }
+
+            // Merge logic
+            let finalValue;
+            if (providedValue !== undefined) {
+                if (typeof providedValue === 'object' && baseValue && typeof baseValue === 'object') {
+                    // Merge partial provided structure into base skeleton
+                    finalValue = { ...baseValue, ...providedValue };
+                } else {
+                    finalValue = providedValue;
+                }
+            } else {
+                finalValue = baseValue;
+            }
+
+            vars.set(tag.name, finalValue);
         });
 
         // Execute
         const __scanTime = 10;
         const log = execContext.logs;
+
+        // Prepare funcs for ST
+        const runtime = new STRuntime();
+        const funcs = runtime.buildFunctions(__scanTime);
+
         try {
-            const runFn = new Function('vars', 'log', '__scanTime', this.code);
-            runFn(vars, log, __scanTime);
+            // The generated code expects 'funcs' if it's ST. LD doesn't use it but won't hurt.
+            // Check signature of generated code?
+            // ST: funcs is used. LD: not used.
+            // We can pass it as a 4th argument if we update the Function constructor.
+            // But wait, generated ST code uses 'funcs'. Generated LD doesn't.
+            // We need to match the arguments expected by the code usage.
+            // Let's pass 'funcs' as 4th arg.
+            const runFn = new Function('vars', 'log', '__scanTime', 'funcs', this.code);
+            runFn(vars, log, __scanTime, funcs);
         } catch (e) {
             console.error("Runtime Error", e);
             throw e;
+        }
+
+        // Check for runtime errors logged by the compiled code
+        const runtimeErrors = log.filter(l => typeof l === 'string' && l.startsWith('Runtime error:'));
+        if (runtimeErrors.length > 0) {
+            console.error("Compiled Code Logged Errors:", runtimeErrors);
+            // Optionally throw? For now just log.
         }
 
         const outputs = Object.fromEntries(vars);

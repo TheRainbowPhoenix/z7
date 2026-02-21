@@ -276,6 +276,10 @@ ${statements}
     generateFunctionCall(expr) {
         const functionName = this.generateIdentifier(expr.name);
         const args = expr.arguments.map((arg) => this.generateExpression(arg)).join(', ');
+        const scanTimeInstructions = ['TONR', 'TOFR', 'RTOR'];
+        if (scanTimeInstructions.includes(functionName.toUpperCase())) {
+            return `funcs.get('${functionName}')(${args}, __scanTime)`;
+        }
         return `funcs.get('${functionName}')(${args})`;
     }
     generateBooleanCondition(expr) {

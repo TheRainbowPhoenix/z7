@@ -1,0 +1,54 @@
+version: 2
+aoi:
+  name: WHILE_DO
+  description: ''
+  tags:
+    input:
+      - name: StartValue
+        dataType: DINT
+        description: Initial value loaded into the counter
+      - name: Threshold
+        dataType: DINT
+        description: Loop runs while the counter is below this value
+        defaultValue: 3
+    output:
+      - name: Counter
+        dataType: DINT
+        description: Resulting counter value after the while loop finishes
+      - name: Iterations
+        dataType: DINT
+        description: How many times the while loop executed
+  routines:
+    Logic:
+      type: st
+      content: >-
+        // While loop checks Threshold first and may skip entirely when already
+        satisfied.
+
+        Counter := StartValue;
+
+        Iterations := 0;
+
+
+        WHILE Counter < Threshold DO
+            // Continue counting until the threshold is satisfied.
+            Counter := Counter + 1;
+            Iterations := Iterations + 1;
+        END_WHILE;
+  testing:
+    content: |-
+      const runWhile = (overrides = {}) => AOITestKit.run(overrides).outputs;
+
+      describe('WHILE_DO AOI', () => {
+        it('loops until the counter meets the threshold', () => {
+          const outputs = runWhile({ StartValue: 0, Threshold: 3 });
+          expect(outputs.Counter).toBe(3);
+          expect(outputs.Iterations).toBe(3);
+        });
+
+        it('skips the loop when the starting value already meets the threshold', () => {
+          const outputs = runWhile({ StartValue: 5, Threshold: 3 });
+          expect(outputs.Counter).toBe(5);
+          expect(outputs.Iterations).toBe(0);
+        });
+      });

@@ -2,9 +2,7 @@ import { v4 as uuid } from 'uuid';
 import { z } from 'zod';
 import { BoolFieldSchema, DintFieldSchema, RealFieldSchema, TimerValueSchema, CounterValueSchema, FbdTimerValueSchema, FbdCounterValueSchema, } from './values.js';
 import { TagNameSchema } from './tag-name.js';
-export const DataTypeValueSchema = z.enum(['BOOL', 'DINT', 'REAL', 'TIMER', 'COUNTER', 'FBD_TIMER', 'FBD_COUNTER']).meta({
-    type: 'DataType',
-});
+export const DataTypeValueSchema = z.enum(['BOOL', 'DINT', 'REAL', 'TIMER', 'COUNTER', 'FBD_TIMER', 'FBD_COUNTER']);
 export const TagUsageSchema = z.enum(['input', 'output', 'local']);
 export const StyleTypeSchema = z.enum(['Decimal', 'Binary', 'Hex', 'Float']);
 export const ArraySizeSchema = z
@@ -22,14 +20,14 @@ export const TagDescriptionSchema = z
 })
     .optional();
 const ScalarTagBaseSchema = z.object({
-    id: z.uuid().default(() => uuid()),
+    id: z.string().uuid().default(() => uuid()),
     name: TagNameSchema,
     usage: TagUsageSchema,
     description: TagDescriptionSchema,
 });
 const ArrayDimensionSchema = z.number().int().min(1).max(128);
 const ArrayTagBaseSchema = z.object({
-    id: z.uuid().default(() => uuid()),
+    id: z.string().uuid().default(() => uuid()),
     name: TagNameSchema,
     usage: z.literal('local'),
     description: TagDescriptionSchema,

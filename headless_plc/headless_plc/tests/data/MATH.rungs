@@ -1,0 +1,54 @@
+version: 2
+aoi:
+  name: MATH
+  description: ADD, SUB, MUL, DIV, and MOVE math instructions
+  tags:
+    input:
+      - name: Rate
+        dataType: REAL
+        description: Amount added to Accumulator each scan
+        defaultValue: 1.5
+      - name: ValueA
+        dataType: DINT
+        description: First operand for integer math
+        defaultValue: 10
+      - name: ValueB
+        dataType: DINT
+        description: Second operand for integer math
+        defaultValue: 3
+    output:
+      - name: Accumulator
+        dataType: REAL
+        description: Running total that increases by Rate every scan
+        defaultValue: 0
+      - name: Difference
+        dataType: DINT
+        description: Result of ValueA - ValueB
+      - name: Product
+        dataType: DINT
+        description: Result of ValueA * ValueB
+      - name: Quotient
+        dataType: REAL
+        description: Result of ValueA / ValueB
+  routines:
+    Logic:
+      type: ld
+      content: >-
+        ADD(Accumulator,Rate,Accumulator);SUB(ValueA,ValueB,Difference);MUL(ValueA,ValueB,Product);DIV(ValueA,ValueB,Quotient)
+  testing:
+    content: |-
+      const run = (inputs = {}) => AOITestKit.run(inputs).outputs;
+
+      describe('MATH AOI', () => {
+        it('accumulator increases by rate each scan', () => {
+          const outputs = run({ Accumulator: 0, Rate: 1.5 });
+          expect(outputs.Accumulator).toBeCloseTo(1.5);
+        });
+
+        it('computes integer operations with defaults', () => {
+          const outputs = run({ ValueA: 10, ValueB: 3 });
+          expect(outputs.Difference).toBe(7);
+          expect(outputs.Product).toBe(30);
+          expect(outputs.Quotient).toBeCloseTo(3.333, 2);
+        });
+      });
