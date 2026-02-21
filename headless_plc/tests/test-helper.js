@@ -31,6 +31,17 @@ class Expectation {
             throw new Error(`Expected value to be defined, but got undefined`);
         }
     }
+
+    toBeCloseTo(expected, precision = 2) {
+        if (typeof this.actual !== 'number') {
+            throw new Error(`Expected number but got ${typeof this.actual}`);
+        }
+        const diff = Math.abs(this.actual - expected);
+        const tolerance = Math.pow(10, -precision) / 2;
+        if (diff > tolerance) {
+            throw new Error(`Expected ${this.actual} to be close to ${expected} (diff: ${diff}, tolerance: ${tolerance})`);
+        }
+    }
 }
 
 export function expect(actual) {
