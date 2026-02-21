@@ -132,6 +132,17 @@ export class AOITestKit {
                     if (tag.dataType === 'REAL') scalarDef = 0.0;
                     arr.fill(scalarDef);
                 }
+
+                // Initialize specific elements if defined
+                if (tag.elements) {
+                    Object.entries(tag.elements).forEach(([indexStr, elementDef]) => {
+                        const idx = parseInt(indexStr, 10);
+                        if (!isNaN(idx) && idx >= 0 && idx < count && elementDef.defaultValue !== undefined) {
+                            arr[idx] = elementDef.defaultValue;
+                        }
+                    });
+                }
+
                 baseValue = arr;
             } else if (members && members.length > 0) {
                 // It's a structure: create skeleton
