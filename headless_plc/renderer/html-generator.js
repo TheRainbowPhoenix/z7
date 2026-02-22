@@ -3,6 +3,9 @@ export function renderLadder(ast) {
         return '<div class="text-red-500">Invalid Ladder Logic AST</div>';
     }
     return `
+    <style>
+        .h-15 { height: 3.75rem; }
+    </style>
     <div class="flex flex-col w-full h-full bg-gray-50 p-4 overflow-auto">
         ${ast.rungs.map(renderRung).join('\n')}
     </div>`;
@@ -316,7 +319,7 @@ function renderBranch(branch) {
     }).join('');
 
     return `
-    <div class="flex flex-col ml-2 mr-2">
+    <div class="flex shrink-0 flex-col">
         ${circuitsHtml}
     </div>`;
 }
