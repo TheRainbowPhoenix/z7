@@ -3,9 +3,12 @@ import { describe, it, expect, AOITestKit } from './test-helper.js';
 import { parseRungs } from '../aoi/parsers/rungs-parser.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function loadAndParse(filename) {
-    const filePath = path.resolve('headless_plc/tests/data', filename);
+    const filePath = path.join(__dirname, 'data', filename);
     const content = fs.readFileSync(filePath, 'utf8');
     const result = parseRungs(content);
     if (result.diagnostics.some(d => d.type === 'error')) {
@@ -19,6 +22,7 @@ const rungsFiles = [
     'TrafficLight_ST.rungs',
     'TankLevel_ST.rungs',
     'Cylinder_ST.rungs',
+    'Cylinder_LD.rungs',
     'FBD_TIMER.rungs',
     'FBD_COUNTER.rungs',
     'CASE_OF.rungs',
