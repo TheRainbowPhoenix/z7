@@ -22,18 +22,68 @@ function renderRung(rung) {
             </div>
         </div>
         <div class="relative flex w-full overflow-visible border-l border-slate-400">
-            <div class="flex min-w-full shrink-0">
-                ${renderCircuit(rung.circuit)}
-                <div class="relative flex h-15 min-w-4 flex-col justify-center w-full">
-                    <div class="h-px w-full bg-slate-400"></div>
-                </div>
-            </div>
+            ${renderCircuit(rung.circuit)}
         </div>
     </div>`;
 }
 
 function renderCircuit(circuit) {
-    return circuit.elements.map(renderElement).join('');
+    const lastNonOutputIndex = findLastNonOutputIndex(circuit.elements);
+
+    // Initial Spacer (full if no inputs, i.e., circuit starts with outputs)
+    const initialSpacerFull = lastNonOutputIndex === -1;
+    let html = renderSpacer(initialSpacerFull);
+
+    const elementsHtml = circuit.elements.map((el, i) => {
+        const isFullSpacer = i === lastNonOutputIndex;
+        const isBranch = el.type === 'LDBranch';
+
+        // Element Wrapper
+        const wrapperClass = isBranch ? 'flex shrink-0 flex-col' : 'flex shrink-0';
+        const elHtml = `
+            <div class="${wrapperClass}">
+                ${renderElement(el)}
+            </div>`;
+
+        // Following Spacer
+        const spacerHtml = renderSpacer(isFullSpacer);
+
+        return elHtml + spacerHtml;
+    }).join('');
+
+    return `
+    <div class="flex min-w-full shrink-0">
+        <div class="relative flex min-w-full shrink-0">
+             ${html}
+             ${elementsHtml}
+        </div>
+    </div>`;
+}
+
+function renderSpacer(full) {
+    const widthClass = full ? 'w-full' : 'w-4';
+    return `
+    <div class="flex h-15 min-w-4 flex-col justify-center ${widthClass}">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>`;
+}
+
+function findLastNonOutputIndex(elements) {
+    // Iterate backwards to find the last element that is NOT an output instruction.
+    // OTE, OTL, OTU are considered outputs.
+    // Branches and other instructions are considered inputs/intermediates.
+    for (let i = elements.length - 1; i >= 0; i--) {
+        const el = elements[i];
+        if (el.type === 'LDInstruction') {
+            if (!['OTE', 'OTL', 'OTU'].includes(el.instructionType)) {
+                return i;
+            }
+        } else {
+            // LDBranch is treated as input/intermediate logic
+            return i;
+        }
+    }
+    return -1;
 }
 
 function renderElement(element) {
@@ -41,24 +91,9 @@ function renderElement(element) {
         return renderBranch(element);
     }
     if (element.type === 'LDInstruction') {
-        return renderInstructionWrapper(element);
+        return renderInstruction(element);
     }
     return '';
-}
-
-function renderInstructionWrapper(instruction) {
-    const innerHtml = renderInstruction(instruction);
-    return `
-    <div class="flex min-w-full shrink-0">
-        <div class="relative flex min-w-full shrink-0">
-            <div class="relative flex h-15 min-w-4 flex-col justify-center w-4">
-                <div class="h-px w-full bg-slate-400"></div>
-            </div>
-            <div class="flex shrink-0">
-                ${innerHtml}
-            </div>
-        </div>
-    </div>`;
 }
 
 function renderInstruction(instruction) {

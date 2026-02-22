@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ladder Logic Visualization - Cylinder_LD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .bg-selected { background-color: #e0e7ff; }
+        .border-selected { border-color: #6366f1; }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen w-screen flex flex-col">
+    <header class="bg-white shadow p-4">
+        <h1 class="text-xl font-bold">Cylinder_LD</h1>
+        <p class="text-gray-600">Pneumatic cylinder control with extend/retract sensors (Ladder Logic)</p>
+    </header>
+    <main class="flex-1 overflow-auto p-8">
+
+    <div class="flex flex-col w-full h-full bg-gray-50 p-4 overflow-auto">
+
+    <div class="relative flex cursor-default opacity-100 pr-2 mb-2">
+        <div>
+            <div class="flex h-full">
+                <div role="button" class="bg-transparent">
+                    <div class="flex h-14 w-12 flex-none">
+                        <div class="w-2"></div>
+                        <p class="text-md my-auto select-none text-black font-mono">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="relative flex w-full overflow-visible border-l border-slate-400">
+
+    <div class="flex min-w-full shrink-0">
+        <div class="relative flex min-w-full shrink-0">
+
+    <div class="flex h-15 min-w-4 flex-col justify-center w-4">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+
+            <div class="flex shrink-0 flex-col">
+
+    <div class="flex flex-col ml-2 mr-2">
+
+        <div class="flex flex-row">
+            <div class="relative flex flex-col w-4">
+
+                <div class="absolute bottom-0 left-0 w-px h-1/2 bg-slate-400"></div>
+                <div class="absolute top-1/2 left-0 w-full h-px bg-slate-400"></div>
+            </div>
+
+            <div class="flex flex-row">
+
+    <div class="flex min-w-full shrink-0">
+        <div class="relative flex min-w-full shrink-0">
+
+    <div class="flex h-15 min-w-4 flex-col justify-center w-4">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+
+            <div class="flex shrink-0">
+
+    <div class="inline-flex" title="XIC Start_Btn">
+        <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
+            <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
+
+                <div class="col-start-1 col-end-4 row-start-1">
+                    <div class="h-full w-full border-x-2 border-t-2 border-transparent hover:border-blue-200"></div>
+                </div>
+                <div class="relative col-start-1 col-end-4 row-start-2">
+                    <div class="absolute -bottom-px -top-px left-0 right-0 border-x-2 border-b-2 border-transparent hover:border-blue-200"></div>
+                </div>
+
+                <div class="col-start-1 col-end-4 row-start-1 flex flex-col justify-center">
+                    <p class="px-1 text-center text-sm text-black truncate max-w-[100px]">Start_Btn</p>
+                </div>
+
+                <div class="relative col-start-1 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 -right-0.5 bottom-0 left-0 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="w-1/2"></div>
+                    <div class="my-1 w-1/2 "></div>
+                </div>
+
+                <div class="relative col-start-2 row-start-2 flex h-5 py-0.5">
+                    <div class="w-1 border-y border-r border-slate-400"></div>
+                    <div class="w-3 flex items-center justify-center">
+
+                    </div>
+                    <div class="w-1 border-y border-l border-slate-400"></div>
+                </div>
+
+                <div class="relative col-start-3 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 right-0 bottom-0 -left-0.5 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="my-1 w-1/2 "></div>
+                    <div class="w-1/2"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+            </div>
+    <div class="flex h-15 min-w-4 flex-col justify-center w-full">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+        </div>
+    </div>
+            </div>
+
+             <div class="relative flex flex-col w-4">
+
+                <div class="absolute bottom-0 right-0 w-px h-1/2 bg-slate-400"></div>
+                <div class="absolute top-1/2 right-0 w-full h-px bg-slate-400"></div>
+            </div>
+        </div>
+        <div class="flex flex-row">
+            <div class="relative flex flex-col w-4">
+                <div class="absolute top-0 left-0 w-px h-1/2 bg-slate-400"></div>
+
+                <div class="absolute top-1/2 left-0 w-full h-px bg-slate-400"></div>
+            </div>
+
+            <div class="flex flex-row">
+
+    <div class="flex min-w-full shrink-0">
+        <div class="relative flex min-w-full shrink-0">
+
+    <div class="flex h-15 min-w-4 flex-col justify-center w-4">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+
+            <div class="flex shrink-0">
+
+    <div class="inline-flex" title="XIC Auto_Mode">
+        <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
+            <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
+
+                <div class="col-start-1 col-end-4 row-start-1">
+                    <div class="h-full w-full border-x-2 border-t-2 border-transparent hover:border-blue-200"></div>
+                </div>
+                <div class="relative col-start-1 col-end-4 row-start-2">
+                    <div class="absolute -bottom-px -top-px left-0 right-0 border-x-2 border-b-2 border-transparent hover:border-blue-200"></div>
+                </div>
+
+                <div class="col-start-1 col-end-4 row-start-1 flex flex-col justify-center">
+                    <p class="px-1 text-center text-sm text-black truncate max-w-[100px]">Auto_Mode</p>
+                </div>
+
+                <div class="relative col-start-1 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 -right-0.5 bottom-0 left-0 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="w-1/2"></div>
+                    <div class="my-1 w-1/2 "></div>
+                </div>
+
+                <div class="relative col-start-2 row-start-2 flex h-5 py-0.5">
+                    <div class="w-1 border-y border-r border-slate-400"></div>
+                    <div class="w-3 flex items-center justify-center">
+
+                    </div>
+                    <div class="w-1 border-y border-l border-slate-400"></div>
+                </div>
+
+                <div class="relative col-start-3 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 right-0 bottom-0 -left-0.5 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="my-1 w-1/2 "></div>
+                    <div class="w-1/2"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+            </div>
+    <div class="flex h-15 min-w-4 flex-col justify-center w-full">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+        </div>
+    </div>
+            </div>
+
+             <div class="relative flex flex-col w-4">
+                <div class="absolute top-0 right-0 w-px h-1/2 bg-slate-400"></div>
+
+                <div class="absolute top-1/2 right-0 w-full h-px bg-slate-400"></div>
+            </div>
+        </div>
+    </div>
+            </div>
+    <div class="flex h-15 min-w-4 flex-col justify-center w-4">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+            <div class="flex shrink-0">
+
+    <div class="inline-flex" title="XIO Stop_Btn">
+        <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
+            <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
+
+                <div class="col-start-1 col-end-4 row-start-1">
+                    <div class="h-full w-full border-x-2 border-t-2 border-transparent hover:border-blue-200"></div>
+                </div>
+                <div class="relative col-start-1 col-end-4 row-start-2">
+                    <div class="absolute -bottom-px -top-px left-0 right-0 border-x-2 border-b-2 border-transparent hover:border-blue-200"></div>
+                </div>
+
+                <div class="col-start-1 col-end-4 row-start-1 flex flex-col justify-center">
+                    <p class="px-1 text-center text-sm text-black truncate max-w-[100px]">Stop_Btn</p>
+                </div>
+
+                <div class="relative col-start-1 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 -right-0.5 bottom-0 left-0 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="w-1/2"></div>
+                    <div class="my-1 w-1/2 bg-green-400"></div>
+                </div>
+
+                <div class="relative col-start-2 row-start-2 flex h-5 py-0.5">
+                    <div class="w-1 border-y border-r border-slate-400"></div>
+                    <div class="w-3 flex items-center justify-center">
+                        <span class="-mt-0.5 select-none text-sm/6 text-slate-400">/</span>
+                    </div>
+                    <div class="w-1 border-y border-l border-slate-400"></div>
+                </div>
+
+                <div class="relative col-start-3 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 right-0 bottom-0 -left-0.5 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="my-1 w-1/2 bg-green-400"></div>
+                    <div class="w-1/2"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+            </div>
+    <div class="flex h-15 min-w-4 flex-col justify-center w-full">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+            <div class="flex shrink-0">
+
+    <div class="inline-flex" title="OTE Auto_Mode">
+        <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
+            <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
+
+                <div class="col-start-1 col-end-4 row-start-1">
+                    <div class="h-full w-full border-x-2 border-t-2 border-transparent hover:border-blue-200"></div>
+                </div>
+                <div class="relative col-start-1 col-end-4 row-start-2">
+                    <div class="absolute -bottom-px -top-px left-0 right-0 border-x-2 border-b-2 border-transparent hover:border-blue-200"></div>
+                </div>
+
+                <div class="col-start-1 col-end-4 row-start-1 flex flex-col justify-center">
+                    <p class="px-1 text-center text-sm text-black truncate max-w-[100px]">Auto_Mode</p>
+                </div>
+
+                <div class="relative col-start-1 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 -right-0.5 bottom-0 left-0 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="w-1/2"></div>
+                    <div class="my-1 w-1/2"></div>
+                </div>
+
+                <div class="relative col-start-2 row-start-2 flex h-5 py-0.5">
+                    <div class="w-0.5"></div>
+                    <div class="w-2 rounded-tl-full rounded-bl-full border border-r-0 border-slate-400"></div>
+                    <div class="flex items-center justify-center w-2">
+                        <span class="select-none text-sm text-slate-400 font-bold"></span>
+                    </div>
+                    <div class="w-2 rounded-tr-full rounded-br-full border border-l-0 border-slate-400"></div>
+                    <div class="w-0.5"></div>
+                </div>
+
+                <div class="relative col-start-3 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 right-0 bottom-0 -left-0.5 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="my-1 w-1/2"></div>
+                    <div class="w-1/2"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+            </div>
+    <div class="flex h-15 min-w-4 flex-col justify-center w-4">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+        </div>
+    </div>
+        </div>
+    </div>
+
+    <div class="relative flex cursor-default opacity-100 pr-2 mb-2">
+        <div>
+            <div class="flex h-full">
+                <div role="button" class="bg-transparent">
+                    <div class="flex h-14 w-12 flex-none">
+                        <div class="w-2"></div>
+                        <p class="text-md my-auto select-none text-black font-mono">1</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="relative flex w-full overflow-visible border-l border-slate-400">
+
+    <div class="flex min-w-full shrink-0">
+        <div class="relative flex min-w-full shrink-0">
+
+    <div class="flex h-15 min-w-4 flex-col justify-center w-4">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+
+            <div class="flex shrink-0">
+
+    <div class="inline-flex" title="XIC Auto_Mode">
+        <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
+            <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
+
+                <div class="col-start-1 col-end-4 row-start-1">
+                    <div class="h-full w-full border-x-2 border-t-2 border-transparent hover:border-blue-200"></div>
+                </div>
+                <div class="relative col-start-1 col-end-4 row-start-2">
+                    <div class="absolute -bottom-px -top-px left-0 right-0 border-x-2 border-b-2 border-transparent hover:border-blue-200"></div>
+                </div>
+
+                <div class="col-start-1 col-end-4 row-start-1 flex flex-col justify-center">
+                    <p class="px-1 text-center text-sm text-black truncate max-w-[100px]">Auto_Mode</p>
+                </div>
+
+                <div class="relative col-start-1 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 -right-0.5 bottom-0 left-0 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="w-1/2"></div>
+                    <div class="my-1 w-1/2 "></div>
+                </div>
+
+                <div class="relative col-start-2 row-start-2 flex h-5 py-0.5">
+                    <div class="w-1 border-y border-r border-slate-400"></div>
+                    <div class="w-3 flex items-center justify-center">
+
+                    </div>
+                    <div class="w-1 border-y border-l border-slate-400"></div>
+                </div>
+
+                <div class="relative col-start-3 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 right-0 bottom-0 -left-0.5 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="my-1 w-1/2 "></div>
+                    <div class="w-1/2"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+            </div>
+    <div class="flex h-15 min-w-4 flex-col justify-center w-4">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+            <div class="flex shrink-0">
+
+    <div class="inline-flex" title="XIC Prox_Retracted">
+        <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
+            <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
+
+                <div class="col-start-1 col-end-4 row-start-1">
+                    <div class="h-full w-full border-x-2 border-t-2 border-transparent hover:border-blue-200"></div>
+                </div>
+                <div class="relative col-start-1 col-end-4 row-start-2">
+                    <div class="absolute -bottom-px -top-px left-0 right-0 border-x-2 border-b-2 border-transparent hover:border-blue-200"></div>
+                </div>
+
+                <div class="col-start-1 col-end-4 row-start-1 flex flex-col justify-center">
+                    <p class="px-1 text-center text-sm text-black truncate max-w-[100px]">Prox_Retracted</p>
+                </div>
+
+                <div class="relative col-start-1 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 -right-0.5 bottom-0 left-0 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="w-1/2"></div>
+                    <div class="my-1 w-1/2 "></div>
+                </div>
+
+                <div class="relative col-start-2 row-start-2 flex h-5 py-0.5">
+                    <div class="w-1 border-y border-r border-slate-400"></div>
+                    <div class="w-3 flex items-center justify-center">
+
+                    </div>
+                    <div class="w-1 border-y border-l border-slate-400"></div>
+                </div>
+
+                <div class="relative col-start-3 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 right-0 bottom-0 -left-0.5 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="my-1 w-1/2 "></div>
+                    <div class="w-1/2"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+            </div>
+    <div class="flex h-15 min-w-4 flex-col justify-center w-4">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+            <div class="flex shrink-0">
+
+    <div class="inline-flex" title="XIO Prox_Extended">
+        <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
+            <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
+
+                <div class="col-start-1 col-end-4 row-start-1">
+                    <div class="h-full w-full border-x-2 border-t-2 border-transparent hover:border-blue-200"></div>
+                </div>
+                <div class="relative col-start-1 col-end-4 row-start-2">
+                    <div class="absolute -bottom-px -top-px left-0 right-0 border-x-2 border-b-2 border-transparent hover:border-blue-200"></div>
+                </div>
+
+                <div class="col-start-1 col-end-4 row-start-1 flex flex-col justify-center">
+                    <p class="px-1 text-center text-sm text-black truncate max-w-[100px]">Prox_Extended</p>
+                </div>
+
+                <div class="relative col-start-1 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 -right-0.5 bottom-0 left-0 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="w-1/2"></div>
+                    <div class="my-1 w-1/2 bg-green-400"></div>
+                </div>
+
+                <div class="relative col-start-2 row-start-2 flex h-5 py-0.5">
+                    <div class="w-1 border-y border-r border-slate-400"></div>
+                    <div class="w-3 flex items-center justify-center">
+                        <span class="-mt-0.5 select-none text-sm/6 text-slate-400">/</span>
+                    </div>
+                    <div class="w-1 border-y border-l border-slate-400"></div>
+                </div>
+
+                <div class="relative col-start-3 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 right-0 bottom-0 -left-0.5 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="my-1 w-1/2 bg-green-400"></div>
+                    <div class="w-1/2"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+            </div>
+    <div class="flex h-15 min-w-4 flex-col justify-center w-full">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+            <div class="flex shrink-0">
+
+    <div class="inline-flex" title="OTE Extend_Cmd">
+        <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
+            <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
+
+                <div class="col-start-1 col-end-4 row-start-1">
+                    <div class="h-full w-full border-x-2 border-t-2 border-transparent hover:border-blue-200"></div>
+                </div>
+                <div class="relative col-start-1 col-end-4 row-start-2">
+                    <div class="absolute -bottom-px -top-px left-0 right-0 border-x-2 border-b-2 border-transparent hover:border-blue-200"></div>
+                </div>
+
+                <div class="col-start-1 col-end-4 row-start-1 flex flex-col justify-center">
+                    <p class="px-1 text-center text-sm text-black truncate max-w-[100px]">Extend_Cmd</p>
+                </div>
+
+                <div class="relative col-start-1 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 -right-0.5 bottom-0 left-0 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="w-1/2"></div>
+                    <div class="my-1 w-1/2"></div>
+                </div>
+
+                <div class="relative col-start-2 row-start-2 flex h-5 py-0.5">
+                    <div class="w-0.5"></div>
+                    <div class="w-2 rounded-tl-full rounded-bl-full border border-r-0 border-slate-400"></div>
+                    <div class="flex items-center justify-center w-2">
+                        <span class="select-none text-sm text-slate-400 font-bold"></span>
+                    </div>
+                    <div class="w-2 rounded-tr-full rounded-br-full border border-l-0 border-slate-400"></div>
+                    <div class="w-0.5"></div>
+                </div>
+
+                <div class="relative col-start-3 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 right-0 bottom-0 -left-0.5 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="my-1 w-1/2"></div>
+                    <div class="w-1/2"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+            </div>
+    <div class="flex h-15 min-w-4 flex-col justify-center w-4">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+        </div>
+    </div>
+        </div>
+    </div>
+
+    <div class="relative flex cursor-default opacity-100 pr-2 mb-2">
+        <div>
+            <div class="flex h-full">
+                <div role="button" class="bg-transparent">
+                    <div class="flex h-14 w-12 flex-none">
+                        <div class="w-2"></div>
+                        <p class="text-md my-auto select-none text-black font-mono">2</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="relative flex w-full overflow-visible border-l border-slate-400">
+
+    <div class="flex min-w-full shrink-0">
+        <div class="relative flex min-w-full shrink-0">
+
+    <div class="flex h-15 min-w-4 flex-col justify-center w-4">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+
+            <div class="flex shrink-0">
+
+    <div class="inline-flex" title="XIC Auto_Mode">
+        <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
+            <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
+
+                <div class="col-start-1 col-end-4 row-start-1">
+                    <div class="h-full w-full border-x-2 border-t-2 border-transparent hover:border-blue-200"></div>
+                </div>
+                <div class="relative col-start-1 col-end-4 row-start-2">
+                    <div class="absolute -bottom-px -top-px left-0 right-0 border-x-2 border-b-2 border-transparent hover:border-blue-200"></div>
+                </div>
+
+                <div class="col-start-1 col-end-4 row-start-1 flex flex-col justify-center">
+                    <p class="px-1 text-center text-sm text-black truncate max-w-[100px]">Auto_Mode</p>
+                </div>
+
+                <div class="relative col-start-1 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 -right-0.5 bottom-0 left-0 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="w-1/2"></div>
+                    <div class="my-1 w-1/2 "></div>
+                </div>
+
+                <div class="relative col-start-2 row-start-2 flex h-5 py-0.5">
+                    <div class="w-1 border-y border-r border-slate-400"></div>
+                    <div class="w-3 flex items-center justify-center">
+
+                    </div>
+                    <div class="w-1 border-y border-l border-slate-400"></div>
+                </div>
+
+                <div class="relative col-start-3 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 right-0 bottom-0 -left-0.5 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="my-1 w-1/2 "></div>
+                    <div class="w-1/2"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+            </div>
+    <div class="flex h-15 min-w-4 flex-col justify-center w-4">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+            <div class="flex shrink-0">
+
+    <div class="inline-flex" title="XIC Prox_Extended">
+        <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
+            <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
+
+                <div class="col-start-1 col-end-4 row-start-1">
+                    <div class="h-full w-full border-x-2 border-t-2 border-transparent hover:border-blue-200"></div>
+                </div>
+                <div class="relative col-start-1 col-end-4 row-start-2">
+                    <div class="absolute -bottom-px -top-px left-0 right-0 border-x-2 border-b-2 border-transparent hover:border-blue-200"></div>
+                </div>
+
+                <div class="col-start-1 col-end-4 row-start-1 flex flex-col justify-center">
+                    <p class="px-1 text-center text-sm text-black truncate max-w-[100px]">Prox_Extended</p>
+                </div>
+
+                <div class="relative col-start-1 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 -right-0.5 bottom-0 left-0 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="w-1/2"></div>
+                    <div class="my-1 w-1/2 "></div>
+                </div>
+
+                <div class="relative col-start-2 row-start-2 flex h-5 py-0.5">
+                    <div class="w-1 border-y border-r border-slate-400"></div>
+                    <div class="w-3 flex items-center justify-center">
+
+                    </div>
+                    <div class="w-1 border-y border-l border-slate-400"></div>
+                </div>
+
+                <div class="relative col-start-3 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 right-0 bottom-0 -left-0.5 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="my-1 w-1/2 "></div>
+                    <div class="w-1/2"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+            </div>
+    <div class="flex h-15 min-w-4 flex-col justify-center w-full">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+            <div class="flex shrink-0">
+
+    <div class="inline-flex" title="OTE Retract_Cmd">
+        <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
+            <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
+
+                <div class="col-start-1 col-end-4 row-start-1">
+                    <div class="h-full w-full border-x-2 border-t-2 border-transparent hover:border-blue-200"></div>
+                </div>
+                <div class="relative col-start-1 col-end-4 row-start-2">
+                    <div class="absolute -bottom-px -top-px left-0 right-0 border-x-2 border-b-2 border-transparent hover:border-blue-200"></div>
+                </div>
+
+                <div class="col-start-1 col-end-4 row-start-1 flex flex-col justify-center">
+                    <p class="px-1 text-center text-sm text-black truncate max-w-[100px]">Retract_Cmd</p>
+                </div>
+
+                <div class="relative col-start-1 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 -right-0.5 bottom-0 left-0 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="w-1/2"></div>
+                    <div class="my-1 w-1/2"></div>
+                </div>
+
+                <div class="relative col-start-2 row-start-2 flex h-5 py-0.5">
+                    <div class="w-0.5"></div>
+                    <div class="w-2 rounded-tl-full rounded-bl-full border border-r-0 border-slate-400"></div>
+                    <div class="flex items-center justify-center w-2">
+                        <span class="select-none text-sm text-slate-400 font-bold"></span>
+                    </div>
+                    <div class="w-2 rounded-tr-full rounded-br-full border border-l-0 border-slate-400"></div>
+                    <div class="w-0.5"></div>
+                </div>
+
+                <div class="relative col-start-3 row-start-2 flex h-5 min-w-[16px] py-0.5">
+                    <div class="absolute top-0 right-0 bottom-0 -left-0.5 flex items-center">
+                        <div class="h-px w-full bg-slate-400"></div>
+                    </div>
+                    <div class="my-1 w-1/2"></div>
+                    <div class="w-1/2"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+            </div>
+    <div class="flex h-15 min-w-4 flex-col justify-center w-4">
+        <div class="h-px w-full bg-slate-400"></div>
+    </div>
+        </div>
+    </div>
+        </div>
+    </div>
+    </div>
+    </main>
+</body>
+</html>
