@@ -13,6 +13,25 @@ let cycleCount = 0;
 let variables = new Map(); // Simulation variables
 let runLogic = null; // Compiled function
 let ladderAst = null; // AST for visualization
+const clients = new Set(); // SSE Clients
+
+function broadcastState() {
+    if (clients.size === 0) return;
+    const state = {
+        status: isRunning ? "running" : "stopped",
+        cycle: cycleCount,
+        tags: Object.fromEntries(variables)
+    };
+    const data = `data: ${JSON.stringify(state)}\n\n`;
+    clients.forEach(client => {
+        try {
+            client.enqueue(new TextEncoder().encode(data));
+        } catch (e) {
+            console.error("Error sending to client", e);
+            clients.delete(client);
+        }
+    });
+}
 
 // Load Logic
 console.log("Loading MotorControl_LD.rungs...");
@@ -71,24 +90,14 @@ try {
 function runCycle() {
     try {
         const logs = [];
-        // The generated code: context.get(...)
-        // 'vars' passed to function is 'context'.
-        // It needs a .get() method.
-        // And .set() method? Or direct assignment?
-        // Let's check generated code behavior.
-        // CodeGenerator generates: `context.get("TagName")` and assignment `context.get("TagName").Member = ...` if struct, or `context.set("TagName", ...)`?
-        // LDCodeGenerator uses `LDCodeGenerator.emitTagAccess`.
-        // Let's assume we pass the Map as 'vars'. Map has .get() and .set() but .set returns Map, generated code might expect different behavior if it tries to assign to properties of the returned value.
-        // Actually, for BOOL output: `vars.set('Out', ...)` or `vars.get('Out').Val = ...`?
-        // Checking LDCodeGenerator... it generates `context.set('TagName', value)`.
-        // So Map is compatible.
-
         runLogic(variables, logs, SIMULATION_INTERVAL_MS);
         cycleCount++;
+        broadcastState();
     } catch (e) {
         console.error("Runtime Cycle Error:", e);
         isRunning = false;
         clearInterval(simulationInterval);
+        broadcastState();
     }
 }
 
@@ -97,11 +106,38 @@ Deno.serve({ port: 8000 }, async (req) => {
     const url = new URL(req.url);
 
     // API
+    if (url.pathname === "/api/events") {
+        let timer;
+        const body = new ReadableStream({
+            start(controller) {
+                clients.add(controller);
+                // Send initial state
+                const state = {
+                    status: isRunning ? "running" : "stopped",
+                    cycle: cycleCount,
+                    tags: Object.fromEntries(variables)
+                };
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(state)}\n\n`));
+            },
+            cancel(controller) {
+                clients.delete(controller);
+            }
+        });
+        return new Response(body, {
+            headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            }
+        });
+    }
+
     if (url.pathname === "/api/start" && req.method === "POST") {
         if (!isRunning) {
             isRunning = true;
             simulationInterval = setInterval(runCycle, SIMULATION_INTERVAL_MS);
             console.log("Simulation Started");
+            broadcastState();
         }
         return new Response(JSON.stringify({ status: "running" }), { headers: { "Content-Type": "application/json" } });
     }
@@ -111,6 +147,7 @@ Deno.serve({ port: 8000 }, async (req) => {
             isRunning = false;
             clearInterval(simulationInterval);
             console.log("Simulation Stopped");
+            broadcastState();
         }
         return new Response(JSON.stringify({ status: "stopped" }), { headers: { "Content-Type": "application/json" } });
     }
@@ -130,6 +167,7 @@ Deno.serve({ port: 8000 }, async (req) => {
             const body = await req.json();
             const val = Number(body.value); // Convert to number (0/1)
             variables.set(tagName, val);
+            broadcastState(); // Broadcast change immediately
             return new Response(JSON.stringify({ success: true, value: val }), { headers: { "Content-Type": "application/json" } });
         } catch (e) {
             return new Response(JSON.stringify({ error: e.message }), { status: 400 });
@@ -142,18 +180,23 @@ Deno.serve({ port: 8000 }, async (req) => {
     }
 
     // Static Files
-    if (url.pathname === "/" || url.pathname === "/index.html") {
-        try {
-            const file = await Deno.readTextFile("public/index.html");
-            return new Response(file, { headers: { "Content-Type": "text/html" } });
-        } catch { return new Response("Not Found", { status: 404 }); }
-    }
-    if (url.pathname === "/client.js") {
-        try {
-            const file = await Deno.readTextFile("public/client.js");
-            return new Response(file, { headers: { "Content-Type": "application/javascript" } });
-        } catch { return new Response("Not Found", { status: 404 }); }
-    }
+    let filePath = url.pathname;
+    if (filePath === "/") filePath = "/index.html";
 
-    return new Response("Not Found", { status: 404 });
+    // Try to serve from frontend/dist
+    try {
+        const fullPath = path.join(Deno.cwd(), "frontend", "dist", filePath.substring(1));
+        const file = await Deno.readFile(fullPath);
+
+        let contentType = "text/plain";
+        if (filePath.endsWith(".html")) contentType = "text/html";
+        else if (filePath.endsWith(".js")) contentType = "application/javascript";
+        else if (filePath.endsWith(".css")) contentType = "text/css";
+        else if (filePath.endsWith(".svg")) contentType = "image/svg+xml";
+
+        return new Response(file, { headers: { "Content-Type": contentType } });
+    } catch {
+        // Fallback or 404
+        return new Response("Not Found", { status: 404 });
+    }
 });
