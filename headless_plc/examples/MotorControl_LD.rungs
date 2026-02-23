@@ -1,0 +1,64 @@
+version: 2
+aoi:
+  name: MotorControl_LD
+  description: >-
+    Standard 3-wire motor starter logic with fault handling (Ladder Logic)
+  tags:
+    input:
+      - name: StartButton
+        description: Momentary start command
+        dataType: BOOL
+      - name: StopButton
+        description: Momentary stop command
+        dataType: BOOL
+      - name: OverloadTrip
+        description: Fault input that trips the motor
+        dataType: BOOL
+      - name: ResetFault
+        description: Clears the overload fault latch
+        dataType: BOOL
+    output:
+      - name: MotorRun
+        description: Command to run the motor starter
+        dataType: BOOL
+      - name: FaultActive
+        description: Fault indicator for the motor
+        dataType: BOOL
+  routines:
+    Logic:
+      type: ld
+      content: >-
+        [XIC(StartButton),XIC(MotorRun)]XIO(StopButton)XIO(OverloadTrip)XIO(FaultActive)OTE(MotorRun);
+        [XIC(OverloadTrip),XIC(FaultActive)]XIO(ResetFault)OTE(FaultActive)
+  testing:
+    content: |-
+      const runMotor = (inputs = {}) => AOITestKit.run(inputs).outputs;
+
+      describe('MotorControl AOI', () => {
+        it('latches run on start', () => {
+          const outputs = runMotor({ StartButton: 1 });
+          expect(outputs.MotorRun).toBe(1);
+          expect(outputs.FaultActive).toBe(0);
+        });
+
+        it('drops run on stop', () => {
+          const outputs = runMotor({ StartButton: 1, StopButton: 1 });
+          expect(outputs.MotorRun).toBe(0);
+        });
+
+        it('latches fault and blocks run', () => {
+          const outputs = runMotor({ StartButton: 1, OverloadTrip: 1 });
+          expect(outputs.MotorRun).toBe(0);
+          expect(outputs.FaultActive).toBe(1);
+        });
+
+        it('clears fault on reset', () => {
+          const outputs = runMotor({ FaultActive: 1, ResetFault: 1 });
+          expect(outputs.FaultActive).toBe(0);
+        });
+
+        it('cannot start motor is fault is active', () => {
+          const outputs = runMotor({ FaultActive: 1, StartButton: 1 });
+          expect(outputs.MotorRun).toBe(0);
+        });
+      });

@@ -179,7 +179,7 @@ function renderContact(type, param) {
     const symbolColor = isXIO ? 'bg-green-400' : '';
 
     return `
-    <div class="inline-flex" title="${type} ${tagName}">
+    <div class="inline-flex" title="${type} ${tagName}" data-tag="${tagName}" data-instruction-type="${type}">
         <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
             <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
 
@@ -230,7 +230,7 @@ function renderCoil(type, param) {
     if (type === 'OTU') symbolChar = 'U';
 
     return `
-    <div class="inline-flex" title="${type} ${tagName}">
+    <div class="inline-flex" title="${type} ${tagName}" data-tag="${tagName}" data-instruction-type="${type}">
         <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
             <div class="inline-grid grid-cols-[min-content_minmax(min-content,1.25rem)_min-content] grid-rows-[1.25rem_1.25rem]">
 
@@ -312,7 +312,7 @@ function renderBlock(type, params) {
     }).join('');
 
     return `
-    <div class="inline-flex" title="${type}">
+    <div class="inline-flex" title="${type}" data-instruction-type="${type}">
         <div class="flex shrink-0 cursor-default focus:outline-hidden opacity-100">
             <div class="mb-2 flex flex-col self-start shadow-sm min-w-[120px]">
                 <div class="flex h-6 items-center justify-center border border-slate-400 bg-blue-100">
