@@ -30,7 +30,7 @@ function renderRung(rung) {
     </div>`;
 }
 
-function renderCircuit(circuit) {
+function renderCircuit(circuit, branchContext = null) {
     const lastNonOutputIndex = findLastNonOutputIndex(circuit.elements);
 
     // Initial Spacer (full if no inputs, i.e., circuit starts with outputs)
@@ -54,11 +54,43 @@ function renderCircuit(circuit) {
         return elHtml + spacerHtml;
     }).join('');
 
+    // Branch Vertical Lines Logic
+    let leftLines = '';
+    let rightLines = '';
+
+    if (branchContext) {
+        const { isFirst, isLast } = branchContext;
+
+        // Left Side
+        if (!isFirst) {
+            // Connects to previous (up)
+            leftLines += '<div class="absolute top-0 left-0 w-px h-1/2 bg-slate-400"></div>';
+        }
+        if (!isLast) {
+            // Connects to next (down)
+            leftLines += '<div class="absolute bottom-0 left-0 w-px h-1/2 bg-slate-400"></div>';
+        }
+
+        // Right Side
+        if (!isFirst) {
+            // Connects to previous (up)
+            rightLines += '<div class="absolute top-0 right-0 w-px h-1/2 bg-slate-400"></div>';
+        }
+        if (!isLast) {
+            // Connects to next (down)
+            rightLines += '<div class="absolute bottom-0 right-0 w-px h-1/2 bg-slate-400"></div>';
+        }
+    }
+
     return `
     <div class="flex min-w-full shrink-0">
-        <div class="relative flex min-w-full shrink-0">
-             ${html}
-             ${elementsHtml}
+        <div class="flex min-w-full shrink-0">
+            <div class="relative flex min-w-full shrink-0">
+                 ${leftLines}
+                 ${html}
+                 ${elementsHtml}
+                 ${rightLines}
+            </div>
         </div>
     </div>`;
 }
@@ -298,24 +330,8 @@ function renderBranch(branch) {
         const isFirst = index === 0;
         const isLast = index === branch.circuits.length - 1;
 
-        return `
-        <div class="flex flex-row">
-            <div class="relative flex flex-col w-4">
-                ${!isFirst ? '<div class="absolute top-0 left-0 w-px h-1/2 bg-slate-400"></div>' : ''}
-                ${!isLast ? '<div class="absolute bottom-0 left-0 w-px h-1/2 bg-slate-400"></div>' : ''}
-                <div class="absolute top-1/2 left-0 w-full h-px bg-slate-400"></div>
-            </div>
-
-            <div class="flex flex-row">
-                ${renderCircuit(circuit)}
-            </div>
-
-             <div class="relative flex flex-col w-4">
-                ${!isFirst ? '<div class="absolute top-0 right-0 w-px h-1/2 bg-slate-400"></div>' : ''}
-                ${!isLast ? '<div class="absolute bottom-0 right-0 w-px h-1/2 bg-slate-400"></div>' : ''}
-                <div class="absolute top-1/2 right-0 w-full h-px bg-slate-400"></div>
-            </div>
-        </div>`;
+        // Pass context to renderCircuit for vertical line rendering
+        return renderCircuit(circuit, { isBranch: true, isFirst, isLast });
     }).join('');
 
     return `
