@@ -1,6 +1,28 @@
 <script>
+  import { createEventDispatcher } from 'svelte';
+  const dispatch = createEventDispatcher();
+
   export let tags = {}; // Runtime values
   export let metadata = []; // Tag definitions
+
+  let newTag = { name: '', dataType: 'DINT', usage: 'local', defaultValue: 0, description: '' };
+
+  async function addTag() {
+      if (!newTag.name) return;
+      try {
+          const res = await fetch('/api/tags', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(newTag)
+          });
+          if (res.ok) {
+              dispatch('refresh');
+              newTag = { name: '', dataType: 'DINT', usage: 'local', defaultValue: 0, description: '' };
+          }
+      } catch (e) {
+          console.error("Add tag failed", e);
+      }
+  }
 </script>
 
 <div class="h-full w-full overflow-auto bg-white">
@@ -27,20 +49,34 @@
         </tr>
       {/each}
 
-      <!-- Add Tag Row Placeholder -->
-      <tr class="border-t border-gray-200 bg-gray-50/30">
+      <!-- Add Tag Row -->
+      <tr class="border-t border-gray-200 bg-blue-50/20">
         <td class="px-6 py-3">
-             <input type="text" placeholder="Add Tag..." class="bg-transparent text-gray-500 w-full focus:outline-none placeholder-gray-400 italic" disabled />
+             <input type="text" bind:value={newTag.name} placeholder="Add Tag..." class="bg-transparent text-gray-900 w-full focus:outline-none placeholder-gray-400 font-medium" />
         </td>
         <td class="px-6 py-3">
-             <div class="bg-white border border-gray-200 rounded px-2 py-1 text-xs text-gray-400 w-20 flex items-center justify-between">DINT <span class="text-[10px] opacity-50">▼</span></div>
+             <select bind:value={newTag.dataType} class="bg-white border border-gray-200 rounded px-2 py-1 text-xs text-gray-600 w-24 focus:outline-none focus:border-blue-300">
+                 <option value="BOOL">BOOL</option>
+                 <option value="DINT">DINT</option>
+                 <option value="REAL">REAL</option>
+                 <option value="STRING">STRING</option>
+             </select>
         </td>
         <td class="px-6 py-3">
-             <div class="bg-white border border-gray-200 rounded px-2 py-1 text-xs text-gray-400 w-20 flex items-center justify-between">Local <span class="text-[10px] opacity-50">▼</span></div>
+             <select bind:value={newTag.usage} class="bg-white border border-gray-200 rounded px-2 py-1 text-xs text-gray-600 w-24 focus:outline-none focus:border-blue-300">
+                 <option value="local">Local</option>
+                 <option value="input">Input</option>
+                 <option value="output">Output</option>
+             </select>
         </td>
         <td class="px-6 py-3 text-gray-300 text-center text-xs">Array?</td>
-        <td class="px-6 py-3 text-gray-400 text-center font-mono text-xs">0</td>
-        <td class="px-6 py-3 text-gray-300 italic text-xs">Description</td>
+        <td class="px-6 py-3">
+             <input type="text" bind:value={newTag.defaultValue} class="bg-transparent text-center font-mono text-xs w-full focus:outline-none" />
+        </td>
+        <td class="px-6 py-3 flex items-center gap-2">
+             <input type="text" bind:value={newTag.description} placeholder="Description" class="bg-transparent text-gray-500 w-full focus:outline-none placeholder-gray-300 italic text-xs" />
+             <button on:click={addTag} class="text-blue-600 hover:text-blue-800 text-xs font-bold px-2 py-1 uppercase tracking-wide">Add</button>
+        </td>
       </tr>
     </tbody>
   </table>

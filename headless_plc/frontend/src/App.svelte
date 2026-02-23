@@ -4,6 +4,7 @@
   import Ladder from './lib/Ladder.svelte';
   import Tags from './lib/Tags.svelte';
   import Trend from './lib/Trend.svelte';
+  import Tests from './lib/Tests.svelte';
   import Sidebar from './lib/Sidebar.svelte';
   import {
     FilePlus, FolderOpen, Save, Share2, Undo2, Redo2, FlaskConical, Play, Square, Sidebar as SidebarIcon,
@@ -13,18 +14,12 @@
   let state = { status: 'stopped', cycle: 0, tags: {} };
   let metadata = []; // Tag definitions
   let eventSource;
+  let showSidebar = true;
+  let fileInput;
 
   // Initialize with metadata fetch
   onMount(async () => {
-      try {
-          const res = await fetch('/api/metadata');
-          if (res.ok) {
-              const data = await res.json();
-              metadata = data || [];
-          }
-      } catch (e) {
-          console.error("Failed to fetch metadata", e);
-      }
+      await refreshMetadata();
 
       eventSource = new EventSource('/api/events');
       eventSource.onmessage = (event) => {
@@ -39,6 +34,18 @@
   onDestroy(() => {
       if (eventSource) eventSource.close();
   });
+
+  async function refreshMetadata() {
+       try {
+          const res = await fetch('/api/metadata');
+          if (res.ok) {
+              const data = await res.json();
+              metadata = data || [];
+          }
+      } catch (e) {
+          console.error("Failed to fetch metadata", e);
+      }
+  }
 
   async function start() {
       await fetch('/api/start', { method: 'POST' });
@@ -62,15 +69,72 @@
           console.error("Toggle failed", e);
       }
   }
+
+  // File Operations
+  function triggerOpen() {
+      fileInput.click();
+  }
+
+  async function handleFileSelect(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const text = await file.text();
+      // Simple wrapper check, or raw content
+      // API expects { content: "..." } if JSON, but let's try reading text content
+      // Server expects JSON with `content` field.
+
+      try {
+           await fetch('/api/upload', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content: text })
+          });
+          // Refresh
+          await refreshMetadata();
+      } catch(err) {
+          console.error("Upload failed", err);
+          alert("Failed to load file");
+      }
+  }
+
+  function handleSave() {
+      // Trigger download
+      window.location.href = '/api/download';
+  }
+
+  async function handleShare() {
+      try {
+          const res = await fetch('/api/download');
+          const text = await res.text(); // It returns JSON of .rungs
+          await navigator.clipboard.writeText(text);
+          alert("Logic definition copied to clipboard!");
+      } catch (e) {
+          console.error("Share failed", e);
+      }
+  }
+
+  async function runAllTests() {
+      try {
+          const res = await fetch('/api/tests/run', { method: 'POST', body: JSON.stringify({}), headers: { 'Content-Type': 'application/json' } });
+          const data = await res.json();
+          console.log("Test Results:", data);
+          alert(`Ran ${data.results.length} tests.\nPass: ${data.results.filter(r => r.status === 'pass').length}\nFail: ${data.results.filter(r => r.status === 'fail').length}`);
+      } catch (e) {
+          console.error("Run tests failed", e);
+      }
+  }
+
 </script>
 
 <div class="h-screen w-screen flex flex-col bg-white overflow-hidden text-sm font-sans">
+  <input type="file" bind:this={fileInput} on:change={handleFileSelect} class="hidden" accept=".rungs,.yaml,.yml" />
+
   <!-- Toolbar -->
   <header class="bg-white px-3 py-2 flex items-center gap-2 border-b border-gray-200 shadow-sm z-10 shrink-0">
       <button class="p-1.5 hover:bg-gray-100 rounded text-gray-700 transition-colors" title="New"><FilePlus size={18} strokeWidth={1.5} /></button>
-      <button class="p-1.5 hover:bg-gray-100 rounded text-gray-700 transition-colors" title="Open"><FolderOpen size={18} strokeWidth={1.5} /></button>
-      <button class="p-1.5 hover:bg-gray-100 rounded text-gray-700 transition-colors" title="Save"><Save size={18} strokeWidth={1.5} /></button>
-      <button class="p-1.5 hover:bg-gray-100 rounded text-gray-700 transition-colors" title="Share"><Share2 size={18} strokeWidth={1.5} /></button>
+      <button on:click={triggerOpen} class="p-1.5 hover:bg-gray-100 rounded text-gray-700 transition-colors" title="Open"><FolderOpen size={18} strokeWidth={1.5} /></button>
+      <button on:click={handleSave} class="p-1.5 hover:bg-gray-100 rounded text-gray-700 transition-colors" title="Save"><Save size={18} strokeWidth={1.5} /></button>
+      <button on:click={handleShare} class="p-1.5 hover:bg-gray-100 rounded text-gray-700 transition-colors" title="Share"><Share2 size={18} strokeWidth={1.5} /></button>
 
       <div class="h-5 w-px bg-gray-300 mx-2"></div>
 
@@ -79,7 +143,7 @@
 
       <div class="h-5 w-px bg-gray-300 mx-2"></div>
 
-      <button class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 rounded text-gray-700 font-medium transition-colors border border-transparent hover:border-gray-200" title="Test">
+      <button on:click={runAllTests} class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 rounded text-gray-700 font-medium transition-colors border border-transparent hover:border-gray-200" title="Test">
         <FlaskConical size={18} strokeWidth={1.5} />
         <span>Test</span>
       </button>
@@ -97,7 +161,7 @@
       {/if}
 
       <div class="ml-auto">
-        <button class="p-1.5 hover:bg-gray-100 rounded text-gray-700" title="Toggle Sidebar"><SidebarIcon size={18} strokeWidth={1.5} /></button>
+        <button on:click={() => showSidebar = !showSidebar} class="p-1.5 hover:bg-gray-100 rounded text-gray-700 {showSidebar ? 'bg-gray-100' : ''}" title="Toggle Sidebar"><SidebarIcon size={18} strokeWidth={1.5} /></button>
       </div>
   </header>
 
@@ -113,24 +177,26 @@
           ]}>
               <div slot="content" let:value class="w-full h-full relative overflow-hidden">
                   {#if value === 'tags'}
-                      <Tags tags={state.tags} metadata={metadata} />
+                      <Tags tags={state.tags} metadata={metadata} on:refresh={refreshMetadata} />
                   {:else if value === 'logic'}
                       <Ladder {state} />
                   {:else if value === 'tests'}
-                       <div class="flex items-center justify-center h-full text-gray-400">Tests View Placeholder</div>
+                       <Tests />
                   {:else if value === 'trend'}
-                       <Trend {state} />
+                       <Trend />
                   {/if}
               </div>
           </Tabs>
       </div>
 
       <!-- Right Sidebar -->
-      <Sidebar
-        tags={state.tags}
-        status={state.status}
-        metadata={metadata}
-        on:toggle={handleToggle}
-      />
+      {#if showSidebar}
+        <Sidebar
+            tags={state.tags}
+            status={state.status}
+            metadata={metadata}
+            on:toggle={handleToggle}
+        />
+      {/if}
   </div>
 </div>

@@ -33,8 +33,7 @@
   <div class="p-4 border-b border-gray-200">
     <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Simulation Status</div>
     <div class="flex items-center gap-2">
-      <div class="w-2 h-2 rounded-full {status === 'running' ? 'bg-red-500 animate-pulse' : 'bg-red-500'}"></div> <!-- Wait, usually green for running -->
-      <!-- The image shows STOPPED in red. I'll stick to that convention. Running usually green. -->
+      <!-- Fixed: Removed extra LED -->
       {#if status === 'running'}
         <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
         <span class="font-mono font-bold text-green-600 uppercase">RUNNING</span>
