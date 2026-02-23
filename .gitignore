@@ -1,0 +1,4 @@
+headless_plc/node_modules/
+headless_plc/frontend/node_modules/
+headless_plc/frontend/dist/
+used_classes.txt

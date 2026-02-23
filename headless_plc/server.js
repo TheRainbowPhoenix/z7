@@ -13,6 +13,7 @@ let cycleCount = 0;
 let variables = new Map(); // Simulation variables
 let runLogic = null; // Compiled function
 let ladderAst = null; // AST for visualization
+let aoi = null; // AOI Definition
 const clients = new Set(); // SSE Clients
 
 function broadcastState() {
@@ -38,7 +39,8 @@ console.log("Loading MotorControl_LD.rungs...");
 try {
     const rungsPath = path.join(Deno.cwd(), "examples", "MotorControl_LD.rungs");
     const rungsContent = await Deno.readTextFile(rungsPath);
-    const { aoi } = parseRungs(rungsContent);
+    const parsed = parseRungs(rungsContent);
+    aoi = parsed.aoi;
 
     if (!aoi.routines.Logic || aoi.routines.Logic.type !== 'ld') {
         throw new Error("Logic routine missing or not Ladder Diagram");
@@ -161,6 +163,10 @@ Deno.serve({ port: 8000 }, async (req) => {
         return new Response(JSON.stringify(state), { headers: { "Content-Type": "application/json" } });
     }
 
+    if (url.pathname === "/api/metadata" && req.method === "GET") {
+        return new Response(JSON.stringify(aoi.tags), { headers: { "Content-Type": "application/json" } });
+    }
+
     if (url.pathname.startsWith("/api/tags/") && req.method === "POST") {
         const tagName = url.pathname.split("/").pop();
         try {
@@ -185,8 +191,15 @@ Deno.serve({ port: 8000 }, async (req) => {
 
     // Try to serve from frontend/dist
     try {
-        const fullPath = path.join(Deno.cwd(), "frontend", "dist", filePath.substring(1));
-        const file = await Deno.readFile(fullPath);
+        const distDir = path.join(Deno.cwd(), "frontend", "dist");
+        const requestedPath = path.join(distDir, filePath.substring(1));
+
+        // Prevent directory traversal
+        if (!requestedPath.startsWith(distDir)) {
+             return new Response("Access Denied", { status: 403 });
+        }
+
+        const file = await Deno.readFile(requestedPath);
 
         let contentType = "text/plain";
         if (filePath.endsWith(".html")) contentType = "text/html";
