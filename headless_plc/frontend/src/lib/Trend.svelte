@@ -75,19 +75,49 @@
           });
       });
 
+      // Identify boolean tags to style differently
+      const boolTags = new Set(metadata.filter(t => t.dataType === 'BOOL').map(t => t.name));
+
       const plot = Plot.plot({
           style: { background: "transparent", width: "100%" },
           width: container.clientWidth,
-          // height: null, // Auto height based on facets?
-          marginLeft: 100,
+          marginLeft: 100, // Move labels to left (default Y axis is left)
           marginRight: 20,
           x: { label: null, type: "time", domain: [new Date(fiveMinutesAgo), new Date(now)] },
-          y: { grid: true, label: null },
-          fy: { label: null, domain: data.map(d => d.name).sort() }, // Facet by tag name
+          y: { grid: true, label: null }, // Y axis is typically left by default in Plot
+          fy: {
+              label: null,
+              domain: data.map(d => d.name).sort(),
+              axis: "left" // Ensure facet labels are on the left
+          },
           marks: [
               Plot.frame(),
-              Plot.lineY(data, { x: "time", y: "value", stroke: "name", fy: "name" }),
-              Plot.text(data, Plot.selectLast({ x: "time", y: "value", z: "name", text: "value", dx: 5, fy: "name" }))
+              // Boolean Area Fill
+              Plot.areaY(data.filter(d => boolTags.has(d.name)), {
+                  x: "time",
+                  y: "value",
+                  fill: "name",
+                  fy: "name",
+                  opacity: 0.2,
+                  curve: "step-after"
+              }),
+              // Lines (Stepped for bools, linear for others)
+              Plot.lineY(data, {
+                  x: "time",
+                  y: "value",
+                  stroke: "name",
+                  fy: "name",
+                  curve: (d) => boolTags.has(d.name) ? "step-after" : "linear"
+              }),
+              // Text label
+              Plot.text(data, Plot.selectLast({
+                  x: "time",
+                  y: "value",
+                  z: "name",
+                  text: "value",
+                  dx: 5,
+                  fy: "name"
+              }))
           ]
       });
 

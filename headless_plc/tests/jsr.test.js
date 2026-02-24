@@ -1,6 +1,6 @@
 import { describe, it, expect, AOITestKit } from './test-helper.js';
 import { parseRungs } from '../aoi/parsers/rungs-parser.js';
-import * as path from "https://deno.land/std@0.224.0/path/mod.ts";
+import * as path from 'node:path';
 
 describe('JSR Instruction', async () => {
 

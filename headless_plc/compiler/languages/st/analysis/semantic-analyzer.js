@@ -831,7 +831,16 @@ function enforceStructuredRule(expression, rule, context, resolved) {
         return;
     }
     const { tag, member, indexCount, dimension, baseIdentifier } = resolved;
-    if (!tag.context.dataType || tag.context.dataType.toUpperCase() !== rule.structuredKind) {
+
+    const tagType = tag.context.dataType ? tag.context.dataType.toUpperCase() : '';
+    let typeMatch = tagType === rule.structuredKind;
+
+    if (!typeMatch) {
+        if (rule.structuredKind === 'FBD_TIMER' && tagType === 'TIMER') typeMatch = true;
+        if (rule.structuredKind === 'FBD_COUNTER' && tagType === 'COUNTER') typeMatch = true;
+    }
+
+    if (!typeMatch) {
         diagnostics.error({
             message: rule.message ?? `${rule.label} must reference a ${rule.structuredKind}`,
             code: rule.code ?? DiagnosticCode.StructuredArgument,

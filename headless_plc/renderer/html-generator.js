@@ -147,6 +147,7 @@ function renderInstruction(instruction, context) {
         case 'RTO':
         case 'CTU':
         case 'CTD':
+        case 'RES':
         case 'MOVE':
         case 'ADD':
         case 'SUB':
@@ -334,6 +335,7 @@ const BLOCK_PARAMS = {
     'RTO': ['Timer', 'Preset', 'Accum'],
     'CTU': ['Counter', 'Preset', 'Accum'],
     'CTD': ['Counter', 'Preset', 'Accum'],
+    'RES': ['Structure'],
     'MOVE': ['Source', 'Dest'],
     'ADD': ['Source A', 'Source B', 'Dest'],
     'SUB': ['Source A', 'Source B', 'Dest'],
@@ -358,12 +360,19 @@ function renderBlock(type, params, context) {
 
         if (context.variables) {
             const val = getTagValue(pName, context.variables);
-            if (val !== undefined && val !== null && typeof val !== 'object') {
-                // Show value
-                // displayVal = `${val}`; // Just value?
-                // Or Name = Value?
-                // Logic viewers usually show value if it's a variable.
-                displayVal = String(val);
+            if (val !== undefined && val !== null) {
+                // If object (like Timer/Counter struct), show its main value?
+                // Or don't show value for structs themselves, only members.
+                // If RES instruction parameter is a struct, we might not want to show "[object Object]".
+                // For RES, the parameter is the struct name.
+                // Usually RES doesn't show a value like 123.
+
+                if (typeof val === 'object') {
+                    // Don't overwrite displayVal if it's an object
+                    // Or maybe format it nicely? Nah, just name is fine for structs.
+                } else {
+                    displayVal = String(val);
+                }
             } else if (p.type === 'LDNumericLiteral') {
                 displayVal = String(p.value);
             }

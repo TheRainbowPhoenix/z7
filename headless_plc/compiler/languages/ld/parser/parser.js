@@ -24,7 +24,21 @@ const INSTRUCTION_TOKENS = new Set([
     LDTokenType.LT,
     LDTokenType.LE,
     LDTokenType.LIMIT,
+    // Note: JSR is handled as a generic instruction if not in TokenType enum,
+    // but needs to be here if we add it to TokenTypes.
+    // For now, if JSR is scanned as IDENTIFIER, we need to handle it.
+    // However, the lexer usually tokenizes known keywords.
+    // If JSR isn't in LDTokenType, it comes as IDENTIFIER.
+    // The parser checks `isInstructionToken` OR `parseUnknownInstruction` which handles identifiers followed by parens.
+    // But `parseUnknownInstruction` logs an error "Unknown instruction".
+    // So we must recognize JSR.
+    // Option 1: Add JSR to LDTokenType (requires editing token-types.js and tokenizer.js).
+    // Option 2: Allow JSR as a special case in parser even if it is an IDENTIFIER.
+
+    // Let's modify `parseCircuitElement` to check for JSR specifically if it's an identifier.
 ]);
+
+// Helper map - we will add JSR dynamically in parser logic or extend this if we update TokenTypes.
 const TOKEN_TO_INSTRUCTION = {
     [LDTokenType.XIC]: 'XIC',
     [LDTokenType.XIO]: 'XIO',
@@ -152,10 +166,31 @@ export class LDParser {
             return this.parseInstruction();
         }
         if (this.check(LDTokenType.IDENTIFIER) && this.checkNext(LDTokenType.LPAREN)) {
+            // Check if it is a JSR (handled as Identifier because not in TokenType enum yet)
+            if (this.peek().value === 'JSR') {
+                return this.parseJSR();
+            }
             return this.parseUnknownInstruction();
         }
         return null;
     }
+
+    parseJSR() {
+        const instructionToken = this.advance(); // Consume JSR identifier
+        this.elementIndex++;
+
+        this.consume(LDTokenType.LPAREN, `Expected '(' after JSR`);
+        const parameters = this.parseParameters();
+        const endToken = this.consume(LDTokenType.RPAREN, `Expected ')' after JSR parameters`);
+
+        return {
+            type: 'LDInstruction',
+            instructionType: 'JSR',
+            parameters,
+            location: this.makeLocation(instructionToken, endToken),
+        };
+    }
+
     parseUnknownInstruction() {
         const instructionToken = this.advance();
         const elementIndex = this.elementIndex++;
