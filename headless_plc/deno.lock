@@ -118,6 +118,12 @@
     "https://deno.land/std@0.224.0/yaml/type.ts": "708dde5f20b01cc1096489b7155b6af79a217d585afb841128e78c3c2391eb5c"
   },
   "workspace": {
+    "dependencies": [
+      "npm:chevrotain@11.1.1",
+      "npm:js-yaml@4.1.1",
+      "npm:uuid@11.0.5",
+      "npm:zod@3.24.1"
+    ],
     "packageJson": {
       "dependencies": [
         "npm:chevrotain@11.1.1",

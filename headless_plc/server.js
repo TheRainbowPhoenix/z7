@@ -219,7 +219,9 @@ async function loadLogic(content) {
 // Load Initial Logic
 console.log("Loading MotorControl_LD.rungs...");
 try {
-    const rungsPath = path.join(Deno.cwd(), "headless_plc", "examples", "MotorControl_LD.rungs");
+    const currentUrl = new URL(import.meta.url);
+    const currentDir = path.dirname(path.fromFileUrl(currentUrl));
+    const rungsPath = path.join(currentDir, "examples", "MotorControl_LD.rungs");
     const rungsContent = await Deno.readTextFile(rungsPath);
     await loadLogic(rungsContent);
     console.log("Logic loaded and compiled successfully.");
@@ -468,7 +470,9 @@ Deno.serve({ port: 8000 }, async (req) => {
     if (url.pathname === "/api/files" && req.method === "GET") {
         const files = [];
         try {
-            const examplesDir = path.join(Deno.cwd(), "headless_plc", "examples");
+            const currentUrl = new URL(import.meta.url);
+            const currentDir = path.dirname(path.fromFileUrl(currentUrl));
+            const examplesDir = path.join(currentDir, "examples");
             for await (const entry of Deno.readDir(examplesDir)) {
                 if (entry.isFile && entry.name.endsWith(".rungs")) {
                     files.push({ name: entry.name, path: path.join(examplesDir, entry.name) });
@@ -481,7 +485,9 @@ Deno.serve({ port: 8000 }, async (req) => {
     if (url.pathname.startsWith("/api/files/") && url.pathname.endsWith("/load") && req.method === "POST") {
         try {
             const fileName = url.pathname.split('/')[3];
-            const examplesDir = path.join(Deno.cwd(), "headless_plc", "examples");
+            const currentUrl = new URL(import.meta.url);
+            const currentDir = path.dirname(path.fromFileUrl(currentUrl));
+            const examplesDir = path.join(currentDir, "examples");
             // Sanitize filename needed? Basic check.
             if (fileName.includes("..") || fileName.includes("/")) throw new Error("Invalid filename");
 
