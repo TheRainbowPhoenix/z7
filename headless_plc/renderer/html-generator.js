@@ -1,17 +1,18 @@
-export function renderLadder(ast) {
+export function renderLadder(ast, variables = null) {
     if (!ast || ast.type !== 'LDProgram') {
         return '<div class="text-red-500">Invalid Ladder Logic AST</div>';
     }
+    const context = { variables };
     return `
     <style>
         .h-15 { height: 3.75rem; }
     </style>
     <div class="flex flex-col w-full h-full bg-gray-50 p-4 overflow-auto">
-        ${ast.rungs.map(renderRung).join('\n')}
+        ${ast.rungs.map(r => renderRung(r, context)).join('\n')}
     </div>`;
 }
 
-function renderRung(rung) {
+function renderRung(rung, context) {
     return `
     <div class="relative flex cursor-default opacity-100 pr-2 mb-2">
         <div>
@@ -25,12 +26,12 @@ function renderRung(rung) {
             </div>
         </div>
         <div class="relative flex w-full overflow-visible border-l border-slate-400">
-            ${renderCircuit(rung.circuit)}
+            ${renderCircuit(rung.circuit, null, context)}
         </div>
     </div>`;
 }
 
-function renderCircuit(circuit, branchContext = null) {
+function renderCircuit(circuit, branchContext = null, context = {}) {
     const lastNonOutputIndex = findLastNonOutputIndex(circuit.elements);
 
     // Initial Spacer (full if no inputs, i.e., circuit starts with outputs)
@@ -45,7 +46,7 @@ function renderCircuit(circuit, branchContext = null) {
         const wrapperClass = isBranch ? 'flex shrink-0 flex-col' : 'flex shrink-0';
         const elHtml = `
             <div class="${wrapperClass}">
-                ${renderElement(el)}
+                ${renderElement(el, context)}
             </div>`;
 
         // Following Spacer
@@ -121,26 +122,26 @@ function findLastNonOutputIndex(elements) {
     return -1;
 }
 
-function renderElement(element) {
+function renderElement(element, context) {
     if (element.type === 'LDBranch') {
-        return renderBranch(element);
+        return renderBranch(element, context);
     }
     if (element.type === 'LDInstruction') {
-        return renderInstruction(element);
+        return renderInstruction(element, context);
     }
     return '';
 }
 
-function renderInstruction(instruction) {
+function renderInstruction(instruction, context) {
     const type = instruction.instructionType;
     const params = instruction.parameters;
 
     switch (type) {
-        case 'XIC': return renderContact('XIC', params[0]);
-        case 'XIO': return renderContact('XIO', params[0]);
-        case 'OTE': return renderCoil('OTE', params[0]);
-        case 'OTL': return renderCoil('OTL', params[0]);
-        case 'OTU': return renderCoil('OTU', params[0]);
+        case 'XIC': return renderContact('XIC', params[0], context);
+        case 'XIO': return renderContact('XIO', params[0], context);
+        case 'OTE': return renderCoil('OTE', params[0], context);
+        case 'OTL': return renderCoil('OTL', params[0], context);
+        case 'OTU': return renderCoil('OTU', params[0], context);
         case 'TON':
         case 'TOF':
         case 'RTO':
@@ -158,7 +159,7 @@ function renderInstruction(instruction) {
         case 'LT':
         case 'LE':
         case 'LIMIT':
-            return renderBlock(type, params);
+            return renderBlock(type, params, context);
         default:
             return `<div class="border border-red-500 p-1">Unknown: ${type}</div>`;
     }
@@ -173,10 +174,52 @@ function renderParameter(param) {
     return '?';
 }
 
-function renderContact(type, param) {
+function getTagValue(paramName, variables) {
+    if (!variables || !paramName) return undefined;
+    // Simple lookup. Does not handle nested member access resolution against the map keys if they are flattened?
+    // In server.js variables is a Map of flattened keys if possible, or just top level.
+    // The previous implementation used Map<string, number>.
+    // But struct access `Timer.DN` needs to be resolved.
+    // server.js initializes variables using `aoi.tags`.
+    // If we have a Timer tag `MyTimer`, variables has `MyTimer`.
+    // But we might not have `MyTimer.DN` as a separate key if it's an object in the Map.
+    // Let's assume variables map contains objects for structs.
+
+    if (variables.has(paramName)) return variables.get(paramName);
+
+    // Try member access splitting
+    if (paramName.includes('.')) {
+        const parts = paramName.split('.');
+        let current = variables.get(parts[0]);
+        for (let i = 1; i < parts.length; i++) {
+            if (current && typeof current === 'object') {
+                current = current[parts[i]];
+            } else {
+                return undefined;
+            }
+        }
+        return current;
+    }
+    return undefined;
+}
+
+function renderContact(type, param, context) {
     const tagName = renderParameter(param);
     const isXIO = type === 'XIO';
-    const symbolColor = isXIO ? 'bg-green-400' : '';
+
+    let isActive = false;
+    if (context.variables) {
+        const val = getTagValue(tagName, context.variables);
+        if (val !== undefined) {
+            isActive = Boolean(val);
+        }
+    }
+
+    // XIC: Green if True
+    // XIO: Green if False
+    const isGreen = isXIO ? !isActive : isActive;
+
+    const symbolColor = isGreen ? 'bg-green-400' : '';
 
     return `
     <div class="inline-flex" title="${type} ${tagName}" data-tag="${tagName}" data-instruction-type="${type}">
@@ -223,11 +266,20 @@ function renderContact(type, param) {
     </div>`;
 }
 
-function renderCoil(type, param) {
+function renderCoil(type, param, context) {
     const tagName = renderParameter(param);
     let symbolChar = '';
     if (type === 'OTL') symbolChar = 'L';
     if (type === 'OTU') symbolChar = 'U';
+
+    let isActive = false;
+    if (context.variables) {
+        const val = getTagValue(tagName, context.variables);
+        if (val !== undefined) {
+            isActive = Boolean(val);
+        }
+    }
+    const symbolColor = isActive ? 'bg-green-400' : '';
 
     return `
     <div class="inline-flex" title="${type} ${tagName}" data-tag="${tagName}" data-instruction-type="${type}">
@@ -250,16 +302,16 @@ function renderCoil(type, param) {
                         <div class="h-px w-full bg-slate-400"></div>
                     </div>
                     <div class="w-1/2"></div>
-                    <div class="my-1 w-1/2"></div>
+                    <div class="my-1 w-1/2 ${symbolColor}"></div>
                 </div>
 
                 <div class="relative col-start-2 row-start-2 flex h-5 py-0.5">
                     <div class="w-0.5"></div>
-                    <div class="w-2 rounded-tl-full rounded-bl-full border border-r-0 border-slate-400"></div>
-                    <div class="flex items-center justify-center w-2">
+                    <div class="w-2 rounded-tl-full rounded-bl-full border border-r-0 border-slate-400 ${isActive ? 'bg-green-200' : ''}"></div>
+                    <div class="flex items-center justify-center w-2 ${isActive ? 'bg-green-200' : ''}">
                         <span class="select-none text-sm text-slate-400 font-bold">${symbolChar}</span>
                     </div>
-                    <div class="w-2 rounded-tr-full rounded-br-full border border-l-0 border-slate-400"></div>
+                    <div class="w-2 rounded-tr-full rounded-br-full border border-l-0 border-slate-400 ${isActive ? 'bg-green-200' : ''}"></div>
                     <div class="w-0.5"></div>
                 </div>
 
@@ -267,7 +319,7 @@ function renderCoil(type, param) {
                     <div class="absolute top-0 right-0 bottom-0 -left-0.5 flex items-center">
                         <div class="h-px w-full bg-slate-400"></div>
                     </div>
-                    <div class="my-1 w-1/2"></div>
+                    <div class="my-1 w-1/2 ${symbolColor}"></div>
                     <div class="w-1/2"></div>
                 </div>
 
@@ -296,17 +348,32 @@ const BLOCK_PARAMS = {
     'LIMIT': ['Low Limit', 'Test', 'High Limit']
 };
 
-function renderBlock(type, params) {
+function renderBlock(type, params, context) {
     const paramNames = BLOCK_PARAMS[type] || [];
 
     const paramRows = params.map((p, i) => {
-        const pVal = renderParameter(p);
+        const pName = renderParameter(p);
         const pLabel = paramNames[i] || `Param ${i}`;
+        let displayVal = pName;
+
+        if (context.variables) {
+            const val = getTagValue(pName, context.variables);
+            if (val !== undefined && val !== null && typeof val !== 'object') {
+                // Show value
+                // displayVal = `${val}`; // Just value?
+                // Or Name = Value?
+                // Logic viewers usually show value if it's a variable.
+                displayVal = String(val);
+            } else if (p.type === 'LDNumericLiteral') {
+                displayVal = String(p.value);
+            }
+        }
+
         return `
         <div class="flex min-h-5 items-start justify-between gap-3 border-x bg-white px-2 border-slate-400">
             <p class="text-sm text-slate-500">${pLabel}</p>
             <div class="flex flex-col items-end">
-                <p class="min-w-12 text-right text-sm text-black tabular-nums">${pVal}</p>
+                <p class="min-w-12 text-right text-sm text-black tabular-nums" title="${pName}">${displayVal}</p>
             </div>
         </div>`;
     }).join('');
@@ -325,13 +392,13 @@ function renderBlock(type, params) {
     </div>`;
 }
 
-function renderBranch(branch) {
+function renderBranch(branch, context) {
     const circuitsHtml = branch.circuits.map((circuit, index) => {
         const isFirst = index === 0;
         const isLast = index === branch.circuits.length - 1;
 
         // Pass context to renderCircuit for vertical line rendering
-        return renderCircuit(circuit, { isBranch: true, isFirst, isLast });
+        return renderCircuit(circuit, { isBranch: true, isFirst, isLast }, context);
     }).join('');
 
     return `

@@ -31,9 +31,15 @@ function broadcastState() {
     const data = `data: ${JSON.stringify(state)}\n\n`;
     clients.forEach(client => {
         try {
+            // Check if controller is closed/errored?
+            // The API doesn't expose readyState easily on DefaultController.
+            // But if it fails, we catch it.
+            // To silence the specific error "cannot close or enqueue", we can check error message.
             client.enqueue(new TextEncoder().encode(data));
         } catch (e) {
-            console.error("Error sending to client", e);
+            if (!e.message.includes("cannot close or enqueue")) {
+                 console.error("Error sending to client", e);
+            }
             clients.delete(client);
         }
     });
@@ -145,38 +151,55 @@ async function loadLogic(content) {
     const { aoi: parsedAoi } = parseRungs(content);
     aoi = parsedAoi;
 
-    if (!aoi.routines.Logic) {
+    // Compile all routines
+    const routinesMap = {};
+    let mainCode = null;
+
+    for (const [name, routine] of Object.entries(aoi.routines)) {
+        let compiledCode = "";
+
+        if (routine.type === 'ld') {
+            if (name === 'Logic') {
+                // Parse Logic for Visualization
+                const parseResult = parseLadderLogic(routine.content);
+                if (parseResult.errors.length > 0) {
+                    throw new Error(`Parse errors in ${name}: ` + JSON.stringify(parseResult.errors));
+                }
+                ladderAst = parseResult.ast;
+            }
+
+            const compilationResult = compileLadderLogic(routine.content);
+            if (!compilationResult.success) {
+                 throw new Error(`Compilation failed in ${name}: ` + JSON.stringify(compilationResult.diagnostics));
+            }
+            compiledCode = compilationResult.code;
+        } else {
+            const compilationResult = compileStructuredText(routine.content);
+             if (!compilationResult.success) {
+                 throw new Error(`Compilation failed in ${name}: ` + JSON.stringify(compilationResult.diagnostics));
+            }
+            compiledCode = compilationResult.code;
+        }
+
+        // Create function for this routine
+        // Signature: (vars, log, __scanTime, __routines)
+        routinesMap[name] = new Function('vars', 'log', '__scanTime', '__routines', compiledCode);
+
+        if (name === 'Logic') {
+            mainCode = compiledCode;
+        }
+    }
+
+    if (!mainCode) {
         throw new Error("Logic routine missing");
     }
 
-    const routine = aoi.routines.Logic;
-    let code;
-
-    if (routine.type === 'ld') {
-         // Parse for Visualization
-        const parseResult = parseLadderLogic(routine.content);
-        if (parseResult.errors.length > 0) {
-            throw new Error("Parse errors: " + JSON.stringify(parseResult.errors));
+    // Prepare runtime function wrapper that injects routines
+    runLogic = (vars, log, scanTime) => {
+        if (routinesMap['Logic']) {
+            routinesMap['Logic'](vars, log, scanTime, routinesMap);
         }
-        ladderAst = parseResult.ast;
-
-        // Compile for Execution
-        const compilationResult = compileLadderLogic(routine.content);
-        if (!compilationResult.success) {
-             throw new Error("Compilation failed: " + JSON.stringify(compilationResult.diagnostics));
-        }
-        code = compilationResult.code;
-    } else {
-        ladderAst = null; // No visualization for ST yet
-        const compilationResult = compileStructuredText(routine.content);
-         if (!compilationResult.success) {
-             throw new Error("Compilation failed: " + JSON.stringify(compilationResult.diagnostics));
-        }
-        code = compilationResult.code;
-    }
-
-    // Prepare runtime function
-    runLogic = new Function('vars', 'log', '__scanTime', code);
+    };
 
     // Reset Variables
     variables = new Map();
@@ -215,11 +238,8 @@ function runCycle() {
         // But `loadLogic` currently compiles just `Logic`.
         // To support `JSR`, `loadLogic` needs to change to compile all routines.
 
-        // Quick fix: Pass an empty object or a map of routines if available.
-        // Since we didn't implement multi-routine compilation fully yet (loadLogic only does Logic),
-        // JSR will just log warning if called. This is acceptable for this step.
-        const routines = {};
-        runLogic(variables, logs, SIMULATION_INTERVAL_MS, routines);
+        // runLogic is now a wrapper that handles routines injection if loadLogic was called
+        runLogic(variables, logs, SIMULATION_INTERVAL_MS);
 
         cycleCount++;
         updateHistory();
@@ -340,7 +360,8 @@ Deno.serve({ port: 8000 }, async (req) => {
     }
 
     if (url.pathname === "/api/logic" && req.method === "GET") {
-        const html = renderLadder(ladderAst);
+        // Pass variables to renderLadder to bake in state
+        const html = renderLadder(ladderAst, variables);
         return new Response(html, { headers: { "Content-Type": "text/html" } });
     }
 

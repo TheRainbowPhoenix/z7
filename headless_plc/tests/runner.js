@@ -12,4 +12,7 @@ describe('Logic Runner', async () => {
 
     console.log('\nRunning AOI Integration Tests...');
     await import('./aoi_integration.test.js');
+
+    console.log('\nRunning JSR Tests...');
+    await import('./jsr.test.js');
 });

@@ -172,6 +172,20 @@
       }
   }
 
+  function addTestTemplate() {
+      const template = `\n
+  it('new test case', () => {
+    // const outputs = run({ ... });
+    // expect(outputs.Tag).toBe(1);
+  });\n`;
+      code += template;
+      if (editorInstance) {
+          editorInstance.setValue(code);
+          // Scroll to bottom
+          editorInstance.revealLine(editorInstance.getModel().getLineCount());
+      }
+  }
+
 </script>
 
 <div class="h-full w-full flex bg-white divide-x divide-gray-200">
