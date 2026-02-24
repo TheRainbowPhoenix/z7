@@ -29,7 +29,7 @@
     class="flex shrink-0 overflow-x-auto bg-neutral-100 border-b border-gray-200"
   >
     {#each triggers as triggerItem}
-      <button use:melt={$trigger(triggerItem.id)} class="trigger relative px-6 py-3 font-medium text-sm text-gray-600 hover:text-gray-900 focus:outline-none">
+      <button use:melt={$trigger(triggerItem.id)} class="trigger relative px-6 py-1.5 font-medium text-xs text-gray-600 hover:text-gray-900 focus:outline-none">
         {triggerItem.title}
         {#if $value === triggerItem.id}
           <div

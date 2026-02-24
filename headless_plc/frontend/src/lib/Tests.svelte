@@ -200,7 +200,7 @@
 
            <!-- Add Test Placeholder -->
           <div class="p-3 border-t border-gray-200 bg-gray-50 text-center">
-              <button class="text-xs text-gray-500 hover:text-gray-700 italic">+ Add Test (Edit code directly)</button>
+              <button on:click={addTestTemplate} class="text-xs text-blue-600 hover:text-blue-800 font-medium">+ Add Test</button>
           </div>
       </div>
   </div>

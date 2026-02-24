@@ -23,16 +23,6 @@
           if (res.ok) history = await res.json();
       } catch (e) { console.error("History fetch failed", e); }
 
-      // Subscribe to updates (SSE from App.svelte or new here?)
-      // App.svelte has the SSE connection but doesn't pass history down.
-      // We can establish our own or assume App updates us via props?
-      // For simplicity, let's just listen to the same endpoint or use a shared store.
-      // But here I'll just open a new SSE for simplicity to be self-contained.
-      // Note: Browser has limit on concurrent SSE.
-      // Better: Poll or use the `state` prop passed from App if available.
-      // But `state` in App is only *current* state.
-      // We need to append to history.
-
       eventSource = new EventSource('/api/events');
       eventSource.onmessage = (event) => {
           try {
@@ -50,11 +40,7 @@
       if (eventSource) eventSource.close();
   });
 
-  // Derived data for plotting
-  // We need to flatten history into an array of objects { time, value, name, type }
-  // This might be expensive to do every frame.
-  // Observable Plot handles arrays well.
-
+  // Plotting Logic
   $: if (container && history.length > 0 && metadata.length > 0) {
       renderPlot();
   }
@@ -62,44 +48,47 @@
   function renderPlot() {
       if (!container) return;
 
-      // Transform data
-      // We want to plot all tags? Or filter?
-      // Let's plot all numeric/bool tags.
-      const data = [];
       const now = Date.now();
       const fiveMinutesAgo = now - 5 * 60 * 1000;
 
-      // Filter history to last 5 mins
+      // Filter history
       const relevantHistory = history.filter(h => h.timestamp > fiveMinutesAgo);
 
+      // Transform for Plot: One long array?
+      // Plot.plot with 'fy' (facet y) stacks them vertically.
+      // We want distinct full-width plots. Observable Plot's facet is one SVG.
+      // If we want them stacked vertically and scrollable, we might need multiple plots or one tall plot.
+      // User said: "not one large plot that's cut on its width, but rather a lot of small height full width plots"
+      // Facet Y does this in one SVG. If we have 20 tags, it might be tall.
+
+      const data = [];
       relevantHistory.forEach(h => {
           Object.entries(h.tags).forEach(([name, val]) => {
-              // Find type
-              const meta = metadata.find(m => m.name === name);
-              const type = meta ? (meta.usage || 'local') : 'local';
+              // Filter to numeric/bool
+              // Also maybe only relevant tags?
+              // Plot all for now.
               data.push({
                   time: new Date(h.timestamp),
                   value: Number(val),
-                  name: name,
-                  type: type
+                  name: name
               });
           });
       });
 
       const plot = Plot.plot({
-          style: { background: "transparent" },
+          style: { background: "transparent", width: "100%" },
           width: container.clientWidth,
-          height: container.clientHeight || 400,
-          marginLeft: 50,
-          marginRight: 100, // Legend space
+          // height: null, // Auto height based on facets?
+          marginLeft: 100,
+          marginRight: 20,
           x: { label: null, type: "time", domain: [new Date(fiveMinutesAgo), new Date(now)] },
-          y: { grid: true },
-          color: { legend: true },
+          y: { grid: true, label: null },
+          fy: { label: null, domain: data.map(d => d.name).sort() }, // Facet by tag name
           marks: [
-              Plot.lineY(data, { x: "time", y: "value", stroke: "name", fx: "type" }),
-              // Facet by type (Input, Output, Local)
-          ],
-          fx: { padding: 0.05 } // Spacing between facets
+              Plot.frame(),
+              Plot.lineY(data, { x: "time", y: "value", stroke: "name", fy: "name" }),
+              Plot.text(data, Plot.selectLast({ x: "time", y: "value", z: "name", text: "value", dx: 5, fy: "name" }))
+          ]
       });
 
       container.innerHTML = '';
@@ -107,11 +96,10 @@
   }
 </script>
 
-<div class="h-full w-full flex flex-col p-4 bg-gray-50 overflow-hidden">
-  <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2 shrink-0">Real-time Trends (Last 5 Minutes)</h3>
-  <div class="flex-1 min-h-0 bg-white border border-gray-200 rounded shadow-sm relative p-2" bind:this={container}>
+<div class="h-full w-full flex flex-col bg-white overflow-hidden">
+  <div class="flex-1 overflow-auto p-4" bind:this={container}>
       {#if history.length === 0}
-          <div class="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">Waiting for data...</div>
+          <div class="flex items-center justify-center h-full text-gray-400 text-xs">Waiting for data...</div>
       {/if}
   </div>
 </div>

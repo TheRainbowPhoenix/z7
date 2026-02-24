@@ -209,7 +209,18 @@ try {
 function runCycle() {
     try {
         const logs = [];
-        runLogic(variables, logs, SIMULATION_INTERVAL_MS);
+        // Need to pass routines map if we support calls.
+        // For now, we only compile one routine 'Logic'.
+        // If we want multiple, we should pre-compile all and put them in a map.
+        // But `loadLogic` currently compiles just `Logic`.
+        // To support `JSR`, `loadLogic` needs to change to compile all routines.
+
+        // Quick fix: Pass an empty object or a map of routines if available.
+        // Since we didn't implement multi-routine compilation fully yet (loadLogic only does Logic),
+        // JSR will just log warning if called. This is acceptable for this step.
+        const routines = {};
+        runLogic(variables, logs, SIMULATION_INTERVAL_MS, routines);
+
         cycleCount++;
         updateHistory();
         broadcastState();
@@ -397,6 +408,72 @@ Deno.serve({ port: 8000 }, async (req) => {
         }
     }
 
+    if (url.pathname === "/api/logic/patch" && req.method === "POST") {
+        try {
+            const body = await req.json();
+            const dsl = body.dsl;
+            if (!dsl) throw new Error("No DSL content");
+
+            // Very basic patch: Append to Logic routine
+            // We need to parse existing logic, append text, parse again.
+            // Or just string append if it's Ladder.
+            if (aoi && aoi.routines && aoi.routines.Logic && aoi.routines.Logic.type === 'ld') {
+                const currentContent = aoi.routines.Logic.content || "";
+                const newContent = currentContent.trim() + (currentContent.trim() ? ";\n" : "") + dsl;
+
+                // Validate
+                const parseResult = parseLadderLogic(newContent);
+                if (parseResult.errors.length > 0) {
+                    throw new Error("Invalid Ladder Logic: " + JSON.stringify(parseResult.errors));
+                }
+
+                aoi.routines.Logic.content = newContent;
+
+                // Recompile
+                const compilationResult = compileLadderLogic(newContent);
+                if (!compilationResult.success) throw new Error("Compilation failed");
+                runLogic = new Function('vars', 'log', '__scanTime', '__routines', compilationResult.code);
+                ladderAst = parseResult.ast;
+
+                return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
+            } else {
+                throw new Error("Only LD patching supported currently");
+            }
+        } catch (e) {
+            return new Response(JSON.stringify({ error: e.message }), { status: 400 });
+        }
+    }
+
+    if (url.pathname === "/api/files" && req.method === "GET") {
+        const files = [];
+        try {
+            const examplesDir = path.join(Deno.cwd(), "headless_plc", "examples");
+            for await (const entry of Deno.readDir(examplesDir)) {
+                if (entry.isFile && entry.name.endsWith(".rungs")) {
+                    files.push({ name: entry.name, path: path.join(examplesDir, entry.name) });
+                }
+            }
+        } catch (e) { console.error(e); }
+        return new Response(JSON.stringify(files), { headers: { "Content-Type": "application/json" } });
+    }
+
+    if (url.pathname.startsWith("/api/files/") && url.pathname.endsWith("/load") && req.method === "POST") {
+        try {
+            const fileName = url.pathname.split('/')[3];
+            const examplesDir = path.join(Deno.cwd(), "headless_plc", "examples");
+            // Sanitize filename needed? Basic check.
+            if (fileName.includes("..") || fileName.includes("/")) throw new Error("Invalid filename");
+
+            const filePath = path.join(examplesDir, fileName);
+            const content = await Deno.readTextFile(filePath);
+            await loadLogic(content);
+            broadcastState();
+            return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
+        } catch (e) {
+            return new Response(JSON.stringify({ error: e.message }), { status: 400 });
+        }
+    }
+
     if (url.pathname === "/api/tests") {
         if (req.method === "GET") {
             // Parse testing.content to find tests
@@ -440,7 +517,11 @@ Deno.serve({ port: 8000 }, async (req) => {
     if (filePath === "/") filePath = "/index.html";
 
     try {
-        const distDir = path.join(Deno.cwd(), "frontend", "dist");
+        // Resolve path relative to this script
+        const currentUrl = new URL(import.meta.url);
+        const currentDir = path.dirname(path.fromFileUrl(currentUrl));
+        const distDir = path.join(currentDir, "frontend", "dist");
+
         const requestedPath = path.join(distDir, filePath.substring(1));
 
         if (!requestedPath.startsWith(distDir)) {

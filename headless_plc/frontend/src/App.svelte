@@ -6,8 +6,9 @@
   import Trend from './lib/Trend.svelte';
   import Tests from './lib/Tests.svelte';
   import Sidebar from './lib/Sidebar.svelte';
+  import FileTree from './lib/FileTree.svelte';
   import {
-    FilePlus, FolderOpen, Save, Share2, Undo2, Redo2, FlaskConical, Play, Square, Sidebar as SidebarIcon,
+    FilePlus, FolderOpen, Save, Share2, Undo2, Redo2, FlaskConical, Play, Square, Sidebar as SidebarIcon, FolderTree,
     Tag, FileCode, Beaker, TrendingUp
   } from 'lucide-svelte';
 
@@ -15,6 +16,8 @@
   let metadata = []; // Tag definitions
   let eventSource;
   let showSidebar = true;
+  let showFileTree = false;
+  let currentFile = 'MotorControl_LD.rungs'; // Default
   let fileInput;
 
   // Initialize with metadata fetch
@@ -124,6 +127,18 @@
       }
   }
 
+  async function loadFileByName(name) {
+      try {
+          const res = await fetch(`/api/files/${name}/load`, { method: 'POST' });
+          if (!res.ok) throw new Error("Load failed");
+          currentFile = name;
+          await refreshMetadata();
+      } catch (e) {
+          console.error("File load failed", e);
+          alert("Failed to load file " + name);
+      }
+  }
+
 </script>
 
 <div class="h-screen w-screen flex flex-col bg-white overflow-hidden text-sm font-sans">
@@ -160,13 +175,34 @@
           </button>
       {/if}
 
-      <div class="ml-auto">
+      <div class="ml-auto flex items-center gap-1">
+        <button on:click={() => showFileTree = !showFileTree} class="p-1.5 hover:bg-gray-100 rounded text-gray-700 {showFileTree ? 'bg-gray-100' : ''}" title="Toggle Project Explorer"><FolderTree size={18} strokeWidth={1.5} /></button>
         <button on:click={() => showSidebar = !showSidebar} class="p-1.5 hover:bg-gray-100 rounded text-gray-700 {showSidebar ? 'bg-gray-100' : ''}" title="Toggle Sidebar"><SidebarIcon size={18} strokeWidth={1.5} /></button>
       </div>
   </header>
 
   <!-- Main Content -->
   <div class="flex-1 flex overflow-hidden">
+      <!-- File Tree -->
+      {#if showFileTree}
+          <FileTree
+              currentFile={currentFile}
+              isRunning={state.status === 'running'}
+              on:select={async (e) => {
+                  const file = e.detail;
+                  // Load file via upload
+                  try {
+                      // We need to fetch file content first?
+                      // Or tell backend to load by path.
+                      // Let's add GET /api/files/:name/load to server or just fetch content here.
+                      // For now, assume backend has /api/files/:name/content or similar.
+                      // I'll implement handleFileLoad(file.name).
+                      await loadFileByName(file.name);
+                  } catch (err) { console.error(err); }
+              }}
+          />
+      {/if}
+
       <!-- Main Panel (Tabs) -->
       <div class="flex-1 flex flex-col min-w-0 bg-white relative">
           <Tabs triggers={[
