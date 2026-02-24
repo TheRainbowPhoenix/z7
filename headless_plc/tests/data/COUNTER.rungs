@@ -1,0 +1,49 @@
+version: 2
+aoi:
+  name: COUNTER
+  description: CTU, CTD, and RES counter instructions
+  tags:
+    input:
+      - name: CountUpPulse
+        dataType: BOOL
+        description: Increments the counter on rising edge
+      - name: CountDownPulse
+        dataType: BOOL
+        description: Decrements the counter on rising edge
+      - name: ResetCmd
+        dataType: BOOL
+        description: Clears the counter accumulator to zero
+    local:
+      - name: Counter1
+        dataType: COUNTER
+        description: Counter structure for CTU and CTD
+        defaultValue:
+          PRE: 5
+    output:
+      - name: CountValue
+        dataType: DINT
+        description: Current counter accumulator value
+      - name: CountDone
+        dataType: BOOL
+        description: Set when the counter reaches its preset
+  routines:
+    Logic:
+      type: ld
+      content: >-
+        XIC(CountUpPulse)CTU(Counter1,?,?);XIC(CountDownPulse)CTD(Counter1,?,?);XIC(ResetCmd)RES(Counter1);MOVE(Counter1.ACC,CountValue);XIC(Counter1.DN)OTE(CountDone)
+  testing:
+    content: |-
+      const run = (inputs = {}) => AOITestKit.run(inputs).outputs;
+
+      describe('COUNTER AOI', () => {
+        it('increments on count up pulse', () => {
+          const outputs = run({ CountUpPulse: 1 });
+          expect(outputs.CountValue).toBe(1);
+        });
+
+        it('resets counter to zero', () => {
+          const outputs = run({ CountUpPulse: 1, ResetCmd: 1 });
+          expect(outputs.CountValue).toBe(0);
+          expect(outputs.CountDone).toBe(0);
+        });
+      });

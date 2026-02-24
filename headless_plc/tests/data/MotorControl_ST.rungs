@@ -1,0 +1,91 @@
+version: 2
+aoi:
+  name: MotorControl_ST
+  description: Start-stop motor control with fault handling
+  tags:
+    input:
+      - name: StartButton
+        dataType: BOOL
+        description: Momentary start command
+      - name: StopButton
+        dataType: BOOL
+        description: Momentary stop command
+      - name: OverloadTrip
+        dataType: BOOL
+        description: Fault input that trips the motor
+      - name: ResetFault
+        dataType: BOOL
+        description: Clears the overload fault latch
+    local:
+      - name: RunLatch
+        dataType: BOOL
+        description: Latched run request state
+      - name: FaultLatch
+        dataType: BOOL
+        description: Latched fault state
+    output:
+      - name: MotorRun
+        dataType: BOOL
+        description: Command to run the motor starter
+      - name: FaultActive
+        dataType: BOOL
+        description: Fault indicator for the motor
+  routines:
+    Logic:
+      type: st
+      content: |-
+        /* Classic Start-Stop Motor Control with Fault Handling
+        This pattern is used in almost every industrial motor starter.
+        Click "Start" to run the simulation.
+        Try toggling StartButton, StopButton, and OverloadTrip to see
+        how the motor responds. Use ResetFault to clear a fault. */
+
+        // Clear the fault latch when reset is pressed.
+        IF ResetFault THEN
+          FaultLatch := 0;
+        END_IF;
+
+        // Latch the fault when an overload occurs.
+        // Once latched, the fault stays active until reset.
+        IF OverloadTrip THEN
+          FaultLatch := 1;
+        END_IF;
+
+        // Start-stop logic with seal-in circuit.
+        // StopButton has priority over StartButton (safety first!).
+        IF StopButton OR FaultLatch THEN
+          RunLatch := 0; // Stop the motor
+        ELSIF StartButton THEN
+          RunLatch := 1; // Start and latch the motor
+        END_IF;
+
+        // Motor runs only if latched AND no active fault.
+        MotorRun := RunLatch AND NOT FaultLatch;
+        FaultActive := FaultLatch;
+  testing:
+    content: |-
+      const runMotor = (inputs = {}) => AOITestKit.run(inputs).outputs;
+
+      describe('MotorControl AOI', () => {
+        it('latches run on start', () => {
+          const outputs = runMotor({ StartButton: 1 });
+          expect(outputs.MotorRun).toBe(1);
+          expect(outputs.FaultActive).toBe(0);
+        });
+
+        it('drops run on stop', () => {
+          const outputs = runMotor({ StartButton: 1, StopButton: 1 });
+          expect(outputs.MotorRun).toBe(0);
+        });
+
+        it('latches fault and blocks run', () => {
+          const outputs = runMotor({ StartButton: 1, OverloadTrip: 1 });
+          expect(outputs.MotorRun).toBe(0);
+          expect(outputs.FaultActive).toBe(1);
+        });
+
+        it('clears fault on reset', () => {
+          const outputs = runMotor({ FaultLatch: 1, ResetFault: 1 });
+          expect(outputs.FaultActive).toBe(0);
+        });
+      });

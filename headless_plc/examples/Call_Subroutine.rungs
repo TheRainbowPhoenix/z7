@@ -1,0 +1,39 @@
+version: 2
+aoi:
+  name: Call_Subroutine
+  description: Example demonstrating JSR instruction to call another routine.
+  tags:
+    input:
+      - name: Start
+        dataType: BOOL
+    output:
+      - name: Output
+        dataType: BOOL
+      - name: SubRun
+        dataType: BOOL
+  routines:
+    Logic:
+      type: ld
+      content: >-
+        [XIC(Start)]OTE(Output)JSR(Sub1)
+    Sub1:
+      type: ld
+      content: >-
+        [XIC(Start)]OTE(SubRun)
+  testing:
+    content: |-
+      const run = (inputs = {}) => AOITestKit.run(inputs).outputs;
+
+      describe('JSR Call', () => {
+        it('executes subroutine logic', () => {
+          const outputs = run({ Start: 1 });
+          expect(outputs.Output).toBe(1);
+          expect(outputs.SubRun).toBe(1);
+        });
+
+        it('resets outputs when input off', () => {
+          const outputs = run({ Start: 0 });
+          expect(outputs.Output).toBe(0);
+          expect(outputs.SubRun).toBe(0);
+        });
+      });

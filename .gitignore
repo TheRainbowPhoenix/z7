@@ -1,0 +1,7 @@
+headless_plc/node_modules/
+headless_plc/frontend/node_modules/
+headless_plc/frontend/dist/
+used_classes.txt
+test_output.txt
+st_errors.txt
+headless_plc/deno.lock

@@ -1,0 +1,59 @@
+version: 2
+aoi:
+  name: FBD_COUNTER
+  description: ''
+  tags:
+    input:
+      - name: Reset
+        dataType: BOOL
+        description: Resets the counter back to zero when asserted
+      - name: CountUp
+        dataType: BOOL
+        description: Requests the counter to increment
+      - name: CountDown
+        dataType: BOOL
+        description: Requests the counter to decrement
+    local:
+      - name: CTUD_01
+        dataType: FBD_COUNTER
+        description: CTUD instruction state block
+        defaultValue:
+          EnableIn: 1
+    output:
+      - name: counter_state
+        dataType: BOOL
+        description: Done bit indicating the preset has been reached
+      - name: CounterAcc
+        dataType: DINT
+        description: Current accumulated count from the CTUD instruction
+  routines:
+    Logic:
+      type: st
+      content: |-
+        // Latch preset and gate the up/down enables for the CTUD block.
+        CTUD_01.PRE := 5;
+        CTUD_01.Reset := Reset;
+        CTUD_01.CUEnable := CountUp;
+        CTUD_01.CDEnable := CountDown;
+        CTUD(CTUD_01);
+
+        // Expose the accumulator and done state as AOI outputs.
+        CounterAcc := CTUD_01.ACC;
+        counter_state := CTUD_01.DN;
+  testing:
+    content: |-
+      const runCounter = (inputs) => AOITestKit.run(inputs).outputs;
+
+      describe('FBD_COUNTER AOI', () => {
+        it('increments the accumulator when CountUp is asserted', () => {
+          const outputs = runCounter({ CountUp: 1 });
+          expect(outputs.CounterAcc).toBe(1);
+          expect(outputs.counter_state).toBe(0);
+        });
+
+        it('clears the accumulator when Reset is asserted', () => {
+          const outputs = runCounter({ Reset: 1, CountUp: 1 });
+          expect(outputs.CounterAcc).toBe(0);
+          expect(outputs.counter_state).toBe(0);
+        });
+      });

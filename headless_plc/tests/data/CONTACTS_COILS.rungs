@@ -1,0 +1,70 @@
+version: 2
+aoi:
+  name: CONTACTS_COILS
+  description: XIC, XIO, OTE, OTL, and OTU instructions
+  tags:
+    input:
+      - name: InputA
+        dataType: BOOL
+        description: First input bit for contact evaluation
+      - name: InputB
+        dataType: BOOL
+        description: Second input bit for contact evaluation
+      - name: LatchCmd
+        dataType: BOOL
+        description: Sets the latched output via OTL
+      - name: UnlatchCmd
+        dataType: BOOL
+        description: Clears the latched output via OTU
+    output:
+      - name: SeriesResult
+        dataType: BOOL
+        description: True when both InputA and InputB are set
+      - name: InvertedResult
+        dataType: BOOL
+        description: True when InputA is set and InputB is clear
+      - name: ParallelResult
+        dataType: BOOL
+        description: True when either InputA or InputB is set
+      - name: LatchedOut
+        dataType: BOOL
+        description: Retains state between scans until explicitly unlatched
+  routines:
+    Logic:
+      type: ld
+      content: >-
+        XIC(InputA)XIC(InputB)OTE(SeriesResult);XIC(InputA)XIO(InputB)OTE(InvertedResult);[XIC(InputA),XIC(InputB)]OTE(ParallelResult);XIC(LatchCmd)OTL(LatchedOut);XIC(UnlatchCmd)OTU(LatchedOut)
+  testing:
+    content: |-
+      const run = (inputs = {}) => AOITestKit.run(inputs).outputs;
+
+      describe('CONTACTS_COILS AOI', () => {
+        it('series requires both inputs', () => {
+          expect(run({ InputA: 1, InputB: 1 }).SeriesResult).toBe(1);
+          expect(run({ InputA: 1, InputB: 0 }).SeriesResult).toBe(0);
+          expect(run({ InputA: 0, InputB: 1 }).SeriesResult).toBe(0);
+        });
+
+        it('XIO inverts the second input', () => {
+          expect(run({ InputA: 1, InputB: 0 }).InvertedResult).toBe(1);
+          expect(run({ InputA: 1, InputB: 1 }).InvertedResult).toBe(0);
+        });
+
+        it('parallel passes when either input is set', () => {
+          expect(run({ InputA: 1, InputB: 0 }).ParallelResult).toBe(1);
+          expect(run({ InputA: 0, InputB: 1 }).ParallelResult).toBe(1);
+          expect(run({ InputA: 0, InputB: 0 }).ParallelResult).toBe(0);
+        });
+
+        it('OTL latches the output', () => {
+          expect(run({ LatchCmd: 1 }).LatchedOut).toBe(1);
+        });
+
+        it('OTU unlatches the output', () => {
+          expect(run({ LatchedOut: 1, UnlatchCmd: 1 }).LatchedOut).toBe(0);
+        });
+
+        it('OTU wins when both latch and unlatch are active', () => {
+          expect(run({ LatchCmd: 1, UnlatchCmd: 1 }).LatchedOut).toBe(0);
+        });
+      });

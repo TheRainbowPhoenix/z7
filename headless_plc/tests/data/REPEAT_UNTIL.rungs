@@ -1,0 +1,51 @@
+version: 2
+aoi:
+  name: REPEAT_UNTIL
+  description: ''
+  tags:
+    input:
+      - name: StartValue
+        dataType: DINT
+        description: Initial value loaded into the counter
+      - name: Threshold
+        dataType: DINT
+        description: Counter keeps running until it reaches this value
+        defaultValue: 3
+    output:
+      - name: Counter
+        dataType: DINT
+        description: Resulting counter value after the repeat loop finishes
+      - name: Iterations
+        dataType: DINT
+        description: How many times the repeat loop executed
+  routines:
+    Logic:
+      type: st
+      content: |-
+        // Repeat loop executes once before evaluating the Threshold check.
+        Counter := StartValue;
+        Iterations := 0;
+
+        REPEAT
+            // Increment the running count and track loop iterations.
+            Counter := Counter + 1;
+            Iterations := Iterations + 1;
+        UNTIL Counter >= Threshold
+        END_REPEAT;
+  testing:
+    content: |-
+      const runRepeat = (overrides = {}) => AOITestKit.run(overrides).outputs;
+
+      describe('REPEAT_UNTIL AOI', () => {
+        it('increments until the threshold is satisfied', () => {
+          const outputs = runRepeat({ StartValue: 0, Threshold: 3 });
+          expect(outputs.Counter).toBe(3);
+          expect(outputs.Iterations).toBe(3);
+        });
+
+        it('runs at least once even when the start value already exceeds the threshold', () => {
+          const outputs = runRepeat({ StartValue: 5, Threshold: 3 });
+          expect(outputs.Counter).toBe(6);
+          expect(outputs.Iterations).toBe(1);
+        });
+      });

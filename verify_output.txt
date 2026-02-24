@@ -1,0 +1,7 @@
+Navigating to http://localhost:8000
+Page loaded
+Tabs found
+Ladder Logic tab verified (visually)
+Tags table found
+Sidebar found
+Screenshot saved to verification.png
