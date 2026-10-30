@@ -6,10 +6,11 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 on:
+  workflow_dispatch:
   merge_group:
   pull_request:
   push:
-    branches: ["master"]
+    branches: ["**"]
 
 env:
   GH_TOKEN: ${{ github.token }}
