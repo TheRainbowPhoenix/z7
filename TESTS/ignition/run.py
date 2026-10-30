@@ -8,10 +8,13 @@ from pathlib import Path
 import queue
 import socket
 import subprocess
+import sys
 import threading
 import time
 import zipfile
 from pcap import write_pcap
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from file_lock import FileLock
 
 
 def main():
@@ -19,7 +22,13 @@ def main():
     parser.add_argument("--driver-jar", type=Path, required=True)
     parser.add_argument("--z7-library", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=Path(".zig-cache/ignition-harness"))
+    parser.add_argument("--lock-hold-ms", type=float, default=0)
+    parser.add_argument("--load-iterations", type=int, default=10000)
     args = parser.parse_args()
+    if not 0 <= args.lock_hold_ms <= 100:
+        parser.error("lock-hold-ms must be 0..100")
+    if not 100 <= args.load_iterations <= 10000 or args.load_iterations % 10:
+        parser.error("load-iterations must be 100..10000 and divisible by 10")
     jar = args.driver_jar.resolve(strict=True)
     expected_sha256 = "681e85b9082a469a0a735fefe0e4d0f9dee4cccc5940855e700535c89b98c919"
     if hashlib.sha256(jar.read_bytes()).hexdigest() != expected_sha256:
@@ -71,12 +80,31 @@ def main():
     if not ctx:
         raise RuntimeError("z7_init failed")
     process = None
+    lock = None
+    lock_thread = None
+    lock_stop = threading.Event()
+    lock_errors = []
     lines, results, origins, controls, wire = [], [], [], [], []
     return_code = None
     try:
         lib.z7_start(ctx)
+        if args.lock_hold_ms:
+            lock = FileLock(storage)
+            def contend():
+                try:
+                    while not lock_stop.is_set():
+                        lock.acquire()
+                        try:
+                            lock_stop.wait(args.lock_hold_ms / 1000)
+                        finally:
+                            lock.release()
+                        lock_stop.wait(args.lock_hold_ms / 1000)
+                except BaseException as error:
+                    lock_errors.append(str(error))
+            lock_thread = threading.Thread(target=contend, daemon=True)
+            lock_thread.start()
         command = ["java", "-ea", "-cp", os.pathsep.join([str(classes), str(jar)]),
-                   "z7.harness.DriverHarness", str(port)]
+                   "z7.harness.DriverHarness", str(port), str(args.load_iterations)]
         process = subprocess.Popen(
             command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace",
@@ -127,6 +155,13 @@ def main():
         if process is not None and process.poll() is None:
             process.kill()
             process.wait(timeout=3)
+        lock_stop.set()
+        if lock_thread is not None:
+            lock_thread.join(timeout=3)
+            if lock_thread.is_alive():
+                raise RuntimeError("lock fixture failed to stop")
+        if lock is not None:
+            lock.close()
         lib.z7_deinit(ctx)
         if storage.exists():
             storage.unlink()
@@ -138,12 +173,13 @@ def main():
             stub_classes=[str(path.relative_to(source / "stubs")) for path in stubs],
             class_origins=origins, results=results, fixture_alarm_updates=controls,
             java_exit_code=return_code, wire=wire,
+            lock_hold_ms=args.lock_hold_ms, lock_errors=lock_errors, load_iterations=args.load_iterations,
         )
         (output / "results.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
         (output / "java.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
         write_pcap(output / "wire.pcap", wire)
         print(f"Report: {output / 'results.json'}")
-    if return_code != 0 or not results or any(case["status"] != "PASS" for case in results):
+    if lock_errors or return_code != 0 or not results or any(case["status"] != "PASS" for case in results):
         raise SystemExit(1)
 
 

@@ -99,7 +99,7 @@ static void *worker(void *argument) {
     for (int i = 0; i < 1000; i++) exchange(fd, read, nr, rx, 0, owner);
     pthread_barrier_wait(&barrier);
     for (int i = 0; i < requests; i++) {
-        int writing = mode == 1 || (mode == 2 && (i & 1));
+        int writing = mode == 1 || (mode == 2 && (i & 1)) || (mode == 3 && (owner & 1));
         uint64_t begin = now();
         exchange(fd, writing ? write : read, writing ? nw : nr, rx, writing, owner);
         samples[(size_t)owner * requests + i] = now() - begin;
@@ -111,7 +111,7 @@ static int compare(const void *a, const void *b) {
     return (x > y) - (x < y);
 }
 int main(int argc, char **argv) {
-    check(argc == 6, "Usage: client port clients requests items mode(0=read,1=write,2=mixed)");
+    check(argc == 6, "Usage: client port clients requests items mode(0=read,1=write,2=mixed,3=mixed_clients)");
     const char *cpu = getenv("Z7_BENCH_CLIENT_CPU");
     if (cpu) {
         int index = atoi(cpu);
@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
         check(!sched_setaffinity(0, sizeof(set), &set), "client CPU affinity");
     }
     port = atoi(argv[1]); clients = atoi(argv[2]); requests = atoi(argv[3]); items = atoi(argv[4]); mode = atoi(argv[5]);
-    check(port > 0 && port < 65536 && clients >= 1 && clients <= CLIENTS && requests >= 1000 && requests <= 1000000 && items >= 1 && items <= 32 && mode >= 0 && mode <= 2, "argument bounds");
+    check(port > 0 && port < 65536 && clients >= 1 && clients <= CLIENTS && requests >= 1000 && requests <= 1000000 && items >= 1 && items <= 32 && mode >= 0 && mode <= 3, "argument bounds");
     size_t count = (size_t)clients * requests;
     samples = calloc(count, sizeof(*samples)); check(samples != NULL, "sample allocation");
     check(!pthread_barrier_init(&barrier, NULL, clients + 1), "barrier");
@@ -132,9 +132,26 @@ int main(int argc, char **argv) {
     for (int i = 0; i < clients; i++) check(!pthread_join(threads[i], NULL), "thread join");
     double elapsed = (now() - begin) / 1e9;
     struct rusage usage; check(!getrusage(RUSAGE_SELF, &usage), "rusage");
+    double read_p99 = 0, write_p99 = 0;
+    uint64_t *group = malloc(count * sizeof(*group)); check(group != NULL, "group allocation");
+    for (int writing = 0; writing <= 1; writing++) {
+        size_t length = 0;
+        for (int owner = 0; owner < clients; owner++) {
+            for (int i = 0; i < requests; i++) {
+                int operation = mode == 1 || (mode == 2 && (i & 1)) || (mode == 3 && (owner & 1));
+                if (operation == writing) group[length++] = samples[(size_t)owner * requests + i];
+            }
+        }
+        if (length) {
+            qsort(group, length, sizeof(*group), compare);
+            if (writing) write_p99 = group[length * 99 / 100] / 1e3;
+            else read_p99 = group[length * 99 / 100] / 1e3;
+        }
+    }
+    free(group);
     qsort(samples, count, sizeof(*samples), compare);
-    printf("{\"clients\":%d,\"requests\":%zu,\"items_per_request\":%d,\"mode\":%d,\"seconds\":%.6f,\"requests_per_second\":%.1f,\"p50_us\":%.3f,\"p95_us\":%.3f,\"p99_us\":%.3f,\"max_us\":%.3f,\"client_cpu_seconds\":%.6f}\n",
+    printf("{\"clients\":%d,\"requests\":%zu,\"items_per_request\":%d,\"mode\":%d,\"seconds\":%.6f,\"requests_per_second\":%.1f,\"p50_us\":%.3f,\"p95_us\":%.3f,\"p99_us\":%.3f,\"max_us\":%.3f,\"read_p99_us\":%.3f,\"write_p99_us\":%.3f,\"client_cpu_seconds\":%.6f}\n",
         clients, count, items, mode, elapsed, count / elapsed, samples[count / 2] / 1e3, samples[count * 95 / 100] / 1e3, samples[count * 99 / 100] / 1e3, samples[count - 1] / 1e3,
-        usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6 + usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6);
+        read_p99, write_p99, usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6 + usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6);
     check(!pthread_barrier_destroy(&barrier), "barrier destroy"); free(samples); return 0;
 }

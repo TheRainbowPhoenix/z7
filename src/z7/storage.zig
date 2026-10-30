@@ -7,6 +7,8 @@ pub const Storage = struct {
     // Keep file handle for locking
     handle: if (builtin.os.tag == .windows) windows.HANDLE else posix.fd_t,
     max_dbs: usize,
+    // Scheduling state belongs exclusively to the S7 I/O owner.
+    deferred_writes: u32 = 0,
 
     // Offsets
     pub const OFFSET_INPUTS: usize = 0;
@@ -154,6 +156,22 @@ pub const Storage = struct {
         } else {
             try posix.flock(self.handle, posix.LOCK.EX);
         }
+    }
+
+    /// Never block the I/O owner behind a cooperating shared-memory user.
+    pub fn try_lock(self: *Storage) !bool {
+        if (builtin.os.tag == .windows) {
+            var overlapped = std.mem.zeroes(windows.OVERLAPPED);
+            const flags = 2 | 1; // EXCLUSIVE_LOCK | FAIL_IMMEDIATELY
+            if (LockFileEx(self.handle, flags, 0, @as(u32, @intCast(self.ptr.len)), 0, &overlapped) != 0) return true;
+            if (windows.GetLastError() == .LOCK_VIOLATION) return false;
+            return error.LockFailed;
+        }
+        posix.flock(self.handle, posix.LOCK.EX | posix.LOCK.NB) catch |err| switch (err) {
+            error.WouldBlock => return false,
+            else => return err,
+        };
+        return true;
     }
 
     pub fn unlock(self: *Storage) void {

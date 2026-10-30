@@ -48,6 +48,12 @@ pub const Connection = struct {
     write_pending: bool = false,
     rx_received: usize = 0,
     rx_target: usize = 4,
+    deferred_write: bool = false,
+    deferred_reference: u16 = 0,
+    deferred_params_len: u16 = 0,
+    deferred_data_len: u16 = 0,
+    deferred_started: std.time.Instant = undefined,
+    deferred_bytes: [960]u8 = undefined,
     send_queue: SendQueue = .{},
     pdu_limit: u16 = 960,
     alarm_subscribed: bool = false,
@@ -66,6 +72,7 @@ pub const Connection = struct {
 
     pub fn reset(self: *Connection, socket: std.posix.socket_t) void {
         assert(self.pending_ops == 0);
+        assert(!self.deferred_write);
         self.socket = socket;
         self.closed = false;
         self.pending_ops = 0;
@@ -88,7 +95,7 @@ pub const Connection = struct {
     // Read pipeline
 
     fn start_read_header(self: *Connection) void {
-        if (self.closed or self.read_pending or self.send_queue.free() == 0) return;
+        if (self.closed or self.read_pending or self.deferred_write or self.send_queue.free() == 0) return;
         self.rx_received = 0;
         self.rx_target = 4;
         self.receive_more();
@@ -843,19 +850,68 @@ pub const Connection = struct {
             self.handle_error_response(req, 5, 0x0112);
             return;
         };
-        self.storage.lock() catch {
+        const locked = self.storage.try_lock() catch {
             self.handle_error_response(req, 5, 0x8301);
             return;
         };
+        if (!locked) {
+            assert(!self.deferred_write);
+            assert(params.len + data.len <= self.deferred_bytes.len);
+            self.deferred_started = std.time.Instant.now() catch {
+                self.handle_error_response(req, 5, 0x8301);
+                return;
+            };
+            @memcpy(self.deferred_bytes[0..params.len], params);
+            @memcpy(self.deferred_bytes[params.len..][0..data.len], data);
+            self.deferred_reference = req.pdu_ref;
+            self.deferred_params_len = @intCast(params.len);
+            self.deferred_data_len = @intCast(data.len);
+            self.deferred_write = true;
+            self.storage.deferred_writes += 1;
+            return;
+        }
         defer self.storage.unlock();
+        self.apply_write(req.pdu_ref, &plan);
+    }
+
+    fn apply_write(self: *Connection, reference: u16, plan: *const variable_write.Plan) void {
         const tx = &self.tx_buffer;
         for (plan.items[0..plan.count], 0..) |*item, index| tx[21 + index] = self.write_var_item(item);
         const length: u16 = @intCast(21 + plan.count);
         proto.writeTpktCotpDT(tx, length);
-        proto.writeS7Header(tx, 7, proto.Rosctr.ack_data, req.pdu_ref, 2, @intCast(plan.count), 0);
+        proto.writeS7Header(tx, 7, proto.Rosctr.ack_data, reference, 2, @intCast(plan.count), 0);
         tx[19] = 5;
         tx[20] = @intCast(plan.count);
         self.send_response(length);
+    }
+
+    fn clear_deferred_write(self: *Connection) void {
+        assert(self.deferred_write);
+        assert(self.storage.deferred_writes > 0);
+        self.deferred_write = false;
+        self.storage.deferred_writes -= 1;
+    }
+
+    /// Called by the I/O owner with the storage lock held, or with success=false.
+    pub fn complete_deferred_write(self: *Connection, success: bool) void {
+        assert(!self.closed and self.deferred_write);
+        const reference = self.deferred_reference;
+        self.clear_deferred_write();
+        if (success) {
+            const params = self.deferred_bytes[0..self.deferred_params_len];
+            const data = self.deferred_bytes[self.deferred_params_len..][0..self.deferred_data_len];
+            const plan = variable_write.parse(params, data) catch unreachable;
+            self.apply_write(reference, &plan);
+        } else {
+            // Resource exhaustion is explicit; a deferred write is never silently dropped.
+            const tx = &self.tx_buffer;
+            proto.writeTpktCotpDT(tx, 21);
+            proto.writeS7Header(tx, 7, proto.Rosctr.ack_data, reference, 2, 0, 0x8301);
+            tx[19] = 5;
+            tx[20] = 0;
+            self.send_response(21);
+        }
+        self.start_read_header();
     }
 
     fn write_var_item(self: *Connection, item: *const variable_write.Item) u8 {
@@ -932,6 +988,7 @@ pub const Connection = struct {
     pub fn close(self: *Connection) void {
         if (self.closed) return;
         self.closed = true;
+        if (self.deferred_write) self.clear_deferred_write();
         self.alarm_subscribed = false;
         fire_event(4, "client_disconnected");
         // io_uring holds a socket reference while recv is pending. Closing only the

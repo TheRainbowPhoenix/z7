@@ -29,7 +29,7 @@ def main():
         parser.error("Run this benchmark on Linux with a matching Linux library")
     clients = [int(value) for value in args.clients.split(",")]
     cases = [(name, int(count)) for name, count in (case.split(":") for case in args.cases.split(","))]
-    modes = {"read": 0, "write": 1, "mixed": 2}
+    modes = {"read": 0, "write": 1, "mixed": 2, "mixed_clients": 3}
     if not 0 <= args.lock_hold_ms <= 100:
         parser.error("lock-hold-ms must be 0..100")
     if not (1 <= args.repeats <= 10 and 1000 <= args.requests <= 1000000):

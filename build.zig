@@ -84,6 +84,19 @@ pub fn build(b: *std.Build) void {
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_unit_tests.step);
+    const io_wait_check = b.addExecutable(.{
+        .name = "io_wait_check",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/io_wait_check.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    io_wait_check.root_module.addImport("zCom", zCom_module);
+    const run_io_wait_check = b.addRunArtifact(io_wait_check);
+    test_step.dependOn(&run_io_wait_check.step);
+    const install_io_wait_check = b.addInstallArtifact(io_wait_check, .{});
+    b.step("test:io:build", "Build the IO wait regression executable").dependOn(&install_io_wait_check.step);
 
     const run_fmt = b.addFmt(.{ .paths = &.{"."}, .check = true });
     const fmt_step = b.step("test:fmt", "Check formatting");

@@ -134,3 +134,13 @@ bounded concurrency regression, not a long-duration soak or throughput benchmark
 
 Timer/counter execution, CPU simulation, block transfers and S7commPlus are outside
 this data-exchange change. Timer/counter-specific wire formats remain unsupported.
+
+## Shared-memory contention
+
+`--lock-hold-ms 10` enables a cooperating file-lock fixture for the Java run.
+`--load-iterations 1000` selects a shorter, bounded concurrency case (100..10000,
+divisible by ten). Default load coverage remains 320,000 requests. The fixture
+uses flock on Linux and LockFileEx on Windows, releases its lock before cleanup,
+and records configuration/errors in results.json. CI runs this additional case
+on both operating systems. This fixture is in the server host process; Windows
+process timer-resolution changes also affect the fixture's own waits.

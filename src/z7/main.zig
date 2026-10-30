@@ -47,9 +47,45 @@ pub const Server = struct {
     accept_completion: IO.Completion = undefined,
     accept_pending: bool = false,
     stopping: bool = false,
+    maintenance_at: ?std.time.Instant = null,
+    write_cursor: usize = 0,
+
+    pub fn wait_ns(self: *const Server) u63 {
+        return (if (self.storage.deferred_writes > 0) @as(u63, 1) else 10) * std.time.ns_per_ms;
+    }
 
     pub fn poll_alarms(self: *Server) void {
-        for (self.connections) |*connection| connection.poll_alarms();
+        const now = std.time.Instant.now() catch return;
+        if (self.maintenance_at) |previous| {
+            if (now.since(previous) < std.time.ns_per_ms) return;
+        }
+        self.maintenance_at = now;
+        for (self.connections) |*connection| {
+            if (connection.deferred_write and now.since(connection.deferred_started) >= std.time.ns_per_s) {
+                connection.complete_deferred_write(false);
+            }
+            connection.poll_alarms();
+        }
+        if (self.storage.deferred_writes == 0) return;
+        const locked = self.storage.try_lock() catch {
+            for (self.connections) |*connection| {
+                if (connection.deferred_write) connection.complete_deferred_write(false);
+            }
+            return;
+        };
+        if (!locked) return;
+        defer self.storage.unlock();
+        // Round-robin retries; at most eight bounded requests share one acquisition.
+        var applied: u32 = 0;
+        for (0..self.connections.len) |_| {
+            const index = self.write_cursor;
+            self.write_cursor = (index + 1) % self.connections.len;
+            const connection = &self.connections[index];
+            if (!connection.deferred_write) continue;
+            connection.complete_deferred_write(true);
+            applied += 1;
+            if (applied == 8) break;
+        }
     }
 
     pub fn start_accept(self: *Server) void {
@@ -232,7 +268,7 @@ pub fn main() !void {
     server.start_accept();
 
     while (true) {
-        try io.run_for_ns(10 * std.time.ns_per_ms);
+        try io.run_once_for_ns(server.wait_ns());
         server.poll_alarms();
     }
 }

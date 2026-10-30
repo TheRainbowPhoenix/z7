@@ -269,8 +269,8 @@ public final class DriverHarness {
             this.code = code; this.transport = transport; this.length = length; this.data = data;
         }
     }
-    private static void load(int port) throws Exception {
-        final int clients = 16, iterations = 10000;
+    private static void load(int port, int iterations) throws Exception {
+        final int clients = 16;
         ExecutorService pool = Executors.newFixedThreadPool(clients);
         CountDownLatch start = new CountDownLatch(1);
         List<Future<?>> tasks = new ArrayList<>();
@@ -346,7 +346,9 @@ public final class DriverHarness {
     }
 
     public static void main(String[] args) throws Exception {
-        require(args.length == 1, "Usage: DriverHarness port");
+        require(args.length == 1 || args.length == 2, "Usage: DriverHarness port [load-iterations]");
+        int iterations = args.length == 2 ? Integer.parseInt(args[1]) : 10000;
+        require(iterations >= 100 && iterations <= 10000 && iterations % 10 == 0, "invalid iteration count");
         int port = Integer.parseInt(args[0]);
         require(port > 0 && port <= 65535, "invalid port");
         Class<?>[] originals = { ProtocolStack.class, S7ReadRequestFactory.class, S7WriteRequestWriter.class,
@@ -501,7 +503,7 @@ public final class DriverHarness {
             test("driver_small_pdu_reconnect", () ->
                 session.roundTrip(new Item(address(S7DataType.BYTE, 30), 66), 66, "42"));
         }
-        test("driver_concurrent_load", () -> load(port));
+        test("driver_concurrent_load", () -> load(port, iterations));
         System.out.println("SUMMARY\t" + failures);
         if (failures != 0) System.exit(1);
     }

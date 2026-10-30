@@ -170,6 +170,7 @@ fn run_loop(ctx: *Context) void {
                 ctx.io.run_for_ns(10 * std.time.ns_per_ms) catch |err|
                     std.debug.panic("IO shutdown: {}", .{err});
             }
+            ctx.io.release_wait_precision();
             std.debug.assert(!ctx.server.accept_pending);
             for (ctx.connections) |*connection| std.debug.assert(connection.pending_ops == 0);
         };
@@ -183,7 +184,7 @@ fn run_server_loop(ctx: *Context) void {
     ctx.server.start_accept();
 
     while (ctx.running.load(.acquire)) {
-        ctx.io.run_for_ns(10 * std.time.ns_per_ms) catch break;
+        ctx.io.run_once_for_ns(ctx.server.wait_ns()) catch break;
         ctx.server.poll_alarms();
     }
 }

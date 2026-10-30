@@ -121,3 +121,70 @@ correctness and the full Java integration tests remain separate regression check
 frames, bounded response-queue backpressure, response ordering and invalid TPKT
 lengths. Its deliberately oversized outstanding-job burst is a robustness probe,
 not a claim that the server negotiates a larger AMQ window.
+
+## Deferred writes and bounded completion waits
+
+The follow-up implementation keeps lock acquisition nonblocking on both platforms:
+Linux uses `LOCK_NB`; Windows uses `LOCKFILE_FAIL_IMMEDIATELY`. A contested write
+retains one validated request of at most 960 bytes per connection and pauses that
+connection's next receive. The I/O owner retries pending writers in round-robin
+order, at most once per millisecond, with at most eight requests per acquisition.
+Other readers, new connections and alarm work keep progressing. A one-second wait
+expires with an explicit S7 resource error (0x8301), without later applying the write.
+Stop/disconnect cleanup cancels retained work; no producer-owned buffers are borrowed.
+
+On Linux with IORING_FEAT_EXT_ARG, the loop now submits and waits for one completion
+batch with a kernel deadline instead of adding timeout SQEs on every pass. Submission
+accounting uses the consumed SQ head even on an interrupted wait. Kernels without
+that feature retain the prior path; the fallback is explicitly exercised by the IO
+regression executable. Absolute fallback deadlines also normalize nanoseconds across
+second boundaries. This does not enable SQPOLL or busy polling.
+
+Windows similarly returns after one IOCP batch/deadline. This host's idle IOCP
+`timeout=1 ms` waits measured about 15.6 ms at the default timer resolution. While
+one-millisecond retries are needed, Windows requests a one-millisecond timer period,
+keeps it for a 50 ms quiet grace period and balances the request on stop/deinit.
+Failure to obtain finer resolution retains correct, coarser scheduling. Finer timer
+resolution can increase scheduling/power costs while active. Its process/global and
+Windows 11 visibility behavior follows [Microsoft's API documentation](https://learn.microsoft.com/en-us/windows/win32/api/timeapi/nf-timeapi-timebeginperiod).
+
+Three alternating baseline/candidate rounds on the same Alpine/WSL host produced
+these medians (fresh comparisons, so baseline differs from the earlier table):
+
+| Case | Before | After |
+|---|---:|---:|
+| 1 client, single-item read p50 | 60.9 us | 50.9 us |
+| 1 client, single-item read throughput | 14,745 req/s | 17,512 req/s |
+| 16 clients, single-item read throughput | 77,161 req/s | 79,773 req/s |
+| 16 clients, single-item write throughput | 71,340 req/s | 69,465 req/s |
+| 16 mixed reader/writer clients, 10 ms holder: reader p99 | 10,536 us | 335 us |
+| Same contended case: writer p99 | 10,534 us | 10,482 us |
+| Same contended case: combined throughput | 41,887 req/s | 57,905 req/s |
+
+The large gain is reader isolation under contention. Writes still wait for a
+cooperating holder; high-concurrency uncontended throughput changes were small and
+mixed. These are WSL results, not native-Linux/bare-metal performance promises.
+`mixed_clients:1` assigns odd clients to writes and even clients to reads; its
+JSON reports separate read/write p99 latencies. All clients have finite work, so
+readers and writers may finish at different times.
+
+Native Windows original-Java-driver load medians were 5,182 ms before and 5,010 ms
+after for 320,000 requests: a small difference. With the same-host 10 ms lock fixture,
+32,000 requests took about 21 seconds before finer retry timing and 1.5 seconds
+after. This last fixture runs in the same process, so its own wait granularity also
+changes; it is integration evidence, not an isolated cross-process speedup claim.
+Native Windows and Alpine both passed independent-reader/accept, timeout/no-late-
+mutation and stop/restart tests while a file lock was held, plus the Java read/write,
+alarm and concurrency suites.
+
+```sh
+python3 TESTS/bench/run.py --library /absolute/path/libz7.so --output /tmp/z7-mixed \
+  --clients 16 --cases mixed_clients:1 --lock-hold-ms 10
+python3 TESTS/test_deferred_writes.py /absolute/path/libz7.so
+```
+
+CI runs the contention regression and an additional original-driver run with
+`--lock-hold-ms 10 --load-iterations 1000` on Windows and Ubuntu. `zig build test`
+also executes bounded-wait checks, including more operations than SQ slots and
+forced legacy Linux waiting. Linux validation here used Alpine/WSL; Ubuntu CI
+provides a separate non-WSL kernel environment.

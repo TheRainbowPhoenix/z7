@@ -189,10 +189,14 @@ jobs:
         run: python TESTS/test_shared_library.py ${{ matrix.library }}
       - name: TCP stream framing and backpressure
         run: python TESTS/test_stream.py ${{ matrix.library }}
+      - name: Contested writes and responsive shutdown
+        run: python TESTS/test_deferred_writes.py ${{ matrix.library }}
       - name: Alarm integration
         run: python TESTS/test_alarms.py ${{ matrix.library }}
       - name: Original Ignition driver interoperability
         run: python TESTS/ignition/run.py --driver-jar TESTS/ignition/vendor/driver-siemens-5.0.1.jar --z7-library ${{ matrix.library }} --output .zig-cache/ignition-harness
+      - name: Ignition under shared-memory lock contention
+        run: python TESTS/ignition/run.py --driver-jar TESTS/ignition/vendor/driver-siemens-5.0.1.jar --z7-library ${{ matrix.library }} --lock-hold-ms 10 --load-iterations 1000 --output .zig-cache/ignition-contended
       - name: Upload interoperability evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -202,6 +206,9 @@ jobs:
             .zig-cache/ignition-harness/results.json
             .zig-cache/ignition-harness/java.log
             .zig-cache/ignition-harness/wire.pcap
+            .zig-cache/ignition-contended/results.json
+            .zig-cache/ignition-contended/java.log
+            .zig-cache/ignition-contended/wire.pcap
           if-no-files-found: warn
 
   core-pipeline:
