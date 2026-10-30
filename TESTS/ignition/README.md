@@ -18,7 +18,7 @@ were also exercised on Alpine WSL.
 
 Optional `--output PATH` selects the artifact directory (default:
 `.zig-cache/ignition-harness`). The runner chooses an available loopback port, compiles
-the glue, starts z7 through its C ABI, runs Java in a child process with a 30-second
+the glue, starts z7 through its C ABI, runs Java in a child process with a 120-second
 deadline, then stops the server and removes its fixture memory file. It does not
 connect to an existing PLC/server or reuse the user's shared-memory file.
 
@@ -71,7 +71,7 @@ A running Ignition gateway may separately compute its own alarms from polled tag
 
 ## Cases and observed fixes
 
-16 cases cover:
+23 cases cover:
 - COTP connection and 480-byte PDU negotiation.
 - BYTE, INT, DINT, REAL, WORD, unsigned DWORD wire data, and STRING round trips.
 - BIT writes, bit clearing, and preservation of neighboring bits.
@@ -104,6 +104,33 @@ runtime interoperability claim for those versions.
 ## Continuous integration
 
 The `ignition` CI matrix builds the current server on Windows and Ubuntu, runs
-native parser, lifecycle and alarm tests, then runs all 16 original-driver cases.
+native parser, lifecycle and alarm tests, then runs all 23 interoperability cases.
 Failures fail CI; JSON results, Java logs and packet captures are uploaded even
 when a case fails. The required merge pipeline includes this job.
+
+## Data exchange regression and load coverage
+
+The suite now verifies I/Q/M/DB exchange between separate Java clients, last-byte
+access, cross-DB and cross-area rejection, missing-DB errors, mixed successful and
+failed items, WORD element counts, packed BIT reads, numeric transport metadata,
+exact PDU capacity, maximum-size request batches and recovery after oversized reads.
+
+Normal polling and the load test use the unchanged vendor factories, writers,
+readers and ReadResponseHandler. Typed requests the driver does not normally issue
+and error responses use an explicit bounded wire-inspection adapter. The vendor
+ReadResultReader consumes three bytes for four-byte error results and recognizes
+bit-based lengths only for transport 4; that vendor limitation is not changed or
+counted as native-driver support for those paths.
+
+The bounded load case runs 16 Java clients, each doing 10,000 two-request cycles:
+320,000 read/write requests and 960,000 checked item operations, plus negotiation
+traffic. Each cycle exchanges a private DB value, a marker DINT and one shared-byte
+BIT. Distinct clients update neighboring bits concurrently. Every readback is checked,
+and a final observer checks both shared bytes. Clients use 240/480-byte PDUs and
+reconnect nine times each. The test has a 90-second workload deadline within the
+runner's 120-second deadline. Per-packet tracing is disabled during load to keep
+artifacts bounded; case outcomes and elapsed time remain in java.log. This is a
+bounded concurrency regression, not a long-duration soak or throughput benchmark.
+
+Timer/counter execution, CPU simulation, block transfers and S7commPlus are outside
+this data-exchange change. Timer/counter-specific wire formats remain unsupported.

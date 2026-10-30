@@ -10,6 +10,7 @@ const firmware = @import("firmware.zig");
 const types = @import("types.zig");
 const alarms = @import("alarms.zig");
 const SendQueue = @import("send_queue.zig").Queue;
+const variable_read = @import("variable_read.zig");
 const variable_write = @import("variable_write.zig");
 const assert = std.debug.assert;
 const TPKT = proto.TPKT;
@@ -749,7 +750,7 @@ pub const Connection = struct {
             return;
         }
         const item_count = params[1];
-        if (item_count == 0 or params.len != 2 + @as(usize, item_count) * 12 or
+        if (10 + params.len > self.pdu_limit or item_count == 0 or item_count > 64 or params.len != 2 + @as(usize, item_count) * 12 or
             @as(usize, item_count) * 4 > self.pdu_limit - 14)
         {
             self.handle_error_response(req, @intFromEnum(proto.Function.read_var), @intFromEnum(ErrorCode.SERVICE_NOT_IMPLEMENTED_OR_FRAME_ERROR));
@@ -788,24 +789,30 @@ pub const Connection = struct {
             self.ptr_fill_error(tx, offset, @intFromEnum(proto.ReturnCode.invalid_address));
             return;
         }
-        const length = std.mem.readInt(u16, item[4..6], .big);
-        const padding: usize = if (remaining > 0) length % 2 else 0;
-        if (@as(usize, length) + padding > budget - offset.* - 4 - reserved) {
-            self.ptr_fill_error(tx, offset, @intFromEnum(proto.ReturnCode.data_type_inconsistent));
-            return;
-        }
-        const db = std.mem.readInt(u16, item[6..8], .big);
-        const address = (@as(u32, item[9]) << 16) | (@as(u32, item[10]) << 8) | item[11];
-        const bytes = self.storage.get_address(item[8], db, address >> 3, length) catch {
-            self.ptr_fill_error(tx, offset, @intFromEnum(proto.ReturnCode.invalid_address));
+        const plan = variable_read.decode(item) catch |err| {
+            self.ptr_fill_error(tx, offset, if (err == error.UnsupportedType) 6 else 5);
             return;
         };
-        if (bytes.len != length) {
-            self.ptr_fill_error(tx, offset, @intFromEnum(proto.ReturnCode.invalid_address));
+        if (plan.area == 0x84 and plan.db >= self.storage.max_dbs) {
+            self.ptr_fill_error(tx, offset, 0x0a);
             return;
         }
-        proto.writeDataHeader(tx, offset.*, 0xff, 4, @intCast(@as(u32, length) * 8));
-        @memcpy(tx[offset.* + 4 ..][0..length], bytes);
+        const length: usize = plan.length;
+        const padding: usize = if (remaining > 0) length % 2 else 0;
+        if (length + padding > budget - offset.* - 4 - reserved) {
+            self.ptr_fill_error(tx, offset, 7);
+            return;
+        }
+        const bytes = self.storage.get_address(plan.area, plan.db, plan.offset, plan.source_length) catch {
+            self.ptr_fill_error(tx, offset, 5);
+            return;
+        };
+        if (bytes.len != plan.source_length) {
+            self.ptr_fill_error(tx, offset, 5);
+            return;
+        }
+        proto.writeDataHeader(tx, offset.*, 0xff, plan.transport, plan.wire_length);
+        plan.copy(bytes, tx[offset.* + 4 ..][0..length]);
         offset.* += 4 + @as(usize, length);
         if (padding == 1) {
             tx[offset.*] = 0;

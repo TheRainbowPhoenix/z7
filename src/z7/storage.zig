@@ -172,6 +172,7 @@ pub const Storage = struct {
     }
 
     pub fn get_address(self: *Storage, area: u8, db_num: u16, start_byte: u32, len_bytes: u32) ![]u8 {
+        if (start_byte >= DB_SIZE or len_bytes == 0 or len_bytes > DB_SIZE - start_byte) return error.OutOfBounds;
         var base: usize = 0;
         switch (area) {
             0x81 => base = OFFSET_INPUTS,
@@ -189,24 +190,27 @@ pub const Storage = struct {
     }
 };
 
+test "mapped areas reject cross-boundary access without truncation" {
+    const memory = try std.testing.allocator.alignedAlloc(u8, std.heap.page_size_min, Storage.OFFSET_DB_START + 2 * Storage.DB_SIZE);
+    defer std.testing.allocator.free(memory);
+    var storage = Storage{ .ptr = memory, .handle = undefined, .max_dbs = 2 };
+    for ([_]u8{ 0x81, 0x82, 0x83, 0x84, 0x1c, 0x1d }) |area| {
+        try std.testing.expectEqual(@as(usize, 1), (try storage.get_address(area, 1, 65535, 1)).len);
+        try std.testing.expectError(error.OutOfBounds, storage.get_address(area, 1, 65535, 2));
+        try std.testing.expectError(error.OutOfBounds, storage.get_address(area, 1, 65536, 1));
+        try std.testing.expectError(error.OutOfBounds, storage.get_address(area, 1, 0, 0));
+    }
+    try std.testing.expectError(error.OutOfBounds, storage.get_address(0x84, 2, 0, 1));
+    try std.testing.expectError(error.InvalidArea, storage.get_address(0xff, 0, 0, 1));
+}
+
 test "Storage max_dbs" {
-    // defaults
-    var storage = try Storage.init("test_shm_defaults", Storage.MAX_DBS_DEFAULT);
-    defer storage.deinit();
-
-    // Should succeed for DB 0
+    const memory = try std.testing.allocator.alignedAlloc(u8, std.heap.page_size_min, Storage.OFFSET_DB_START + 300 * Storage.DB_SIZE);
+    defer std.testing.allocator.free(memory);
+    var storage = Storage{ .ptr = memory, .handle = undefined, .max_dbs = 128 };
     _ = try storage.get_address(0x84, 0, 0, 4);
-
-    // Should fail for DB 128
     try std.testing.expectError(error.OutOfBounds, storage.get_address(0x84, 128, 0, 4));
-
-    // custom limit
-    var storage2 = try Storage.init("test_shm_large", 300);
-    defer storage2.deinit();
-
-    // Should succeed for DB 200
-    _ = try storage2.get_address(0x84, 200, 0, 4);
-
-    // Should fail for DB 300
-    try std.testing.expectError(error.OutOfBounds, storage2.get_address(0x84, 300, 0, 4));
+    storage.max_dbs = 300;
+    _ = try storage.get_address(0x84, 200, 0, 4);
+    try std.testing.expectError(error.OutOfBounds, storage.get_address(0x84, 300, 0, 4));
 }

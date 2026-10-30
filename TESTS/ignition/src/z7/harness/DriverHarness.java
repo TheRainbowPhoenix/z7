@@ -15,6 +15,7 @@ import java.nio.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.concurrent.*;
 
 /** Original vendor codecs run from the supplied JAR. Alarm support is a separate test adapter. */
 public final class DriverHarness {
@@ -84,10 +85,13 @@ public final class DriverHarness {
         final Socket socket = new Socket();
         final ProtocolStack protocol = stack(true);
         final ArrayDeque<Alarm> notifications = new ArrayDeque<>();
+        boolean trace = true;
         short sequence = 1;
         final int pdu;
 
-        Session(int port, int requestedPdu) throws Exception {
+        Session(int port, int requestedPdu) throws Exception { this(port, requestedPdu, true); }
+        Session(int port, int requestedPdu, boolean trace) throws Exception {
+            this.trace = trace;
             socket.connect(new InetSocketAddress("127.0.0.1", port), 2000);
             socket.setSoTimeout(2000);
             socket.setTcpNoDelay(true);
@@ -112,7 +116,7 @@ public final class DriverHarness {
         }
         void send(byte[] bytes) throws IOException {
             require(bytes.length >= 7 && bytes.length <= MAX_FRAME, "outgoing frame outside bound");
-            System.out.println("WIRE\tTX\t" + hex(bytes));
+            if (trace) System.out.println("WIRE\tTX\t" + hex(bytes));
             socket.getOutputStream().write(bytes);
             socket.getOutputStream().flush();
         }
@@ -129,7 +133,8 @@ public final class DriverHarness {
             byte[] packet = Arrays.copyOf(header, length);
             byte[] body = exact(length - 4);
             System.arraycopy(body, 0, packet, 4, body.length);
-            System.out.println("WIRE\tRX\t" + hex(packet));
+            if (trace) System.out.println("WIRE\tRX\t" + hex(packet));
+            require(pdu == 0 || packet.length - 7 <= pdu, "response exceeds negotiated PDU");
             return packet;
         }
         ByteBuffer exchange(ApplicationData request, short reference, int rosctr) throws Exception {
@@ -181,6 +186,38 @@ public final class DriverHarness {
             require(String.valueOf(actual).equals(String.valueOf(expected)), "expected " + expected + ", got " + actual);
         }
 
+        // The vendor error reader consumes three bytes for a four-byte error item.
+        // This bounded adapter inspects those responses without changing vendor code.
+        List<WireResult> inspect(List<ReadAddressBlock> blocks, int type, int count, int bitAddress) throws Exception {
+            S7ReadRequest request = S7ReadRequestFactory.buildRequest(next(), blocks);
+            ByteBuffer body = ByteBuffer.allocate(request.length());
+            new S7ReadRequestWriter().write(request, body);
+            if (type >= 0) {
+                body.put(15, (byte)type).putShort(16, (short)count);
+                body.put(21, (byte)(bitAddress >>> 16)).put(22, (byte)(bitAddress >>> 8)).put(23, (byte)bitAddress);
+            }
+            ByteBuffer response = exchange(data(body.capacity(), b -> b.put(body.array())), request.getHeader().getSequence(), 3).slice().order(ByteOrder.BIG_ENDIAN);
+            require(response.remaining() >= 14 && response.getShort(10) == 0, "read job failed");
+            int parameters = response.getShort(6) & 65535;
+            int dataLength = response.getShort(8) & 65535;
+            require(parameters == 2 && response.get(12) == 4 && (response.get(13) & 255) == blocks.size(), "read response parameters");
+            require(response.limit() == 12 + parameters + dataLength, "read response length");
+            response.position(14);
+            List<WireResult> results = new ArrayList<>();
+            for (int i = 0; i < blocks.size(); i++) {
+                require(response.remaining() >= 4, "short item");
+                int code = response.get() & 255, transport = response.get() & 255, length = response.getShort() & 65535;
+                int bytes = (transport == 3 || transport == 4 || transport == 5) ? (length + 7) / 8 : length;
+                require(bytes <= response.remaining(), "item beyond response");
+                byte[] value = new byte[bytes]; response.get(value);
+                if (code != 255) require(transport == 0 && length == 0, "error item contains data");
+                results.add(new WireResult(code, transport, length, value));
+                if (bytes % 2 == 1 && i + 1 < blocks.size()) require(response.get() == 0, "nonzero padding");
+            }
+            require(!response.hasRemaining(), "trailing response bytes");
+            return results;
+        }
+
         // Separate classic alarm adapter: the supplied Ignition JAR has no corresponding service.
         Alarm userdata(int subfunction, byte[] payload) throws Exception {
             short reference = next();
@@ -223,6 +260,63 @@ public final class DriverHarness {
             return userdata(0x13, payload.array()).payload;
         }
         public void close() throws IOException { socket.close(); }
+    }
+
+    private static final class WireResult {
+        final int code, transport, length;
+        final byte[] data;
+        WireResult(int code, int transport, int length, byte[] data) {
+            this.code = code; this.transport = transport; this.length = length; this.data = data;
+        }
+    }
+    private static void load(int port) throws Exception {
+        final int clients = 16, iterations = 10000;
+        ExecutorService pool = Executors.newFixedThreadPool(clients);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<?>> tasks = new ArrayList<>();
+        long began = System.nanoTime();
+        try {
+            for (int index = 0; index < clients; index++) {
+                final int owner = index;
+                tasks.add(pool.submit(() -> {
+                    try {
+                        start.await();
+                        for (int batch = 0; batch < 10; batch++) {
+                            try (Session session = new Session(port, owner % 2 == 0 ? 240 : 480, false)) {
+                                for (int cycle = 0; cycle < iterations / 10; cycle++) {
+                                    int value = owner * 100000 + batch * 100 + cycle;
+                                    Item db = new Item(new S7Address(S7Area.DATA_BLOCKS, 100 + owner, S7DataType.DINT, 0), value);
+                                    Item area = new Item(new S7Address(S7Area.FLAGS, 0, S7DataType.DINT, 1024 + owner * 4), ~value);
+                                    boolean bitValue = (cycle & 1) != 0;
+                                    Item bit = new Item(new S7Address(S7Area.FLAGS, 0, S7DataType.BIT, 2048 + owner / 8, owner % 8), bitValue);
+                                    session.write(Arrays.asList(db, area, bit));
+                                    session.read(Arrays.asList(readBlock(db), readBlock(area), readBlock(bit)));
+                                    require(Boolean.valueOf(bitValue).equals(bit.readValue.getValue().getValue()), "shared-byte bit update lost");
+                                    require(((Number)db.readValue.getValue().getValue()).intValue() == value, "load DB corruption");
+                                    require(((Number)area.readValue.getValue().getValue()).intValue() == ~value, "load area corruption");
+                                }
+                            }
+                        }
+                    } catch (Exception error) { throw new RuntimeException(error); }
+                }));
+            }
+            start.countDown();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(90);
+            for (Future<?> task : tasks) task.get(Math.max(1, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+            try (Session observer = new Session(port, 240, false)) {
+                for (int offset = 2048; offset < 2050; offset++) {
+                    Item bits = new Item(new S7Address(S7Area.FLAGS, 0, S7DataType.BYTE, offset), null);
+                    require(hex(observer.read(Collections.singletonList(readBlock(bits))).get(0).getData()).equals("ff"), "shared byte lost neighboring bits");
+                }
+            }
+            long milliseconds = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - began);
+            System.out.println("LOAD clients=" + clients + " transactions=" + (clients * iterations * 2) +
+                " items=" + (clients * iterations * 6) + " sessions=" + (clients * 10 + 1) + " reconnects=" + (clients * 9) + " elapsed_ms=" + milliseconds);
+        } finally {
+            start.countDown();
+            pool.shutdownNow();
+            require(pool.awaitTermination(5, TimeUnit.SECONDS), "load workers did not terminate");
+        }
     }
 
     private static final class Alarm {
@@ -312,6 +406,63 @@ public final class DriverHarness {
                 List<ReadResult> results = session.read(Arrays.asList(readBlock(first), readBlock(second)));
                 require(hex(results.get(0).getData()).equals("7f") && hex(results.get(1).getData()).equals("fb2e"), "odd padding");
             });
+            test("driver_memory_areas", () -> {
+                for (S7Area area : new S7Area[]{S7Area.INPUTS, S7Area.OUTPUTS, S7Area.FLAGS}) {
+                    session.roundTrip(new Item(new S7Address(area, 0, S7DataType.DINT, 64), 0x12345678), 0x12345678, "12345678");
+                    session.roundTrip(new Item(new S7Address(area, 0, S7DataType.BIT, 70, 3), true), true, "08");
+                }
+            });
+            test("driver_cross_client_exchange", () -> {
+                try (Session peer = new Session(port, 240)) {
+                    for (S7Area area : new S7Area[]{S7Area.INPUTS, S7Area.OUTPUTS, S7Area.FLAGS, S7Area.DATA_BLOCKS}) {
+                        Item value = new Item(new S7Address(area, area == S7Area.DATA_BLOCKS ? 5 : 0, S7DataType.DINT, 512), 0x12345678);
+                        session.write(Collections.singletonList(value));
+                        peer.read(Collections.singletonList(readBlock(value)));
+                        require(((Number)value.readValue.getValue().getValue()).intValue() == 0x12345678, "peer missed producer update");
+                        Item reply = new Item(value.address, -42);
+                        peer.write(Collections.singletonList(reply));
+                        session.read(Collections.singletonList(readBlock(reply)));
+                        require(((Number)reply.readValue.getValue().getValue()).intValue() == -42, "producer missed peer update");
+                    }
+                }
+            });
+            test("driver_read_isolation_and_errors", () -> {
+                ReadAddressBlock crossing = readBlock(new Item(address(S7DataType.INT, 65535), null));
+                ReadAddressBlock missing = readBlock(new Item(new S7Address(S7Area.DATA_BLOCKS, 65000, S7DataType.BYTE, 0), null));
+                ReadAddressBlock valid = readBlock(new Item(address(S7DataType.BYTE, 0), null));
+                List<WireResult> results = session.inspect(Arrays.asList(crossing, missing, valid), -1, 0, 0);
+                require(results.get(0).code == 5 && results.get(1).code == 10 && results.get(2).code == 255, "per-item errors");
+                require(hex(results.get(2).data).equals("7f"), "healthy peer item lost");
+                for (S7Area area : new S7Area[]{S7Area.INPUTS, S7Area.OUTPUTS, S7Area.FLAGS}) {
+                    WireResult result = session.inspect(Collections.singletonList(readBlock(new Item(new S7Address(area, 0, S7DataType.INT, 65535), null))), -1, 0, 0).get(0);
+                    require(result.code == 5, "cross-area read accepted");
+                }
+                session.roundTrip(new Item(address(S7DataType.BYTE, 65535), 90), 90, "5a");
+            });
+            test("driver_word_element_count", () -> {
+                Item item = new Item(address(S7DataType.DINT, 96), 0x11223344);
+                session.write(Collections.singletonList(item));
+                ReadAddressBlock words = new ReadAddressBlock(new ArrayList<>(Collections.singletonList(item))) {
+                    public AddressBlock.LengthUnit getLengthUnit() { return AddressBlock.LengthUnit.WORD; }
+                    public int getLength() { return 2; }
+                };
+                require(hex(session.read(Collections.singletonList(words)).get(0).getData()).equals("11223344"), "WORD count not scaled");
+            });
+            test("typed_read_wire_adapter", () -> {
+                session.write(Collections.singletonList(new Item(address(S7DataType.DINT, 100), 0x11223344)));
+                List<ReadAddressBlock> block = Collections.singletonList(readBlock(new Item(address(S7DataType.BYTE, 100), null)));
+                for (int type : new int[]{4,5,6,7,8}) {
+                    WireResult result = session.inspect(block, type, type <= 5 ? 2 : 1, 800).get(0);
+                    int transport = type == 5 ? 5 : type == 7 ? 6 : type == 8 ? 7 : 4;
+                    require(result.code == 255 && result.transport == transport && result.length == (transport <= 5 ? 32 : 4), "typed result metadata");
+                    require(hex(result.data).equals("11223344"), "typed result data");
+                }
+                session.write(Arrays.asList(new Item(address(S7DataType.BYTE, 110), 0x80), new Item(address(S7DataType.BYTE, 111), 0x55)));
+                WireResult bits = session.inspect(block, 1, 9, 110 * 8 + 7).get(0);
+                require(bits.code == 255 && bits.transport == 3 && bits.length == 9 && hex(bits.data).equals("ab00"), "packed BIT result");
+                require(session.inspect(block, 2, 1, 801).get(0).code == 5, "unaligned byte accepted");
+                require(session.inspect(block, 255, 1, 800).get(0).code == 6, "unknown type accepted");
+            });
             test("alarm_adapter_subscribe_raise_ack_clear_query", () -> {
                 session.subscribe(true);
                 controlSet(2001, 1);
@@ -330,9 +481,27 @@ public final class DriverHarness {
             });
         }
         try (Session session = new Session(port, 240)) {
+            test("driver_pdu_boundaries", () -> {
+                List<ReadAddressBlock> maximum = new ArrayList<>();
+                for (int i = 0; i < 19; i++) maximum.add(readBlock(new Item(address(S7DataType.BYTE, 0), null)));
+                require(session.read(maximum).size() == 19, "maximum request batch failed");
+                maximum.add(readBlock(new Item(address(S7DataType.BYTE, 0), null)));
+                S7ReadRequest oversized = S7ReadRequestFactory.buildRequest(session.next(), maximum);
+                ByteBuffer rejected = session.exchange(data(oversized.length(), b -> new S7ReadRequestWriter().write(oversized, b)),
+                    oversized.getHeader().getSequence(), 3).slice();
+                require((rejected.getShort(10) & 65535) == 0x8104, "oversized request was not rejected");
+                List<ReadAddressBlock> block = Collections.singletonList(readBlock(new Item(address(S7DataType.BYTE, 0), null)));
+                WireResult exact = session.inspect(block, 2, 222, 0).get(0);
+                require(exact.code == 255 && exact.data.length == 222, "exact PDU capacity");
+                require(session.inspect(block, 2, 223, 0).get(0).code == 7, "oversize read accepted");
+                List<ReadAddressBlock> mixed = Arrays.asList(block.get(0), block.get(0));
+                List<WireResult> results = session.inspect(mixed, 2, 223, 0);
+                require(results.get(0).code == 7 && results.get(1).code == 255, "oversize item lost valid result");
+            });
             test("driver_small_pdu_reconnect", () ->
                 session.roundTrip(new Item(address(S7DataType.BYTE, 30), 66), 66, "42"));
         }
+        test("driver_concurrent_load", () -> load(port));
         System.out.println("SUMMARY\t" + failures);
         if (failures != 0) System.exit(1);
     }

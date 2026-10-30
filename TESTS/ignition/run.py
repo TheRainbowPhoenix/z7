@@ -88,11 +88,11 @@ def main():
                 messages.put(line.rstrip("\n"))
             messages.put(None)
         threading.Thread(target=read_output, daemon=True).start()
-        deadline = time.monotonic() + 30
+        deadline = time.monotonic() + 120
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise TimeoutError("Java harness exceeded 30 seconds")
+                raise TimeoutError("Java harness exceeded 120 seconds")
             line = messages.get(timeout=remaining)
             if line is None:
                 break
