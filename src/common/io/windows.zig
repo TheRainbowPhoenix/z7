@@ -426,7 +426,7 @@ pub const IO = struct {
                         .WSAEOPNOTSUPP => error.OperationNotSupported,
                         .WSA_INVALID_HANDLE => unreachable, // We don't use hEvent in OVERLAPPED.
                         .WSAEFAULT, .WSA_INVALID_PARAMETER => unreachable, // Params should be ok.
-                        .WSAECONNRESET => error.ConnectionAborted,
+                        .WSAECONNRESET, .WSA_OPERATION_ABORTED => error.ConnectionAborted,
                         .WSAEMFILE => unreachable, // We create our own descriptor so its available.
                         .WSAENOBUFS => error.SystemResources,
                         .WSAEINTR, .WSAEINPROGRESS => unreachable, // No blocking calls.
@@ -721,7 +721,8 @@ pub const IO = struct {
                         .WSAENOTCONN => error.FileDescriptorNotASocket,
                         .WSAEOPNOTSUPP => unreachable, // We don't use MSG_OOB or MSG_PARTIAL.
                         .WSAESHUTDOWN => error.BrokenPipe,
-                        .WSA_OPERATION_ABORTED => unreachable, // Operation was cancelled.
+                        // Closing a socket cancels outstanding alarm sends/reads.
+                        .WSA_OPERATION_ABORTED, .WSAENOTSOCK => error.ConnectionResetByPeer,
                         else => |err| os.windows.unexpectedWSAError(err),
                     };
                 }
@@ -829,7 +830,7 @@ pub const IO = struct {
                         .WSAEOPNOTSUPP => unreachable, // We don't use MSG_OOB or MSG_PARTIAL.
                         .WSAESHUTDOWN => error.SocketNotConnected,
                         .WSAETIMEDOUT => error.ConnectionRefused,
-                        .WSA_OPERATION_ABORTED => unreachable, // Operation was cancelled.
+                        .WSA_OPERATION_ABORTED, .WSAENOTSOCK => error.ConnectionResetByPeer,
                         else => |err| os.windows.unexpectedWSAError(err),
                     };
                 }

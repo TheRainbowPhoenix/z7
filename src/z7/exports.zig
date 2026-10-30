@@ -4,6 +4,7 @@ const zCom = @import("zCom");
 const IO = zCom.io.IO;
 const Storage = @import("storage.zig").Storage;
 const Connection = @import("connection.zig").Connection;
+const alarms = @import("alarms.zig");
 const main = @import("main.zig");
 
 // Global log callback
@@ -47,6 +48,7 @@ const Context = struct {
     server: main.Server,
     connections: []Connection,
     listener: std.posix.socket_t,
+    alarm_store: alarms.Store,
     thread_: ?std.Thread = null,
     running: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
 };
@@ -82,6 +84,7 @@ export fn z7_get_memory_size(ctx: *Context) usize {
 export fn z7_init(port: u16, storage_path: [*c]const u8) ?*Context {
     const ctx = std.heap.page_allocator.create(Context) catch return null;
     ctx.gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    ctx.alarm_store = .{};
     const allocator = ctx.gpa.allocator();
 
     // Storage path conversion
@@ -121,7 +124,7 @@ export fn z7_init(port: u16, storage_path: [*c]const u8) ?*Context {
     ctx.connections = allocator.alloc(Connection, main.MAX_CONNECTIONS) catch return null;
     const invalid_socket = if (builtin.os.tag == .windows) std.os.windows.ws2_32.INVALID_SOCKET else -1;
     for (ctx.connections) |*c| {
-        c.* = Connection.init(&ctx.io, &ctx.storage, invalid_socket);
+        c.* = Connection.init(&ctx.io, &ctx.storage, &ctx.alarm_store, invalid_socket);
     }
 
     ctx.server = main.Server{
@@ -144,6 +147,7 @@ fn run_loop(ctx: *Context) void {
         defer {
             // Drain kernel references before freeing or reusing completion buffers.
             ctx.io.cancel_all();
+            ctx.server.accept_pending = false;
             for (ctx.connections) |*connection| {
                 connection.close();
                 connection.pending_ops = 0;
@@ -151,16 +155,36 @@ fn run_loop(ctx: *Context) void {
         }
         run_server_loop(ctx);
     } else {
+        defer if (builtin.os.tag == .windows) {
+            ctx.server.stopping = true;
+            for (ctx.connections) |*connection| connection.close();
+            // Submit any initially queued operations before canceling the listener.
+            ctx.io.run() catch |err| std.debug.panic("IO shutdown: {}", .{err});
+            if (std.os.windows.kernel32.CancelIoEx(@ptrCast(ctx.listener), null) == 0) {
+                switch (std.os.windows.kernel32.GetLastError()) {
+                    .NOT_FOUND => {}, // Accept already completed; its callback still needs draining.
+                    else => |err| std.debug.panic("Cancel listener IO: {}", .{err}),
+                }
+            }
+            while (ctx.io.io_pending > 0 or !ctx.io.completed.empty()) {
+                ctx.io.run_for_ns(10 * std.time.ns_per_ms) catch |err|
+                    std.debug.panic("IO shutdown: {}", .{err});
+            }
+            std.debug.assert(!ctx.server.accept_pending);
+            for (ctx.connections) |*connection| std.debug.assert(connection.pending_ops == 0);
+        };
         run_server_loop(ctx);
     }
 }
 
 fn run_server_loop(ctx: *Context) void {
     std.log.info("Server loop starting", .{});
+    ctx.server.stopping = false;
     ctx.server.start_accept();
 
     while (ctx.running.load(.acquire)) {
         ctx.io.run_for_ns(10 * std.time.ns_per_ms) catch break;
+        ctx.server.poll_alarms();
     }
 }
 
@@ -225,5 +249,20 @@ export fn z7_write(ctx: *Context, area: u8, db_num: u16, start: u32, len: u32, i
     if (slice.len < len) return -1;
 
     @memcpy(slice[0..len], buf_slice);
+    return 0;
+}
+
+/// Set eight ALARM_8 signals. IDs must be nonzero; zero signals clears an existing alarm.
+/// Safe to call from a producer thread while the server runs. Do not race deinit.
+/// Returns 0 on success, -1 for invalid arguments/time, -2 when all 64 IDs are used,
+/// and -3 if the internal event sequence is exhausted. Duplicate states emit no event.
+export fn z7_alarm_set(context: ?*Context, event_id: u32, signals: u8) i32 {
+    const ctx = context orelse return -1;
+    const timestamp = alarms.timestamp_from_ms(std.time.milliTimestamp()) catch return -1;
+    ctx.alarm_store.set(event_id, signals, timestamp) catch |err| return switch (err) {
+        error.Full => -2,
+        error.SequenceExhausted => -3,
+        else => -1,
+    };
     return 0;
 }

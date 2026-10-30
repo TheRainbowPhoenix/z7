@@ -8,6 +8,10 @@ const constants = @import("constants.zig");
 const ErrorCode = constants.ErrorCode;
 const firmware = @import("firmware.zig");
 const types = @import("types.zig");
+const alarms = @import("alarms.zig");
+const SendQueue = @import("send_queue.zig").Queue;
+const variable_write = @import("variable_write.zig");
+const assert = std.debug.assert;
 const TPKT = proto.TPKT;
 const S7Header = proto.S7Header;
 
@@ -24,6 +28,7 @@ fn fire_event(event_type: u8, detail: []const u8) void {
 pub const Connection = struct {
     io: *IO,
     storage: *Storage,
+    alarm_store: *alarms.Store,
     socket: std.posix.socket_t,
 
     // Message Buffers
@@ -38,20 +43,40 @@ pub const Connection = struct {
     // State
     closed: bool = false,
     pending_ops: usize = 0,
+    read_pending: bool = false,
+    write_pending: bool = false,
+    rx_received: usize = 0,
+    rx_target: usize = 4,
+    send_queue: SendQueue = .{},
+    pdu_limit: u16 = 960,
+    alarm_subscribed: bool = false,
+    alarm_cursor: u64 = 0,
+    alarm_sequence: u8 = 0,
 
-    pub fn init(io: *IO, storage: *Storage, socket: std.posix.socket_t) Connection {
+    pub fn init(io: *IO, storage: *Storage, alarm_store: *alarms.Store, socket: std.posix.socket_t) Connection {
         return .{
             .io = io,
             .storage = storage,
+            .alarm_store = alarm_store,
             .socket = socket,
             .closed = true,
         };
     }
 
     pub fn reset(self: *Connection, socket: std.posix.socket_t) void {
+        assert(self.pending_ops == 0);
         self.socket = socket;
         self.closed = false;
         self.pending_ops = 0;
+        self.read_pending = false;
+        self.write_pending = false;
+        self.rx_received = 0;
+        self.rx_target = 4;
+        self.send_queue = .{};
+        self.pdu_limit = 960;
+        self.alarm_subscribed = false;
+        self.alarm_cursor = 0;
+        self.alarm_sequence = 0;
         // Completions are reused and will be overwritten by submit()
     }
 
@@ -62,102 +87,85 @@ pub const Connection = struct {
     // Read pipeline
 
     fn start_read_header(self: *Connection) void {
+        if (self.closed or self.read_pending or self.send_queue.free() == 0) return;
+        self.rx_received = 0;
+        self.rx_target = 4;
+        self.receive_more();
+    }
+
+    fn receive_more(self: *Connection) void {
+        assert(!self.read_pending);
+        assert(self.rx_received < self.rx_target);
+        assert(self.rx_target <= self.rx_buffer.len);
         if (self.closed) return;
+        self.read_pending = true;
         self.pending_ops += 1;
         self.io.recv(
             *Connection,
             self,
-            on_read_header,
+            on_receive,
             &self.read_completion,
             self.socket,
-            self.rx_buffer[0..4],
+            self.rx_buffer[self.rx_received..self.rx_target],
         );
     }
 
-    fn on_read_header(self: *Connection, completion: *IO.Completion, result: IO.RecvError!usize) void {
+    fn on_receive(self: *Connection, completion: *IO.Completion, result: IO.RecvError!usize) void {
         _ = completion;
+        assert(self.read_pending);
+        self.read_pending = false;
+        assert(self.pending_ops > 0);
         self.pending_ops -= 1;
+        if (self.closed) return;
         const bytes_read = result catch |err| {
             log.err("Receive error: {}", .{err});
             self.close();
             return;
         };
 
-        if (bytes_read == 0) {
+        if (bytes_read == 0 or bytes_read > self.rx_target - self.rx_received) {
             self.close();
             return;
         }
 
-        if (bytes_read < 4) {
-            log.err("Incomplete TPKT header", .{});
-            self.close();
+        self.rx_received += bytes_read;
+        if (self.rx_received < self.rx_target) {
+            self.receive_more();
             return;
         }
 
-        const tpkt = std.mem.bytesToValue(TPKT, self.rx_buffer[0..@sizeOf(TPKT)]);
-        if (tpkt.version != proto.tpkt_version) {
-            log.err("Invalid TPKT version: {}", .{tpkt.version});
-            self.close();
+        if (self.rx_target == 4) {
+            const header = self.rx_buffer[0..4];
+            const length = std.mem.readInt(u16, header[2..4], .big);
+            if (header[0] != proto.tpkt_version or header[1] != 0 or length < 7 or length > self.rx_buffer.len) {
+                self.close();
+                return;
+            }
+            self.rx_target = length;
+            self.receive_more();
             return;
         }
 
-        self.read_body(std.mem.bigToNative(u16, tpkt.length));
-    }
-
-    fn read_body(self: *Connection, length: u16) void {
-        if (length > self.rx_buffer.len) {
-            log.err("Packet too large: {}", .{length});
-            self.close();
-            return;
-        }
-        const remaining = length - 4;
-        if (remaining == 0) {
-            self.start_read_header();
-            return;
-        }
-        self.pending_ops += 1;
-        self.io.recv(
-            *Connection,
-            self,
-            on_read_body,
-            &self.read_completion,
-            self.socket,
-            self.rx_buffer[4..length],
-        );
-    }
-
-    fn on_read_body(self: *Connection, completion: *IO.Completion, result: IO.RecvError!usize) void {
-        _ = completion;
-        self.pending_ops -= 1;
-        const bytes_read = result catch |err| {
-            log.err("Body receive error: {}", .{err});
-            self.close();
-            return;
-        };
-        if (bytes_read == 0) {
-            self.close();
-            return;
-        }
-
-        const tpkt = std.mem.bytesToValue(TPKT, self.rx_buffer[0..@sizeOf(TPKT)]);
-        const total_len = std.mem.bigToNative(u16, tpkt.length);
-
-        log.debug("RX: {any}", .{std.fmt.fmtSliceHexLower(self.rx_buffer[0..total_len])});
-        self.process_pdu(self.rx_buffer[0..total_len]);
+        self.process_pdu(self.rx_buffer[0..self.rx_target]);
+        self.start_read_header();
     }
 
     // COTP / S7 dispatch
 
     fn process_pdu(self: *Connection, data: []u8) void {
-        if (data.len < 5) {
+        if (data.len < 7) {
             self.close();
             return;
         }
 
         const cotp_len = data[4];
-        const pdu_offset = 5 + cotp_len;
+        const pdu_offset = 5 + @as(usize, cotp_len);
+        if (cotp_len < 2 or pdu_offset > data.len) {
+            self.close();
+            return;
+        }
 
-        if (data.len <= pdu_offset) {
+        if (data.len == pdu_offset) {
             // Short packet - might be a COTP-only message (CR, DR, …)
             const pdu_type = data[5];
             if (pdu_type == proto.Cotp.connect_request) {
@@ -169,6 +177,10 @@ pub const Connection = struct {
             return;
         }
 
+        if (cotp_len != 2 or data[5] != proto.Cotp.data or data[6] != proto.Cotp.eot) {
+            self.close();
+            return;
+        }
         self.handle_s7(data[pdu_offset..]);
     }
 
@@ -245,8 +257,8 @@ pub const Connection = struct {
     }
 
     fn dispatch_job(self: *Connection, header: *const S7Header, data: []u8) bool {
-        const param_len = header.param_len;
-        const data_len = header.data_len;
+        const param_len: usize = header.param_len;
+        const data_len: usize = header.data_len;
 
         if (10 + param_len + data_len > data.len) {
             self.close();
@@ -259,7 +271,7 @@ pub const Connection = struct {
         const func: proto.Function = @enumFromInt(params[0]);
         switch (func) {
             .setup_comm => {
-                self.handle_setup_comm(header);
+                self.handle_setup_comm(header, params);
                 return true;
             },
             .read_var => {
@@ -296,13 +308,10 @@ pub const Connection = struct {
     }
 
     fn dispatch_userdata(self: *Connection, header: *const S7Header, data: []u8) bool {
-        const param_len = header.param_len;
-        const data_len = header.data_len;
+        const param_len: usize = header.param_len;
+        const data_len: usize = header.data_len;
 
-        // Our S7Header is 10 bytes. Some clients (e.g. raw scripts) may send
-        // a 12-byte header with an extra 2-byte error/reserved field.
-        // We detect this by checking for the params head marker (00 01 12)
-        // at offset 10 (standard) and offset 12 (extended header).
+        // Accept the legacy twelve-byte header used by some raw clients as well.
         var params_off: usize = 10;
         if (data.len >= 15 and data[10] == 0x00 and data[11] == 0x01 and data[12] == 0x12) {
             params_off = 10;
@@ -331,6 +340,10 @@ pub const Connection = struct {
         const func_group = tg & 0x0F; // lower nibble = group
 
         if (func_group == 0x04) { // SZL (CPU functions)  proto.FunctionGroup.cpu_request
+            if (sub_func != proto.CpuSubfunction.read_szl) {
+                self.handle_alarm_request(header, params, payload, params_off + param_len + data_len == data.len);
+                return true;
+            }
             if (sub_func == proto.CpuSubfunction.read_szl) {
                 // SZL Read - extract ID and Index from data payload
                 if (payload.len >= 4) {
@@ -363,11 +376,109 @@ pub const Connection = struct {
         return false;
     }
 
+    fn alarm_reply(self: *Connection, reference: u16, subfunction: u8, sequence: u8, group: u8, code: u16, payload: []const u8) void {
+        const overhead = 10 + 12 + 4;
+        assert(self.pdu_limit >= 240);
+        var response_code = code;
+        var response_payload = payload;
+        if (payload.len > @as(usize, self.pdu_limit) - overhead) {
+            response_code = 0x8301;
+            response_payload = &.{};
+        }
+        const length: u16 = @intCast(7 + overhead + response_payload.len);
+        const tx = &self.tx_buffer;
+        proto.writeTpktCotpDT(tx, length);
+        proto.writeS7HeaderShort(tx, 7, proto.Rosctr.userdata, reference, 12, @intCast(4 + response_payload.len));
+        proto.writeUserdataParams(tx, 17, proto.ParamMethod.response, group, subfunction, sequence);
+        proto.writeBE16(tx, 27, response_code);
+        proto.writeDataHeader(tx, 29, if (response_code == 0) 0xff else 0x0a, if (response_code == 0) 9 else 0, @intCast(response_payload.len));
+        @memcpy(tx[33..][0..response_payload.len], response_payload);
+        self.send_response(length);
+    }
+
+    fn alarm_error(self: *Connection, req: *const S7Header, params: []const u8, code: u16) void {
+        assert(params.len >= 8);
+        self.alarm_reply(req.pdu_ref, params[6], params[7], 0x84, code, &.{});
+    }
+
+    fn handle_alarm_request(self: *Connection, req: *const S7Header, params: []const u8, data: []const u8, exact_length: bool) void {
+        assert(params.len >= 8);
+        const payload = alarms.parse_envelope(params, data, exact_length, self.pdu_limit) catch |err| {
+            self.alarm_error(req, params, if (err == error.Unsupported) 0x8702 else 0x0112);
+            return;
+        };
+        switch (params[6]) {
+            proto.CpuSubfunction.message_service => {
+                const subscribed = alarms.parse_subscription(payload) catch |err| {
+                    self.alarm_error(req, params, if (err == error.Unsupported) 0x8702 else 0x0112);
+                    return;
+                };
+                const cursor = if (subscribed and !self.alarm_subscribed) self.alarm_store.cursor() else self.alarm_cursor;
+                const response = [_]u8{ 0, 0, payload[10], 0, 0 };
+                self.alarm_reply(req.pdu_ref, params[6], params[7], 0x84, 0, &response);
+                if (!self.closed) {
+                    self.alarm_cursor = cursor;
+                    self.alarm_subscribed = subscribed;
+                }
+            },
+            proto.CpuSubfunction.alarm_ack => {
+                const request = alarms.parse_ack(payload) catch {
+                    self.alarm_error(req, params, 0x0112);
+                    return;
+                };
+                const timestamp = alarms.timestamp_from_ms(std.time.milliTimestamp()) catch {
+                    self.alarm_error(req, params, 0x8402);
+                    return;
+                };
+                var response: [2 + alarms.ack_capacity]u8 = undefined;
+                response[0] = 0;
+                response[1] = @intCast(request.count);
+                self.alarm_store.acknowledge(&request, response[2..], timestamp) catch {
+                    self.alarm_error(req, params, 0x8301);
+                    return;
+                };
+                self.alarm_reply(req.pdu_ref, params[6], params[7], 0x84, 0, response[0 .. 2 + request.count]);
+            },
+            proto.CpuSubfunction.alarm_query => {
+                const query = alarms.parse_query(payload) catch |err| {
+                    self.alarm_error(req, params, if (err == error.Unsupported) 0x8702 else 0x0112);
+                    return;
+                };
+                var response: [alarms.query_capacity]u8 = undefined;
+                const length = self.alarm_store.query(query, &response);
+                // No truncated snapshots: small-PDU clients can query individual IDs.
+                self.alarm_reply(req.pdu_ref, params[6], params[7], 0x84, 0, response[0..length]);
+            },
+            else => self.alarm_error(req, params, 0x8702),
+        }
+    }
+
+    /// Called only by the IO owner. Keep one queue slot available for a peer response.
+    pub fn poll_alarms(self: *Connection) void {
+        if (self.closed or !self.alarm_subscribed or self.send_queue.free() <= 1) return;
+        const event = self.alarm_store.next(&self.alarm_cursor) catch {
+            // A slow reader must reconnect/query rather than silently lose transitions.
+            self.close();
+            return;
+        } orelse return;
+        var payload: [22]u8 = undefined;
+        const bytes = alarms.encode_event(event, &payload);
+        self.alarm_sequence +%= 1; // Wire sequence numbers are eight-bit counters.
+        self.alarm_reply(0, if (event.acknowledgement) 0x0c else 0x05, self.alarm_sequence, 0x04, 0, bytes);
+    }
+
     // Setup Communication
 
-    fn handle_setup_comm(self: *Connection, req: *const S7Header) void {
+    fn handle_setup_comm(self: *Connection, req: *const S7Header, params: []const u8) void {
+        if (params.len != 8 or params[1] != 0 or std.mem.readInt(u16, params[2..4], .big) == 0 or
+            std.mem.readInt(u16, params[4..6], .big) == 0 or std.mem.readInt(u16, params[6..8], .big) < 240)
+        {
+            self.handle_error_response(req, 0xf0, 0x0112);
+            return;
+        }
+        self.pdu_limit = @min(960, std.mem.readInt(u16, params[6..8], .big));
         const tx = &self.tx_buffer;
-        proto.writeSetupCommResponse(tx, req.pdu_ref, 1, 1, 960);
+        proto.writeSetupCommResponse(tx, req.pdu_ref, 1, 1, self.pdu_limit);
         self.send_response(27);
     }
 
@@ -638,66 +749,23 @@ pub const Connection = struct {
             return;
         }
         const item_count = params[1];
-        if (params.len < 2 + @as(usize, item_count) * 12) {
+        if (item_count == 0 or params.len != 2 + @as(usize, item_count) * 12 or
+            @as(usize, item_count) * 4 > self.pdu_limit - 14)
+        {
             self.handle_error_response(req, @intFromEnum(proto.Function.read_var), @intFromEnum(ErrorCode.SERVICE_NOT_IMPLEMENTED_OR_FRAME_ERROR));
             return;
         }
         log.debug("Read Var: {} items", .{item_count});
 
-        var tx = &self.tx_buffer;
-        // S7 Header (12 bytes for ack_data) + Param Header (2 bytes: function, count) = 14
-        // Param Header starts at byte 19 (TPKT 4 + COTP 3 + S7 12)
-
-        // Write Param Header
+        const tx = &self.tx_buffer;
         tx[19] = @intFromEnum(proto.Function.read_var);
         tx[20] = item_count;
 
-        var param_ptr: usize = 2; // skip function, count
         var tx_ptr: usize = 21;
-
         var i: usize = 0;
         while (i < item_count) : (i += 1) {
-            if (param_ptr + 12 > params.len) break;
-            const item_params = params[param_ptr..][0..12];
-
-            const db = std.mem.readInt(u16, item_params[6..8], .big);
-            const area = item_params[8];
-            const len_header = std.mem.readInt(u16, item_params[4..6], .big);
-            const addr_bytes = item_params[9..12];
-            const addr = (@as(u32, addr_bytes[0]) << 16) | (@as(u32, addr_bytes[1]) << 8) | @as(u32, addr_bytes[2]);
-            const start_byte = addr >> 3;
-
-            log.debug("  Item {}: area=0x{x} db={} start={} len={}", .{ i, area, db, start_byte, len_header });
-
-            var data_buffer: [8192]u8 = undefined;
-            const read_slice = self.storage.get_address(area, db, start_byte, len_header) catch |err| {
-                log.debug("Storage read failed for item {}: {}", .{ i, err });
-                self.ptr_fill_error(tx, &tx_ptr, @intFromEnum(proto.ReturnCode.invalid_address)); // Invalid address or similar
-                param_ptr += 12;
-                continue;
-            };
-
-            const response_len = len_header;
-            @memset(data_buffer[0..@min(8192, response_len)], 0);
-            const actual_copy = @min(read_slice.len, response_len);
-            const safe_copy = @min(actual_copy, 8192);
-            @memcpy(data_buffer[0..safe_copy], read_slice[0..safe_copy]);
-
-            // Data Item
-            tx[tx_ptr] = @intFromEnum(proto.ReturnCode.success);
-            tx[tx_ptr + 1] = @intFromEnum(proto.TransportSize.byte_word_dword);
-            const bits: u16 = @intCast(response_len * 8);
-            proto.writeBE16(tx, tx_ptr + 2, bits);
-            @memcpy(tx[tx_ptr + 4 ..][0..response_len], data_buffer[0..response_len]);
-
-            tx_ptr += 4 + response_len;
-            param_ptr += 12;
-
-            // Align to 2 bytes if more items coming
-            if (i + 1 < item_count and tx_ptr % 2 == 0) {
-                tx[tx_ptr] = 0;
-                tx_ptr += 1;
-            }
+            const item = params[2 + i * 12 ..][0..12];
+            self.read_var_item(item, &tx_ptr, @intCast(item_count - i - 1));
         }
 
         const param_len: u16 = 2;
@@ -710,8 +778,46 @@ pub const Connection = struct {
         self.send_response(tpkt_len);
     }
 
+    fn read_var_item(self: *Connection, item: *const [12]u8, offset: *usize, remaining: u8) void {
+        const budget: usize = 7 + @as(usize, self.pdu_limit);
+        const reserved: usize = @as(usize, remaining) * 4;
+        assert(offset.* >= 21);
+        assert(offset.* + 4 + reserved <= budget);
+        const tx = &self.tx_buffer;
+        if (!std.mem.eql(u8, item[0..3], &.{ 0x12, 10, 0x10 })) {
+            self.ptr_fill_error(tx, offset, @intFromEnum(proto.ReturnCode.invalid_address));
+            return;
+        }
+        const length = std.mem.readInt(u16, item[4..6], .big);
+        const padding: usize = if (remaining > 0) length % 2 else 0;
+        if (@as(usize, length) + padding > budget - offset.* - 4 - reserved) {
+            self.ptr_fill_error(tx, offset, @intFromEnum(proto.ReturnCode.data_type_inconsistent));
+            return;
+        }
+        const db = std.mem.readInt(u16, item[6..8], .big);
+        const address = (@as(u32, item[9]) << 16) | (@as(u32, item[10]) << 8) | item[11];
+        const bytes = self.storage.get_address(item[8], db, address >> 3, length) catch {
+            self.ptr_fill_error(tx, offset, @intFromEnum(proto.ReturnCode.invalid_address));
+            return;
+        };
+        if (bytes.len != length) {
+            self.ptr_fill_error(tx, offset, @intFromEnum(proto.ReturnCode.invalid_address));
+            return;
+        }
+        proto.writeDataHeader(tx, offset.*, 0xff, 4, @intCast(@as(u32, length) * 8));
+        @memcpy(tx[offset.* + 4 ..][0..length], bytes);
+        offset.* += 4 + @as(usize, length);
+        if (padding == 1) {
+            tx[offset.*] = 0;
+            offset.* += 1;
+        }
+        assert(offset.* + reserved <= budget);
+    }
+
     fn ptr_fill_error(self: *Connection, tx: []u8, tx_ptr: *usize, code: u8) void {
         _ = self;
+        assert(tx_ptr.* <= tx.len);
+        assert(tx.len - tx_ptr.* >= 4);
         tx[tx_ptr.*] = code;
         tx[tx_ptr.* + 1] = 0; // transport size
         tx[tx_ptr.* + 2] = 0; // len
@@ -722,50 +828,69 @@ pub const Connection = struct {
     // Write Variable
 
     fn handle_write_var(self: *Connection, req: *const S7Header, params: []const u8, data: []const u8) void {
-        if (params.len < 14) {
-            self.close();
+        if (10 + params.len + data.len > self.pdu_limit) {
+            self.handle_error_response(req, 5, 0x0112);
             return;
         }
-
-        const offset = 2;
-        const db = std.mem.readInt(u16, params[offset + 6 .. offset + 8], .big);
-        const area = params[offset + 8];
-        const addr_bytes = params[offset + 9 .. offset + 12];
-        const addr = (@as(u32, addr_bytes[0]) << 16) | (@as(u32, addr_bytes[1]) << 8) | @as(u32, addr_bytes[2]);
-        const start_byte = addr >> 3;
-
-        if (data.len < 4) {
-            self.close();
-            return;
-        }
-        const length_bits = std.mem.readInt(u16, data[2..4], .big);
-        const length_bytes = length_bits / 8;
-
-        if (data.len < 4 + length_bytes) {
-            self.close();
-            return;
-        }
-        const write_data = data[4..][0..length_bytes];
-
-        self.storage.lock() catch {};
-        defer self.storage.unlock();
-
-        const target_slice = self.storage.get_address(area, db, start_byte, @intCast(length_bytes)) catch {
-            self.close();
+        const plan = variable_write.parse(params, data) catch {
+            self.handle_error_response(req, 5, 0x0112);
             return;
         };
-        @memcpy(target_slice, write_data);
-
-        // TPKT(4) + COTP(3) + Header(12) + Param(2) + Data(1) = 22
+        self.storage.lock() catch {
+            self.handle_error_response(req, 5, 0x8301);
+            return;
+        };
+        defer self.storage.unlock();
         const tx = &self.tx_buffer;
-        proto.writeWriteVarResponse(tx, req.pdu_ref, 0x01, @intFromEnum(proto.ReturnCode.success));
-        self.send_response(22);
+        for (plan.items[0..plan.count], 0..) |*item, index| tx[21 + index] = self.write_var_item(item);
+        const length: u16 = @intCast(21 + plan.count);
+        proto.writeTpktCotpDT(tx, length);
+        proto.writeS7Header(tx, 7, proto.Rosctr.ack_data, req.pdu_ref, 2, @intCast(plan.count), 0);
+        tx[19] = 5;
+        tx[20] = @intCast(plan.count);
+        self.send_response(length);
+    }
+
+    fn write_var_item(self: *Connection, item: *const variable_write.Item) u8 {
+        if (item.result != 0xff) return item.result;
+        const byte_offset = item.address >> 3;
+        const length: u32 = @intCast(item.bytes.len);
+        // Each mapped area and each DB has its own 64 KiB boundary.
+        if (byte_offset > Storage.DB_SIZE or length > Storage.DB_SIZE - byte_offset) return 5;
+        if (item.area == 0x84 and item.db >= self.storage.max_dbs) return 0x0a;
+        const target = self.storage.get_address(item.area, item.db, byte_offset, length) catch return 5;
+        if (target.len != item.bytes.len) return 5;
+        if (item.bit) {
+            assert(target.len == 1);
+            assert(item.bytes[0] <= 1);
+            const mask = @as(u8, 1) << @as(u3, @intCast(item.address & 7));
+            if (item.bytes[0] == 1) target[0] |= mask else target[0] &= ~mask;
+        } else {
+            @memcpy(target, item.bytes);
+        }
+        return 0xff;
     }
 
     // Send / Close
 
     fn send_response(self: *Connection, len: usize) void {
+        if (self.closed) return;
+        if (len < 7 or len > self.tx_buffer.len) {
+            self.close();
+            return;
+        }
         log.debug("TX: {any}", .{std.fmt.fmtSliceHexLower(self.tx_buffer[0..len])});
+        self.send_queue.push(self.tx_buffer[0..len]) catch {
+            self.close();
+            return;
+        };
+        self.send_next();
+    }
+
+    fn send_next(self: *Connection) void {
+        if (self.closed or self.write_pending) return;
+        const bytes = self.send_queue.pending() orelse return;
+        self.write_pending = true;
         self.pending_ops += 1;
         self.io.send(
             *Connection,
@@ -773,25 +898,38 @@ pub const Connection = struct {
             on_send,
             &self.write_completion,
             self.socket,
-            self.tx_buffer[0..len],
+            bytes,
         );
     }
 
     fn on_send(self: *Connection, completion: *IO.Completion, result: IO.SendError!usize) void {
         _ = completion;
+        assert(self.write_pending);
+        self.write_pending = false;
+        assert(self.pending_ops > 0);
         self.pending_ops -= 1;
-        _ = result catch |err| {
+        if (self.closed) return;
+        const length = result catch |err| {
             log.err("Send error: {}", .{err});
             self.close();
             return;
         };
+        self.send_queue.advance(length) catch {
+            self.close();
+            return;
+        };
+        self.send_next();
         self.start_read_header();
     }
 
     pub fn close(self: *Connection) void {
         if (self.closed) return;
         self.closed = true;
+        self.alarm_subscribed = false;
         fire_event(4, "client_disconnected");
+        // io_uring holds a socket reference while recv is pending. Closing only the
+        // descriptor would leave that read alive; shutdown makes it complete first.
+        std.posix.shutdown(self.socket, .both) catch {};
         if (builtin.os.tag == .windows) {
             _ = std.os.windows.ws2_32.closesocket(self.socket);
         } else {

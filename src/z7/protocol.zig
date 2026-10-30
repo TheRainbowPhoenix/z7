@@ -13,8 +13,8 @@ pub const TPKT = extern struct {
 };
 
 /// 10-byte common header for all ROSCTR types.
-/// For ROSCTR 3 (Ack_Data) and 7 (Userdata) an additional 2-byte error/result
-/// field follows on the wire, which is NOT part of this struct.
+/// ROSCTR 3 (Ack_Data) adds two error bytes. Userdata uses this ten-byte header
+/// and carries its service error in the twelve-byte parameter block.
 pub const S7Header = extern struct {
     proto_id: u8,
     rosctr: u8,
@@ -99,11 +99,16 @@ pub const FunctionGroup = struct {
 pub const CpuSubfunction = struct {
     pub const read_szl: u8 = 0x01;
     pub const message_service: u8 = 0x02;
-    pub const stop: u8 = 0x03;
-    pub const alarm_indication: u8 = 0x04;
-    pub const alarm_initiate: u8 = 0x05;
-    pub const alarm_ack1: u8 = 0x06;
-    pub const alarm_ack2: u8 = 0x07;
+    pub const diagnostic_message: u8 = 0x03;
+    pub const alarm8_indication: u8 = 0x05;
+    pub const notify_indication: u8 = 0x06;
+    pub const alarm8_lock: u8 = 0x07;
+    pub const alarm8_unlock: u8 = 0x08;
+    pub const alarm_ack: u8 = 0x0b;
+    pub const alarm_ack_indication: u8 = 0x0c;
+    pub const alarmsq_indication: u8 = 0x11;
+    pub const alarms_indication: u8 = 0x12;
+    pub const alarm_query: u8 = 0x13;
 };
 
 pub const TimeSubfunction = struct {

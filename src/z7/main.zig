@@ -4,6 +4,7 @@ const zCom = @import("zCom");
 const IO = zCom.io.IO;
 const Storage = @import("storage.zig").Storage;
 const Connection = @import("connection.zig").Connection;
+const AlarmStore = @import("alarms.zig").Store;
 const exports = @import("exports.zig");
 
 var current_log_level: std.log.Level = .info;
@@ -44,8 +45,17 @@ pub const Server = struct {
     connections: []Connection,
 
     accept_completion: IO.Completion = undefined,
+    accept_pending: bool = false,
+    stopping: bool = false,
+
+    pub fn poll_alarms(self: *Server) void {
+        for (self.connections) |*connection| connection.poll_alarms();
+    }
 
     pub fn start_accept(self: *Server) void {
+        if (self.stopping) return;
+        std.debug.assert(!self.accept_pending);
+        self.accept_pending = true;
         self.io.accept(
             *Server,
             self,
@@ -57,11 +67,18 @@ pub const Server = struct {
 
     fn on_accept(self: *Server, completion: *IO.Completion, result: IO.AcceptError!std.posix.socket_t) void {
         _ = completion;
+        std.debug.assert(self.accept_pending);
+        self.accept_pending = false;
         const client_socket = result catch |err| {
+            if (self.stopping) return;
             log.err("Accept failed: {}", .{err});
             self.start_accept();
             return;
         };
+        if (self.stopping) {
+            self.io.close_socket(client_socket);
+            return;
+        }
 
         // Find free slot
         var found_slot: ?*Connection = null;
@@ -195,13 +212,14 @@ pub fn main() !void {
 
     const connections = try allocator.alloc(Connection, MAX_CONNECTIONS);
     defer allocator.free(connections);
+    var alarm_store: AlarmStore = .{};
 
     const invalid_socket = if (builtin.os.tag == .windows) std.os.windows.ws2_32.INVALID_SOCKET else -1;
 
     // Initialize as closed with safe defaults
     for (connections) |*c| {
         // We use dummy values for io/storage because closed=true prevents usage
-        c.* = Connection.init(&io, &storage, invalid_socket);
+        c.* = Connection.init(&io, &storage, &alarm_store, invalid_socket);
     }
 
     var server = Server{
@@ -215,5 +233,6 @@ pub fn main() !void {
 
     while (true) {
         try io.run_for_ns(10 * std.time.ns_per_ms);
+        server.poll_alarms();
     }
 }
