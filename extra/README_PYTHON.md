@@ -10,6 +10,19 @@ This directory contains a Python client for the z7 PLC simulator, allowing direc
   ```
   This creates `zig-out/bin/z7.dll` (Windows) or `zig-out/lib/libz7.so` (Linux).
 
+For Alpine, build with `zig build -Dtarget=x86_64-linux-musl -Doptimize=ReleaseSafe`.
+Use `x86_64-linux-gnu` for glibc hosts when cross-compiling. The Linux shared
+library links against the host libc so background threads use its pthread/TLS
+runtime. Rebuild older libraries that panic when `start()` is called, then restart
+the Python process to load the rebuilt library.
+
+From the repository root, verify Linux startup, S7 byte reads/writes, and repeated
+stop/start with an active client:
+
+```bash
+python3 TESTS/test_shared_library.py zig-out/lib/libz7.so
+```
+
 ## Usage
 
 Use `client.py` to interface with the simulator.

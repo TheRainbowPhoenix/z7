@@ -633,7 +633,15 @@ pub const Connection = struct {
     // Read Variable
 
     fn handle_read_var(self: *Connection, req: *const S7Header, params: []const u8) void {
+        if (params.len < 2) {
+            self.handle_error_response(req, @intFromEnum(proto.Function.read_var), @intFromEnum(ErrorCode.SERVICE_NOT_IMPLEMENTED_OR_FRAME_ERROR));
+            return;
+        }
         const item_count = params[1];
+        if (params.len < 2 + @as(usize, item_count) * 12) {
+            self.handle_error_response(req, @intFromEnum(proto.Function.read_var), @intFromEnum(ErrorCode.SERVICE_NOT_IMPLEMENTED_OR_FRAME_ERROR));
+            return;
+        }
         log.debug("Read Var: {} items", .{item_count});
 
         var tx = &self.tx_buffer;

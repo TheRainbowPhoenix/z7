@@ -139,6 +139,23 @@ export fn z7_init(port: u16, storage_path: [*c]const u8) ?*Context {
 }
 
 fn run_loop(ctx: *Context) void {
+    defer ctx.running.store(false, .release);
+    if (builtin.os.tag == .linux) {
+        defer {
+            // Drain kernel references before freeing or reusing completion buffers.
+            ctx.io.cancel_all();
+            for (ctx.connections) |*connection| {
+                connection.close();
+                connection.pending_ops = 0;
+            }
+        }
+        run_server_loop(ctx);
+    } else {
+        run_server_loop(ctx);
+    }
+}
+
+fn run_server_loop(ctx: *Context) void {
     std.log.info("Server loop starting", .{});
     ctx.server.start_accept();
 
@@ -149,8 +166,23 @@ fn run_loop(ctx: *Context) void {
 
 export fn z7_start(ctx: *Context) void {
     if (ctx.thread_ != null) return;
+    if (builtin.os.tag == .linux) {
+        if (ctx.io.cancel_all_status == .done) {
+            // cancel_all is terminal for an IO instance; restart with a fresh ring.
+            const io = IO.init(2048, 0) catch |err| {
+                std.log.err("Failed to restart IO: {}", .{err});
+                return;
+            };
+            ctx.io.deinit();
+            ctx.io = io;
+        }
+    }
     ctx.running.store(true, .release);
-    ctx.thread_ = std.Thread.spawn(.{}, run_loop, .{ctx}) catch return;
+    ctx.thread_ = std.Thread.spawn(.{}, run_loop, .{ctx}) catch |err| {
+        ctx.running.store(false, .release);
+        std.log.err("Failed to start server thread: {}", .{err});
+        return;
+    };
 }
 
 export fn z7_stop(ctx: *Context) void {

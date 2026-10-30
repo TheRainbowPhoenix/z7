@@ -34,6 +34,9 @@ pub fn build(b: *std.Build) void {
     });
     z7_lib.root_module.addImport("stdx", stdx_module);
     z7_lib.root_module.addImport("zCom", zCom_module);
+    // A loaded Linux library must use the host libc's pthread/TLS runtime.
+    // Zig's freestanding Linux thread setup expects executable startup to initialize TLS.
+    if (target.result.os.tag == .linux) z7_lib.linkLibC();
     b.installArtifact(z7_lib);
 
     // --- z7 Executable ---
