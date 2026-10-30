@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-ZIG_MIRROR="https://pkg.machengine.org/zig"
+ZIG_MIRROR="https://ziglang.org/download"
 ZIG_RELEASE="0.14.1"
 ZIG_CHECKSUMS=$(cat<<EOF
 ${ZIG_MIRROR}/0.14.1/zig-aarch64-linux-0.14.1.tar.xz f7a654acc967864f7a050ddacfaa778c7504a0eca8d2b678839c21eea47c992b
@@ -51,7 +51,8 @@ ZIG_DIRECTORY=$(basename "$ZIG_ARCHIVE" "$ZIG_EXTENSION")
 
 # Download, making sure we download to the same output document, without wget adding "-1" etc. if the file was previously partially downloaded:
 if command -v curl > /dev/null; then
-    curl --silent --output "$ZIG_ARCHIVE" "$ZIG_URL"
+    curl --fail --location --silent --show-error --retry 3 \
+        --connect-timeout 15 --max-time 300 --output "$ZIG_ARCHIVE" "$ZIG_URL"
 elif command -v wget > /dev/null; then
     # -4 forces `wget` to connect to ipv4 addresses, as ipv6 fails to resolve on certain distros.
     # Only A records (for ipv4) are used in DNS:
