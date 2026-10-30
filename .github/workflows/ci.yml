@@ -187,6 +187,8 @@ jobs:
         run: ./zig/zig build test
       - name: Shared-library lifecycle
         run: python TESTS/test_shared_library.py ${{ matrix.library }}
+      - name: TCP stream framing and backpressure
+        run: python TESTS/test_stream.py ${{ matrix.library }}
       - name: Alarm integration
         run: python TESTS/test_alarms.py ${{ matrix.library }}
       - name: Original Ignition driver interoperability
