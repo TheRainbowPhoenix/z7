@@ -113,6 +113,21 @@ pub const IO = struct {
         }
     }
 
+    /// Process one completion batch, bounded by a relative kernel wait timeout.
+    /// Older kernels retain the existing timeout-SQE implementation.
+    pub fn run_once_for_ns(self: *IO, nanoseconds: u63) !void {
+        assert(self.cancel_all_status != .done);
+        if (self.ring.features & linux.IORING_FEAT_EXT_ARG == 0 or
+            self.ring.flags & linux.IORING_SETUP_SQPOLL != 0)
+        {
+            return self.run_for_ns(nanoseconds);
+        }
+        var timeouts: usize = 0;
+        var etime = false;
+        try self.flush_with_timeout(if (self.completed.empty()) 1 else 0, &timeouts, &etime, nanoseconds);
+        assert(timeouts == 0 and !etime);
+    }
+
     /// Pass all queued submissions to the kernel and run for `nanoseconds`.
     /// The `nanoseconds` argument is a u63 to allow coercion to the i64 used
     /// in the kernel_timespec struct.
@@ -124,9 +139,10 @@ pub const IO = struct {
         // dramatically different. Any kernel that supports io_uring will support CLOCK_MONOTONIC.
         const current_ts = posix.clock_gettime(posix.CLOCK.MONOTONIC) catch unreachable;
         // The absolute CLOCK_MONOTONIC time after which we may return from this function:
+        const deadline_nsec = @as(u64, @intCast(current_ts.nsec)) + nanoseconds;
         const timeout_ts: os.linux.kernel_timespec = .{
-            .sec = current_ts.sec,
-            .nsec = current_ts.nsec + nanoseconds,
+            .sec = try std.math.add(i64, current_ts.sec, @intCast(deadline_nsec / std.time.ns_per_s)),
+            .nsec = @intCast(deadline_nsec % std.time.ns_per_s),
         };
         var timeouts: usize = 0;
         var etime = false;
@@ -155,8 +171,16 @@ pub const IO = struct {
     }
 
     fn flush(self: *IO, wait_nr: u32, timeouts: *usize, etime: *bool) !void {
+        return self.flush_with_timeout(wait_nr, timeouts, etime, null);
+    }
+
+    fn flush_with_timeout(self: *IO, wait_nr: u32, timeouts: *usize, etime: *bool, wait_ns: ?u63) !void {
         // Flush any queued SQEs and reuse the same syscall to wait for completions if required:
-        try self.flush_submissions(wait_nr, timeouts, etime);
+        if (wait_ns) |limit| {
+            try self.flush_submissions_bounded(wait_nr, limit);
+        } else {
+            try self.flush_submissions(wait_nr, timeouts, etime);
+        }
         // We can now just peek for any CQEs without waiting and without another syscall:
         try self.flush_completions(0, timeouts, etime);
 
@@ -229,7 +253,7 @@ pub const IO = struct {
                     if (-cqe.res == @intFromEnum(posix.E.TIME)) etime.* = true;
                     continue;
                 }
-                const completion: *Completion = @ptrFromInt(cqe.user_data);
+                const completion: *Completion = @ptrFromInt(@as(usize, @intCast(cqe.user_data)));
                 completion.result = cqe.res;
                 // We do not run the completion here (instead appending to a linked list) to avoid:
                 // * recursion through `flush_submissions()` and `flush_completions()`,
@@ -239,6 +263,34 @@ pub const IO = struct {
             }
 
             if (completed < cqes.len) break;
+        }
+    }
+
+    fn flush_submissions_bounded(self: *IO, wait_nr: u32, nanoseconds: u63) !void {
+        assert(self.ring.flags & linux.IORING_SETUP_SQPOLL == 0);
+        const timespec = linux.kernel_timespec{
+            .sec = @intCast(nanoseconds / std.time.ns_per_s),
+            .nsec = @intCast(nanoseconds % std.time.ns_per_s),
+        };
+        const args = linux.io_uring_getevents_arg{
+            .sigmask = 0,
+            .sigmask_sz = 0,
+            .pad = 0,
+            .ts = @intFromPtr(&timespec),
+        };
+        const submitted = self.ring.flush_sq();
+        const result = linux.syscall6(.io_uring_enter, @intCast(self.ring.fd), submitted, wait_nr, linux.IORING_ENTER_GETEVENTS | linux.IORING_ENTER_EXT_ARG, @intFromPtr(&args), @sizeOf(linux.io_uring_getevents_arg));
+        // Account consumed SQEs even if waiting was interrupted or timed out.
+        // The SQ head is authoritative; SQPOLL is excluded to avoid concurrent consumers.
+        const remaining = self.ring.sq_ready();
+        assert(remaining <= submitted);
+        const consumed = submitted - remaining;
+        assert(consumed <= self.ios_queued);
+        self.ios_queued -= consumed;
+        self.ios_in_kernel += consumed;
+        switch (linux.E.init(result)) {
+            .SUCCESS, .TIME, .INTR, .AGAIN, .BUSY => {},
+            else => |err| return posix.unexpectedErrno(err),
         }
     }
 

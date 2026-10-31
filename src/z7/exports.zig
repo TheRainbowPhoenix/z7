@@ -4,7 +4,9 @@ const zCom = @import("zCom");
 const IO = zCom.io.IO;
 const Storage = @import("storage.zig").Storage;
 const Connection = @import("connection.zig").Connection;
+const alarms = @import("alarms.zig");
 const main = @import("main.zig");
+const invalid_socket = if (builtin.os.tag == .windows) std.os.windows.ws2_32.INVALID_SOCKET else -1;
 
 // Global log callback
 var log_callback: ?*const fn (level: u8, msg_ptr: [*c]const u8, msg_len: usize) callconv(.C) void = null;
@@ -47,6 +49,8 @@ const Context = struct {
     server: main.Server,
     connections: []Connection,
     listener: std.posix.socket_t,
+    address: std.net.Address,
+    alarm_store: alarms.Store,
     thread_: ?std.Thread = null,
     running: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
 };
@@ -79,49 +83,77 @@ export fn z7_get_memory_size(ctx: *Context) usize {
     return ctx.storage.ptr.len;
 }
 
+/// Configure while stopped; lifecycle and configuration calls must be serialized by the host.
+/// Path is the exact big-endian RID/LID word sequence, without the 12/length/B2/reserved prefix.
+export fn z7_register_symbol(ctx: *Context, path: [*c]const u8, path_len: usize, area: u8, db: u16, bit_address: u32, element_type: u8, count: u16) i32 {
+    if (ctx.running.load(.acquire) or ctx.thread_ != null) return -2;
+    if (path == null or path_len < 8 or path_len > @import("symbols.zig").max_path_bytes or path_len % 4 != 0 or bit_address > 0xffffff) return -1;
+    var item = [_]u8{ 0x12, 10, 0x10, element_type, 0, 0, 0, 0, area, @intCast(bit_address >> 16), @intCast((bit_address >> 8) & 255), @intCast(bit_address & 255) };
+    std.mem.writeInt(u16, item[4..6], count, .big);
+    std.mem.writeInt(u16, item[6..8], db, .big);
+    const plan = @import("variable_read.zig").decode(&item) catch return -1;
+    _ = ctx.storage.get_address(plan.area, plan.db, plan.offset, plan.source_length) catch return -1;
+    ctx.storage.symbols.register(path[0..path_len], plan) catch return -3;
+    return 0;
+}
+
 export fn z7_init(port: u16, storage_path: [*c]const u8) ?*Context {
-    const ctx = std.heap.page_allocator.create(Context) catch return null;
-    ctx.gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = ctx.gpa.allocator();
-
-    // Storage path conversion
-    const path_span: []const u8 = if (storage_path) |s| std.mem.span(s) else "s7_plc_shm";
-
-    ctx.storage = Storage.init(path_span, Storage.MAX_DBS_DEFAULT) catch {
-        std.log.err("Failed to init storage", .{});
-        std.heap.page_allocator.destroy(ctx);
+    return init_context(port, storage_path) catch |err| {
+        std.log.err("Failed to initialize server: {}", .{err});
         return null;
     };
-    errdefer ctx.storage.deinit();
+}
 
-    ctx.io = IO.init(2048, 0) catch |err| {
-        std.log.err("Failed to init IO: {}", .{err});
-        ctx.storage.deinit();
-        std.heap.page_allocator.destroy(ctx);
-        return null;
-    };
-    errdefer ctx.io.deinit();
-
-    const address = std.net.Address.parseIp4("0.0.0.0", port) catch return null;
-
-    const listener = ctx.io.open_socket_tcp(std.posix.AF.INET, .{
+fn open_listener(io: *IO, address: std.net.Address) !std.posix.socket_t {
+    const listener = try io.open_socket_tcp(std.posix.AF.INET, .{
         .rcvbuf = 0,
         .sndbuf = 0,
         .keepalive = null,
         .user_timeout_ms = 0,
         .nodelay = true,
-    }) catch return null;
+    });
+    errdefer io.close_socket(listener);
+    _ = try io.listen(listener, address, .{ .backlog = 128 });
+    return listener;
+}
+
+fn close_listener(ctx: *Context) void {
+    if (ctx.listener == invalid_socket) return;
+    std.debug.assert(!ctx.server.accept_pending);
+    ctx.io.close_socket(ctx.listener);
+    ctx.listener = invalid_socket;
+    ctx.server.listener = invalid_socket;
+}
+
+fn init_context(port: u16, storage_path: [*c]const u8) !*Context {
+    const ctx = try std.heap.page_allocator.create(Context);
+    errdefer std.heap.page_allocator.destroy(ctx);
+    ctx.gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    errdefer _ = ctx.gpa.deinit();
+    ctx.alarm_store = .{};
+    const allocator = ctx.gpa.allocator();
+
+    // Storage path conversion
+    const path_span: []const u8 = if (storage_path) |s| std.mem.span(s) else "s7_plc_shm";
+
+    ctx.storage = try Storage.init(path_span, Storage.MAX_DBS_DEFAULT);
+    errdefer ctx.storage.deinit();
+
+    ctx.io = try IO.init(2048, 0);
+    errdefer ctx.io.deinit();
+
+    const address = try std.net.Address.parseIp4("0.0.0.0", port);
+    const listener = try open_listener(&ctx.io, address);
+    errdefer ctx.io.close_socket(listener);
     ctx.listener = listener;
+    // Remember the resolved port when the host asks the OS to choose one.
+    ctx.address = .{ .any = undefined };
+    var address_len: std.posix.socklen_t = @sizeOf(std.net.Address);
+    try std.posix.getsockname(listener, &ctx.address.any, &address_len);
 
-    _ = ctx.io.listen(listener, address, .{ .backlog = 128 }) catch {
-        ctx.io.close_socket(listener);
-        return null;
-    };
-
-    ctx.connections = allocator.alloc(Connection, main.MAX_CONNECTIONS) catch return null;
-    const invalid_socket = if (builtin.os.tag == .windows) std.os.windows.ws2_32.INVALID_SOCKET else -1;
+    ctx.connections = try allocator.alloc(Connection, main.MAX_CONNECTIONS);
     for (ctx.connections) |*c| {
-        c.* = Connection.init(&ctx.io, &ctx.storage, invalid_socket);
+        c.* = Connection.init(&ctx.io, &ctx.storage, &ctx.alarm_store, invalid_socket);
     }
 
     ctx.server = main.Server{
@@ -140,10 +172,13 @@ export fn z7_init(port: u16, storage_path: [*c]const u8) ?*Context {
 
 fn run_loop(ctx: *Context) void {
     defer ctx.running.store(false, .release);
+    // Platform cleanup below drains every accept/read/send before endpoint reuse.
+    defer close_listener(ctx);
     if (builtin.os.tag == .linux) {
         defer {
             // Drain kernel references before freeing or reusing completion buffers.
             ctx.io.cancel_all();
+            ctx.server.accept_pending = false;
             for (ctx.connections) |*connection| {
                 connection.close();
                 connection.pending_ops = 0;
@@ -151,21 +186,49 @@ fn run_loop(ctx: *Context) void {
         }
         run_server_loop(ctx);
     } else {
+        defer if (builtin.os.tag == .windows) {
+            ctx.server.stopping = true;
+            for (ctx.connections) |*connection| connection.close();
+            // Submit any initially queued operations before canceling the listener.
+            ctx.io.run() catch |err| std.debug.panic("IO shutdown: {}", .{err});
+            if (std.os.windows.kernel32.CancelIoEx(@ptrCast(ctx.listener), null) == 0) {
+                switch (std.os.windows.kernel32.GetLastError()) {
+                    .NOT_FOUND => {}, // Accept already completed; its callback still needs draining.
+                    else => |err| std.debug.panic("Cancel listener IO: {}", .{err}),
+                }
+            }
+            while (ctx.io.io_pending > 0 or !ctx.io.completed.empty()) {
+                ctx.io.run_for_ns(10 * std.time.ns_per_ms) catch |err|
+                    std.debug.panic("IO shutdown: {}", .{err});
+            }
+            ctx.io.release_wait_precision();
+            std.debug.assert(!ctx.server.accept_pending);
+            for (ctx.connections) |*connection| std.debug.assert(connection.pending_ops == 0);
+        };
         run_server_loop(ctx);
     }
 }
 
 fn run_server_loop(ctx: *Context) void {
     std.log.info("Server loop starting", .{});
+    ctx.server.stopping = false;
     ctx.server.start_accept();
 
     while (ctx.running.load(.acquire)) {
-        ctx.io.run_for_ns(10 * std.time.ns_per_ms) catch break;
+        ctx.io.run_once_for_ns(ctx.server.wait_ns()) catch |err| {
+            std.log.err("Server IO failed: {}", .{err});
+            break;
+        };
+        ctx.server.poll_alarms();
     }
 }
 
 export fn z7_start(ctx: *Context) void {
-    if (ctx.thread_ != null) return;
+    if (ctx.thread_) |thread| {
+        if (ctx.running.load(.acquire)) return;
+        thread.join();
+        ctx.thread_ = null;
+    }
     if (builtin.os.tag == .linux) {
         if (ctx.io.cancel_all_status == .done) {
             // cancel_all is terminal for an IO instance; restart with a fresh ring.
@@ -177,9 +240,17 @@ export fn z7_start(ctx: *Context) void {
             ctx.io = io;
         }
     }
+    if (ctx.listener == invalid_socket) {
+        ctx.listener = open_listener(&ctx.io, ctx.address) catch |err| {
+            std.log.err("Failed to restart listener: {}", .{err});
+            return;
+        };
+        ctx.server.listener = ctx.listener;
+    }
     ctx.running.store(true, .release);
     ctx.thread_ = std.Thread.spawn(.{}, run_loop, .{ctx}) catch |err| {
         ctx.running.store(false, .release);
+        close_listener(ctx);
         std.log.err("Failed to start server thread: {}", .{err});
         return;
     };
@@ -191,6 +262,7 @@ export fn z7_stop(ctx: *Context) void {
         t.join();
         ctx.thread_ = null;
     }
+    close_listener(ctx);
 }
 
 export fn z7_deinit(ctx: *Context) void {
@@ -199,7 +271,6 @@ export fn z7_deinit(ctx: *Context) void {
     const allocator = ctx.gpa.allocator();
     allocator.free(ctx.connections);
 
-    ctx.io.close_socket(ctx.listener);
     ctx.io.deinit();
     ctx.storage.deinit();
     _ = ctx.gpa.deinit();
@@ -225,5 +296,20 @@ export fn z7_write(ctx: *Context, area: u8, db_num: u16, start: u32, len: u32, i
     if (slice.len < len) return -1;
 
     @memcpy(slice[0..len], buf_slice);
+    return 0;
+}
+
+/// Set eight ALARM_8 signals. IDs must be nonzero; zero signals clears an existing alarm.
+/// Safe to call from a producer thread while the server runs. Do not race deinit.
+/// Returns 0 on success, -1 for invalid arguments/time, -2 when all 64 IDs are used,
+/// and -3 if the internal event sequence is exhausted. Duplicate states emit no event.
+export fn z7_alarm_set(context: ?*Context, event_id: u32, signals: u8) i32 {
+    const ctx = context orelse return -1;
+    const timestamp = alarms.timestamp_from_ms(std.time.milliTimestamp()) catch return -1;
+    ctx.alarm_store.set(event_id, signals, timestamp) catch |err| return switch (err) {
+        error.Full => -2,
+        error.SequenceExhausted => -3,
+        else => -1,
+    };
     return 0;
 }

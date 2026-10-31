@@ -8,7 +8,7 @@ import urllib.request
 import zipfile
 
 # Configuration
-ZIG_MIRROR = "https://pkg.machengine.org/zig".strip()  # Trim accidental spaces
+ZIG_MIRROR = "https://ziglang.org/download"
 ZIG_RELEASE = "0.14.1"
 ZIG_CHECKSUMS = {
     f"{ZIG_MIRROR}/{ZIG_RELEASE}/zig-aarch64-windows-{ZIG_RELEASE}.zip": 

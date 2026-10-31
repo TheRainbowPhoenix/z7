@@ -16,7 +16,12 @@ pub const IO = struct {
     pub const TCPOptions = common.TCPOptions;
     pub const ListenOptions = common.ListenOptions;
 
+    extern "winmm" fn timeBeginPeriod(period_ms: u32) callconv(.winapi) u32;
+    extern "winmm" fn timeEndPeriod(period_ms: u32) callconv(.winapi) u32;
+
     iocp: os.windows.HANDLE,
+    precise_wait: bool = false,
+    precise_wait_at: ?std.time.Instant = null,
     time_os: TimeOS = .{},
     io_pending: usize = 0,
     timeouts: QueueType(Completion) = QueueType(Completion).init(.{ .name = "io_timeouts" }),
@@ -39,6 +44,7 @@ pub const IO = struct {
     }
 
     pub fn deinit(self: *IO) void {
+        self.release_wait_precision();
         assert(self.iocp != os.windows.INVALID_HANDLE_VALUE);
         os.windows.CloseHandle(self.iocp);
         self.iocp = os.windows.INVALID_HANDLE_VALUE;
@@ -48,6 +54,27 @@ pub const IO = struct {
 
     pub fn run(self: *IO) !void {
         return self.flush(.non_blocking);
+    }
+
+    /// Return after one IOCP batch or the deadline, without a temporary timeout object.
+    pub fn run_once_for_ns(self: *IO, nanoseconds: u63) !void {
+        const now = try std.time.Instant.now();
+        if (nanoseconds > 0 and nanoseconds <= std.time.ns_per_ms) {
+            if (!self.precise_wait and timeBeginPeriod(1) == 0) self.precise_wait = true;
+            self.precise_wait_at = now;
+        } else if (self.precise_wait and now.since(self.precise_wait_at.?) >= 50 * std.time.ns_per_ms) {
+            self.release_wait_precision();
+        }
+        return self.flush_for(.blocking, nanoseconds);
+    }
+
+    pub fn release_wait_precision(self: *IO) void {
+        if (self.precise_wait) {
+            const result = timeEndPeriod(1);
+            assert(result == 0);
+            self.precise_wait = false;
+        }
+        self.precise_wait_at = null;
     }
 
     pub fn run_for_ns(self: *IO, nanoseconds: u63) !void {
@@ -78,20 +105,28 @@ pub const IO = struct {
     };
 
     fn flush(self: *IO, mode: FlushMode) !void {
+        return self.flush_for(mode, null);
+    }
+
+    fn flush_for(self: *IO, mode: FlushMode, wait_ns: ?u63) !void {
         if (self.completed.empty()) {
             // Compute how long to poll by flushing timeout completions.
             // NOTE: this may push to completed queue.
-            var timeout_ms: ?os.windows.DWORD = null;
+            var timeout_ms: ?os.windows.DWORD = if (wait_ns) |limit|
+                @intCast(@min((limit + std.time.ns_per_ms - 1) / std.time.ns_per_ms, std.math.maxInt(os.windows.DWORD) - 1))
+            else
+                null;
             if (self.flush_timeouts()) |expires_ns| {
                 // 0ns expires should have been completed not returned.
                 assert(expires_ns != 0);
                 // Round up sub-millisecond expire times to the next millisecond.
-                const expires_ms = (expires_ns + (std.time.ns_per_ms / 2)) / std.time.ns_per_ms;
+                const expires_ms = (expires_ns + std.time.ns_per_ms - 1) / std.time.ns_per_ms;
                 // Saturating cast to DWORD milliseconds.
                 const expires = std.math.cast(os.windows.DWORD, expires_ms) orelse
                     std.math.maxInt(os.windows.DWORD);
                 // Max DWORD is reserved for INFINITE so cap the cast at max - 1.
-                timeout_ms = if (expires == os.windows.INFINITE) expires - 1 else expires;
+                const timer_ms = if (expires == os.windows.INFINITE) expires - 1 else expires;
+                timeout_ms = if (timeout_ms) |maximum| @min(maximum, timer_ms) else timer_ms;
             }
 
             // Poll for IO iff there's IO pending and flush_timeouts() found no ready completions.
@@ -426,7 +461,7 @@ pub const IO = struct {
                         .WSAEOPNOTSUPP => error.OperationNotSupported,
                         .WSA_INVALID_HANDLE => unreachable, // We don't use hEvent in OVERLAPPED.
                         .WSAEFAULT, .WSA_INVALID_PARAMETER => unreachable, // Params should be ok.
-                        .WSAECONNRESET => error.ConnectionAborted,
+                        .WSAECONNRESET, .WSA_OPERATION_ABORTED => error.ConnectionAborted,
                         .WSAEMFILE => unreachable, // We create our own descriptor so its available.
                         .WSAENOBUFS => error.SystemResources,
                         .WSAEINTR, .WSAEINPROGRESS => unreachable, // No blocking calls.
@@ -721,7 +756,8 @@ pub const IO = struct {
                         .WSAENOTCONN => error.FileDescriptorNotASocket,
                         .WSAEOPNOTSUPP => unreachable, // We don't use MSG_OOB or MSG_PARTIAL.
                         .WSAESHUTDOWN => error.BrokenPipe,
-                        .WSA_OPERATION_ABORTED => unreachable, // Operation was cancelled.
+                        // Closing a socket cancels outstanding alarm sends/reads.
+                        .WSA_OPERATION_ABORTED, .WSAENOTSOCK => error.ConnectionResetByPeer,
                         else => |err| os.windows.unexpectedWSAError(err),
                     };
                 }
@@ -829,7 +865,7 @@ pub const IO = struct {
                         .WSAEOPNOTSUPP => unreachable, // We don't use MSG_OOB or MSG_PARTIAL.
                         .WSAESHUTDOWN => error.SocketNotConnected,
                         .WSAETIMEDOUT => error.ConnectionRefused,
-                        .WSA_OPERATION_ABORTED => unreachable, // Operation was cancelled.
+                        .WSA_OPERATION_ABORTED, .WSAENOTSOCK => error.ConnectionResetByPeer,
                         else => |err| os.windows.unexpectedWSAError(err),
                     };
                 }

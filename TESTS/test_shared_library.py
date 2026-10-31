@@ -1,5 +1,6 @@
-"""Linux shared-library regression: run with Python and the path to libz7.so."""
+"""Shared-library regression: run with Python and the path to z7.dll/libz7.so."""
 import ctypes
+import os
 import pathlib
 import socket
 import struct
@@ -30,6 +31,8 @@ def job(params, data=b""):
 
 
 def worker(library):
+    if os.name == "nt":
+        ctypes.windll.kernel32.SetErrorMode(0x0001 | 0x0002)
     lib = ctypes.CDLL(str(pathlib.Path(library).resolve()))
     lib.z7_init.argtypes = [ctypes.c_uint16, ctypes.c_char_p]
     lib.z7_init.restype = ctypes.c_void_p
@@ -44,6 +47,10 @@ def worker(library):
         ctx = lib.z7_init(port, str(pathlib.Path(directory) / "memory").encode())
         assert ctx, "initialization failed"
         try:
+            for _ in range(10):
+                lib.z7_start(ctx)
+                lib.z7_stop(ctx)  # Exercise stop before the worker has entered its first poll.
+                assert lib.z7_get_status(ctx) == 0
             for cycle in range(25):
                 lib.z7_start(ctx)
                 assert lib.z7_get_status(ctx) == 1, "worker failed to start"
@@ -63,7 +70,10 @@ def worker(library):
                     time.sleep(0.05)
                     lib.z7_stop(ctx)
                     assert lib.z7_get_status(ctx) == 0
-                    assert sock.recv(1) == b"", "active socket survived stop"
+                    try:
+                        assert sock.recv(1) == b"", "active socket survived stop"
+                    except ConnectionResetError:
+                        pass  # Windows may reset a socket with a canceled read.
                 print(f"cycle {cycle + 1}: PASS", flush=True)
         finally:
             lib.z7_deinit(ctx)
