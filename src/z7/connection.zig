@@ -757,12 +757,16 @@ pub const Connection = struct {
             return;
         }
         const item_count = params[1];
-        if (10 + params.len > self.pdu_limit or item_count == 0 or item_count > 64 or params.len != 2 + @as(usize, item_count) * 12 or
+        if (10 + params.len > self.pdu_limit or item_count == 0 or item_count > 64 or
             @as(usize, item_count) * 4 > self.pdu_limit - 14)
         {
             self.handle_error_response(req, @intFromEnum(proto.Function.read_var), @intFromEnum(ErrorCode.SERVICE_NOT_IMPLEMENTED_OR_FRAME_ERROR));
             return;
         }
+        variable_read.validate_items(params) catch {
+            self.handle_error_response(req, 4, 0x0112);
+            return;
+        };
         log.debug("Read Var: {} items", .{item_count});
 
         const tx = &self.tx_buffer;
@@ -771,9 +775,12 @@ pub const Connection = struct {
 
         var tx_ptr: usize = 21;
         var i: usize = 0;
+        var cursor: usize = 2;
         while (i < item_count) : (i += 1) {
-            const item = params[2 + i * 12 ..][0..12];
+            const bytes = 2 + @as(usize, params[cursor + 1]);
+            const item = params[cursor..][0..bytes];
             self.read_var_item(item, &tx_ptr, @intCast(item_count - i - 1));
+            cursor += bytes;
         }
 
         const param_len: u16 = 2;
@@ -786,23 +793,57 @@ pub const Connection = struct {
         self.send_response(tpkt_len);
     }
 
-    fn read_var_item(self: *Connection, item: *const [12]u8, offset: *usize, remaining: u8) void {
+    fn read_var_item(self: *Connection, item: []const u8, offset: *usize, remaining: u8) void {
         const budget: usize = 7 + @as(usize, self.pdu_limit);
         const reserved: usize = @as(usize, remaining) * 4;
         assert(offset.* >= 21);
         assert(offset.* + 4 + reserved <= budget);
         const tx = &self.tx_buffer;
-        if (!std.mem.eql(u8, item[0..3], &.{ 0x12, 10, 0x10 })) {
+        assert(item.len >= 4);
+        if (item[0] != 0x12) {
             self.ptr_fill_error(tx, offset, @intFromEnum(proto.ReturnCode.invalid_address));
             return;
         }
-        const plan = variable_read.decode(item) catch |err| {
-            self.ptr_fill_error(tx, offset, if (err == error.UnsupportedType) 6 else 5);
-            return;
+        var plan = switch (item[2]) {
+            0x10 => classic: {
+                if (item.len != 12) {
+                    self.ptr_fill_error(tx, offset, 5);
+                    return;
+                }
+                break :classic variable_read.decode(item[0..12]) catch |err| {
+                    self.ptr_fill_error(tx, offset, if (err == error.UnsupportedType) 6 else 5);
+                    return;
+                };
+            },
+            0xb2 => symbolic: {
+                const path = item[4..];
+                if (!@import("symbols.zig").Table.valid_path(path)) {
+                    self.ptr_fill_error(tx, offset, 5);
+                    return;
+                }
+                break :symbolic self.storage.symbols.lookup(path) orelse {
+                    self.ptr_fill_error(tx, offset, 0x0a);
+                    return;
+                };
+            },
+            else => {
+                self.ptr_fill_error(tx, offset, 5);
+                return;
+            },
         };
         if (plan.area == 0x84 and plan.db >= self.storage.max_dbs) {
             self.ptr_fill_error(tx, offset, 0x0a);
             return;
+        }
+        if (plan.string) {
+            const header = self.storage.get_address(plan.area, plan.db, plan.offset, 2) catch {
+                self.ptr_fill_error(tx, offset, 5);
+                return;
+            };
+            plan = plan.resolve_string(header) catch {
+                self.ptr_fill_error(tx, offset, 5);
+                return;
+            };
         }
         const length: usize = plan.length;
         const padding: usize = if (remaining > 0) length % 2 else 0;

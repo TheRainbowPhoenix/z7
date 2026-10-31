@@ -9,6 +9,7 @@ pub const Storage = struct {
     max_dbs: usize,
     // Scheduling state belongs exclusively to the S7 I/O owner.
     deferred_writes: u32 = 0,
+    symbols: @import("symbols.zig").Table = .{},
 
     // Offsets
     pub const OFFSET_INPUTS: usize = 0;

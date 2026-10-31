@@ -69,6 +69,10 @@ def main():
     lib.z7_get_status.restype = ctypes.c_uint8
     lib.z7_alarm_set.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint8]
     lib.z7_alarm_set.restype = ctypes.c_int32
+    lib.z7_register_symbol.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t,
+                                       ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32,
+                                       ctypes.c_uint8, ctypes.c_uint16]
+    lib.z7_register_symbol.restype = ctypes.c_int32
     if os.name == "nt":
         ctypes.windll.kernel32.SetErrorMode(0x0001 | 0x0002)
     with socket.socket() as reservation:
@@ -89,7 +93,13 @@ def main():
     lines, results, origins, controls, wire = [], [], [], [], []
     return_code = None
     try:
+        for path, offset, kind in [(bytes.fromhex("8a0e000112340001"), 160, 7),
+                                   (bytes.fromhex("8a0e00011234000200000003"), 40, 0x13)]:
+            if lib.z7_register_symbol(ctx, path, len(path), 0x84, 1, offset * 8, kind, 1) != 0:
+                raise RuntimeError("fixture symbol registration failed")
         lib.z7_start(ctx)
+        if lib.z7_register_symbol(ctx, b"12345678", 8, 0x84, 1, 0, 2, 1) != -2:
+            raise RuntimeError("running symbol table accepted mutation")
         if args.lock_hold_ms:
             lock = FileLock(storage)
             def contend():

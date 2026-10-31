@@ -231,6 +231,17 @@ public final class DriverHarness {
             return results;
         }
 
+        ByteBuffer readSpecifications(byte[]... specifications) throws Exception {
+            int parameterBytes = 2;
+            for (byte[] specification : specifications) parameterBytes += specification.length;
+            short reference = next();
+            ByteBuffer body = ByteBuffer.allocate(10 + parameterBytes);
+            new S7HeaderWriter().write(new S7Header((byte)1, reference, (short)parameterBytes, (short)0), body);
+            body.put((byte)4).put((byte)specifications.length);
+            for (byte[] specification : specifications) body.put(specification);
+            return exchange(data(body.capacity(), b -> b.put(body.array())), reference, 3).slice().order(ByteOrder.BIG_ENDIAN);
+        }
+
         // Separate classic alarm adapter: the supplied Ignition JAR has no corresponding service.
         Alarm userdata(int subfunction, byte[] payload) throws Exception {
             short reference = next();
@@ -478,7 +489,7 @@ public final class DriverHarness {
                 require(session.inspect(block, 2, 1, 801).get(0).code == 5, "unaligned byte accepted");
                 require(session.inspect(block, 255, 1, 800).get(0).code == 6, "unknown type accepted");
             });
-            test("vendor_decoder_char_dint_flexible_encoding", () -> {
+            test("vendor_decoder_char_dint_compatible_encoding", () -> {
                 // Override only request type/count: responses go through the unchanged
                 // vendor reader AND item handler, rather than the wire-inspection adapter.
                 for (int type : new int[]{3, 7}) {
@@ -498,6 +509,51 @@ public final class DriverHarness {
                     require(item.readValue != null && item.readValue.getStatusCode().isGood(), "typed item quality");
                     require(((Number)item.readValue.getValue().getValue()).intValue() == 0x11223344, "typed item value");
                 }
+            });
+            test("classic_string_13_vendor_decoder", () -> {
+                List<ReadResult> results = new S7ReadResponseReader().read(session.readSpecifications(
+                    new byte[]{0x12,10,0x10,0x13,0,1,0,1,(byte)0x84,0,1,64})).getData().getReadResults();
+                require(results.size() == 1 && results.get(0).getErrorCode() == (byte)255, "STRING item failed");
+                byte[] value = results.get(0).getData();
+                require(value.length == 10 && value[0] == 8 && value[1] == 5 &&
+                    new String(value, 2, 5, java.nio.charset.StandardCharsets.US_ASCII).equals("HELLO"), "STRING header/payload");
+            });
+            test("symbolic_b2_mixed_lengths_vendor_decoder", () -> {
+                List<ReadResult> results = new S7ReadResponseReader().read(session.readSpecifications(
+                    new byte[]{0x12,10,(byte)0xb2,0,(byte)0x8a,0x0e,0,1,0x12,0x34,0,1},
+                    new byte[]{0x12,14,(byte)0xb2,0,(byte)0x8a,0x0e,0,1,0x12,0x34,0,2,0,0,0,3},
+                    new byte[]{0x12,10,0x10,7,0,1,0,1,(byte)0x84,0,5,0})).getData().getReadResults();
+                require(results.size() == 3, "symbolic item count");
+                for (ReadResult result : results) require(result.getErrorCode() == (byte)255, "symbolic item failed");
+                require(hex(results.get(0).getData()).equals("11223344") &&
+                    hex(results.get(2).getData()).equals("11223344"), "symbolic/classic target mismatch");
+                require(results.get(1).getData().length == 10, "symbolic STRING target");
+                ByteBuffer missing = session.readSpecifications(
+                    new byte[]{0x12,10,(byte)0xb2,0,(byte)0x8a,0x0e,0,1,0x12,0x34,0,99});
+                require((missing.get(14) & 255) == 10 && missing.get(15) == 0 && missing.getShort(16) == 0,
+                    "unknown symbol must fail without data");
+                session.read(Collections.singletonList(readBlock(new Item(address(S7DataType.BYTE, 0), null))));
+            });
+            test("string_13_padding_bounds_and_malformed_specs", () -> {
+                List<Item> bytes = new ArrayList<>();
+                int[] value = {5,3,65,66,67,0,0};
+                for (int i = 0; i < value.length; i++) bytes.add(new Item(address(S7DataType.BYTE, 200 + i), value[i]));
+                session.write(bytes);
+                List<ReadResult> results = new S7ReadResponseReader().read(session.readSpecifications(
+                    new byte[]{0x12,10,0x10,0x13,0,1,0,1,(byte)0x84,0,6,64},
+                    new byte[]{0x12,10,0x10,7,0,1,0,1,(byte)0x84,0,5,0})).getData().getReadResults();
+                require(results.size() == 2 && hex(results.get(0).getData()).equals("05034142430000") &&
+                    hex(results.get(1).getData()).equals("11223344"), "odd STRING padding");
+                session.write(Arrays.asList(new Item(address(S7DataType.BYTE, 65534), 1),
+                    new Item(address(S7DataType.BYTE, 65535), 1)));
+                List<ReadAddressBlock> blocks = Collections.singletonList(readBlock(new Item(address(S7DataType.BYTE, 0), null)));
+                require(session.inspect(blocks, 0x13, 1, 65534 * 8).get(0).code == 5, "STRING crossed DB end");
+                session.write(Arrays.asList(new Item(address(S7DataType.BYTE, 200), 2),
+                    new Item(address(S7DataType.BYTE, 201), 3)));
+                require(session.inspect(blocks, 0x13, 1, 200 * 8).get(0).code == 5, "invalid STRING header");
+                ByteBuffer malformed = session.readSpecifications(new byte[]{0x12,10,0x10,2});
+                require(malformed.getShort(10) != 0, "truncated variable specification accepted");
+                session.read(blocks);
             });
             test("alarm_adapter_subscribe_raise_ack_clear_query", () -> {
                 session.subscribe(true);

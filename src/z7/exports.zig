@@ -83,6 +83,20 @@ export fn z7_get_memory_size(ctx: *Context) usize {
     return ctx.storage.ptr.len;
 }
 
+/// Configure while stopped; lifecycle and configuration calls must be serialized by the host.
+/// Path is the exact big-endian RID/LID word sequence, without the 12/length/B2/reserved prefix.
+export fn z7_register_symbol(ctx: *Context, path: [*c]const u8, path_len: usize, area: u8, db: u16, bit_address: u32, element_type: u8, count: u16) i32 {
+    if (ctx.running.load(.acquire) or ctx.thread_ != null) return -2;
+    if (path == null or path_len < 8 or path_len > @import("symbols.zig").max_path_bytes or path_len % 4 != 0 or bit_address > 0xffffff) return -1;
+    var item = [_]u8{ 0x12, 10, 0x10, element_type, 0, 0, 0, 0, area, @intCast(bit_address >> 16), @intCast((bit_address >> 8) & 255), @intCast(bit_address & 255) };
+    std.mem.writeInt(u16, item[4..6], count, .big);
+    std.mem.writeInt(u16, item[6..8], db, .big);
+    const plan = @import("variable_read.zig").decode(&item) catch return -1;
+    _ = ctx.storage.get_address(plan.area, plan.db, plan.offset, plan.source_length) catch return -1;
+    ctx.storage.symbols.register(path[0..path_len], plan) catch return -3;
+    return 0;
+}
+
 export fn z7_init(port: u16, storage_path: [*c]const u8) ?*Context {
     return init_context(port, storage_path) catch |err| {
         std.log.err("Failed to initialize server: {}", .{err});

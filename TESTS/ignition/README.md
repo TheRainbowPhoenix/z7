@@ -71,7 +71,7 @@ A running Ignition gateway may separately compute its own alarms from polled tag
 
 ## Cases and observed fixes
 
-26 cases cover:
+Cases cover:
 - COTP connection and 480-byte PDU negotiation.
 - BYTE, INT, DINT, REAL, WORD, unsigned DWORD wire data, and STRING round trips.
 - BIT writes, bit clearing, and preservation of neighboring bits.
@@ -151,10 +151,15 @@ Keep wire behavior that the supported client can consume. A difference from a
 Siemens implementation alone is not a reason to add server work or restrict clients.
 Bounds, overflow checks, request ownership and mutation safety remain required.
 
-`vendor_decoder_char_dint_flexible_encoding` sends explicit CHAR/DINT requests,
+`vendor_decoder_char_dint_compatible_encoding` sends explicit CHAR/DINT requests,
 then uses the unchanged vendor response reader and item handler to verify the data
-and decoded value. Current z7 CHAR transport 4 and DINT transport 6 work here;
-changing them to match the inspected Siemens binaries is unnecessary for this client.
+and decoded value. CHAR now uses Siemens transport 9; DINT retains transport 6.
+The vendor reader fails on DINT transport 5 with its bit length, so that encoding
+is deliberately not enabled. Classic STRING 0x13 and registered symbolic 0xb2
+reads also run through the unchanged vendor response reader. Additional cases
+check mixed descriptor lengths, odd STRING padding, malformed descriptors,
+invalid STRING headers, unknown symbols, and DB boundaries. See
+`extra/README_SYMBOLS.md` for the host registration API and limits.
 Ordinary vendor polling still uses BYTE blocks. Typed INT and other wire-adapter
 cases must not be mistaken for native vendor support.
 
@@ -167,8 +172,8 @@ this is framing and adapter evidence, not native SZL service support or evidence
 that every S7 client accepts oversized PDUs. All other receives retain their
 negotiated-size assertion, including the ReadVar boundary tests.
 
-Both cases run automatically in the existing Windows/Ubuntu CI matrix and its
-contended run. They add no server branches, encoding changes or fragmentation.
+These cases run automatically in the existing Windows/Ubuntu CI matrix and its
+contended run.
 
 ## Outage and reconnect recovery
 
