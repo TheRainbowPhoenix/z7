@@ -71,7 +71,7 @@ A running Ignition gateway may separately compute its own alarms from polled tag
 
 ## Cases and observed fixes
 
-23 cases cover:
+26 cases cover:
 - COTP connection and 480-byte PDU negotiation.
 - BYTE, INT, DINT, REAL, WORD, unsigned DWORD wire data, and STRING round trips.
 - BIT writes, bit clearing, and preservation of neighboring bits.
@@ -104,7 +104,7 @@ runtime interoperability claim for those versions.
 ## Continuous integration
 
 The `ignition` CI matrix builds the current server on Windows and Ubuntu, runs
-native parser, lifecycle and alarm tests, then runs all 23 interoperability cases.
+native parser, lifecycle and alarm tests, then runs all 26 interoperability cases.
 Failures fail CI; JSON results, Java logs and packet captures are uploaded even
 when a case fails. The required merge pipeline includes this job.
 
@@ -144,3 +144,58 @@ uses flock on Linux and LockFileEx on Windows, releases its lock before cleanup,
 and records configuration/errors in results.json. CI runs this additional case
 on both operating systems. This fixture is in the server host process; Windows
 process timer-resolution changes also affect the fixture's own waits.
+
+## Flexible broker compatibility
+
+Keep wire behavior that the supported client can consume. A difference from a
+Siemens implementation alone is not a reason to add server work or restrict clients.
+Bounds, overflow checks, request ownership and mutation safety remain required.
+
+`vendor_decoder_char_dint_flexible_encoding` sends explicit CHAR/DINT requests,
+then uses the unchanged vendor response reader and item handler to verify the data
+and decoded value. Current z7 CHAR transport 4 and DINT transport 6 work here;
+changing them to match the inspected Siemens binaries is unnecessary for this client.
+Ordinary vendor polling still uses BYTE blocks. Typed INT and other wire-adapter
+cases must not be mistaken for native vendor support.
+
+`szl_large_reply_vendor_framing_adapter` checks the existing SZL 0x001C response
+after negotiating 240 bytes. It permits that reply to exceed the proposal while
+retaining the fixed 16 KiB frame bound, validates declared lengths and record bounds,
+and verifies a subsequent native driver read/write on the same connection.
+The vendor TPKT/COTP stack accepts the reply. The JAR has no native SZL codec:
+this is framing and adapter evidence, not native SZL service support or evidence
+that every S7 client accepts oversized PDUs. All other receives retain their
+negotiated-size assertion, including the ReadVar boundary tests.
+
+Both cases run automatically in the existing Windows/Ubuntu CI matrix and its
+contended run. They add no server branches, encoding changes or fragmentation.
+
+## Outage and reconnect recovery
+
+`driver_server_outage_reconnect_and_alarm_recovery` stops/restarts the fixture
+three times. It verifies failure of the old association, failure to connect while
+stopped, fresh COTP/PDU negotiation, retained shared-memory values and subsequent
+read/write. A fresh association does not inherit an alarm subscription or old
+indications: the adapter queries outstanding state, subscribes again and receives
+and acknowledges a new transition. Alarm state survives stop/start of the same
+context; it is not a journal across context destruction or a process crash.
+
+Retry/backoff belongs to the harness adapter; vendor framing, readers and item
+handlers remain unchanged. This does not instantiate the complete Ignition gateway
+connection manager. Failed handshake attempts close their socket. Requests whose
+reply was lost have an uncertain outcome: no automatic write replay is performed.
+
+`python TESTS/test_recovery.py PATH_TO_LIBRARY` separately tests failed-init handle
+cleanup, exclusive endpoint ownership, restart retry after a bind failure, 120
+RST/partial-frame reconnects, healthy-peer isolation, eight stop/start cycles and
+full context recreation with persistent data. CI runs it on Windows and Ubuntu.
+It also kills a separate fixture server process, recreates it on the same port
+and backing file, and verifies acknowledged data and an incomplete write's isolation.
+
+The host must serialize start/stop/deinit calls and must not invoke them from an
+I/O-thread callback. `z7_stop` joins/drains I/O and releases the listening endpoint;
+`z7_start` reopens it, leaving status stopped on bind failure so the host can retry.
+An unexpected loop exit sets status stopped and a later start reaps its thread.
+Initialization still reserves the endpoint before the first start. Existing
+deferred-write tests cover shutdown under contention and prevent canceled work
+from leaking into the next server run. No new per-request recovery checks are added.

@@ -187,6 +187,8 @@ jobs:
         run: ./zig/zig build test
       - name: Shared-library lifecycle
         run: python TESTS/test_shared_library.py ${{ matrix.library }}
+      - name: Failure recovery and endpoint lifecycle
+        run: python TESTS/test_recovery.py ${{ matrix.library }}
       - name: TCP stream framing and backpressure
         run: python TESTS/test_stream.py ${{ matrix.library }}
       - name: Contested writes and responsive shutdown

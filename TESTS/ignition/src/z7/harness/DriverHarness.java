@@ -43,6 +43,11 @@ public final class DriverHarness {
         System.out.flush();
         require("0".equals(CONTROL.readLine()), "fixture alarm injection failed");
     }
+    private static void controlLifecycle(boolean starting) throws Exception {
+        System.out.println(starting ? "CONTROL START" : "CONTROL STOP");
+        System.out.flush();
+        require("0".equals(CONTROL.readLine()), "fixture lifecycle transition failed");
+    }
     private static String hex(byte[] bytes) {
         StringBuilder text = new StringBuilder();
         for (byte value : bytes) text.append(String.format("%02x", value & 255));
@@ -92,19 +97,24 @@ public final class DriverHarness {
         Session(int port, int requestedPdu) throws Exception { this(port, requestedPdu, true); }
         Session(int port, int requestedPdu, boolean trace) throws Exception {
             this.trace = trace;
-            socket.connect(new InetSocketAddress("127.0.0.1", port), 2000);
-            socket.setSoTimeout(2000);
-            socket.setTcpNoDelay(true);
-            COTPConnectRequest connect = new COTPConnectRequest((short) 1, (byte) 1);
-            byte[] cr = transmit(stack(false), data(connect.length(), b -> new COTPConnectRequestWriter().write(connect, b)));
-            send(cr);
-            COTPConnectResponse cc = new COTPConnectResponseReader().read(stack(false).receive(receive()).dataBuffer());
-            require(cc.getType() == (byte) 0xd0 && cc.getDestinationReference() == 1, "invalid COTP confirmation");
-            S7NegotiatePDURequest request = S7NegotiatePDURequestFactory.buildRequest(next(), (short) requestedPdu);
-            ByteBuffer reply = exchange(data(request.length(), b -> new S7NegotiatePDURequestWriter().write(request, b)),
-                request.getHeader().getSequence(), 3);
-            pdu = new S7NegotiatePDUResponseReader().read(reply).getParameters().getPduSize() & 65535;
-            require(pdu == requestedPdu, "negotiated PDU differs from proposal: " + pdu);
+            try {
+                socket.connect(new InetSocketAddress("127.0.0.1", port), 2000);
+                socket.setSoTimeout(2000);
+                socket.setTcpNoDelay(true);
+                COTPConnectRequest connect = new COTPConnectRequest((short) 1, (byte) 1);
+                byte[] cr = transmit(stack(false), data(connect.length(), b -> new COTPConnectRequestWriter().write(connect, b)));
+                send(cr);
+                COTPConnectResponse cc = new COTPConnectResponseReader().read(stack(false).receive(receive()).dataBuffer());
+                require(cc.getType() == (byte) 0xd0 && cc.getDestinationReference() == 1, "invalid COTP confirmation");
+                S7NegotiatePDURequest request = S7NegotiatePDURequestFactory.buildRequest(next(), (short) requestedPdu);
+                ByteBuffer reply = exchange(data(request.length(), b -> new S7NegotiatePDURequestWriter().write(request, b)),
+                    request.getHeader().getSequence(), 3);
+                pdu = new S7NegotiatePDUResponseReader().read(reply).getParameters().getPduSize() & 65535;
+                require(pdu == requestedPdu, "negotiated PDU differs from proposal: " + pdu);
+            } catch (Exception | Error failure) {
+                try { socket.close(); } catch (IOException closing) { failure.addSuppressed(closing); }
+                throw failure;
+            }
         }
         short next() { sequence = (short) (sequence + 1); return sequence; }
         static byte[] transmit(ProtocolStack stack, ApplicationData application) {
@@ -127,6 +137,9 @@ public final class DriverHarness {
             return bytes;
         }
         byte[] receive() throws IOException {
+            return receive(true);
+        }
+        byte[] receive(boolean enforceNegotiatedPdu) throws IOException {
             byte[] header = exact(4);
             int length = ((header[2] & 255) << 8) | (header[3] & 255);
             require(header[0] == 3 && header[1] == 0 && length >= 7 && length <= MAX_FRAME, "invalid TPKT");
@@ -134,7 +147,7 @@ public final class DriverHarness {
             byte[] body = exact(length - 4);
             System.arraycopy(body, 0, packet, 4, body.length);
             if (trace) System.out.println("WIRE\tRX\t" + hex(packet));
-            require(pdu == 0 || packet.length - 7 <= pdu, "response exceeds negotiated PDU");
+            require(!enforceNegotiatedPdu || pdu == 0 || packet.length - 7 <= pdu, "response exceeds negotiated PDU");
             return packet;
         }
         ByteBuffer exchange(ApplicationData request, short reference, int rosctr) throws Exception {
@@ -465,6 +478,27 @@ public final class DriverHarness {
                 require(session.inspect(block, 2, 1, 801).get(0).code == 5, "unaligned byte accepted");
                 require(session.inspect(block, 255, 1, 800).get(0).code == 6, "unknown type accepted");
             });
+            test("vendor_decoder_char_dint_flexible_encoding", () -> {
+                // Override only request type/count: responses go through the unchanged
+                // vendor reader AND item handler, rather than the wire-inspection adapter.
+                for (int type : new int[]{3, 7}) {
+                    Item item = new Item(address(S7DataType.DINT, 160), 0x11223344);
+                    session.write(Collections.singletonList(item));
+                    List<ReadAddressBlock> blocks = Collections.singletonList(readBlock(item));
+                    S7ReadRequest request = S7ReadRequestFactory.buildRequest(session.next(), blocks);
+                    ByteBuffer body = ByteBuffer.allocate(request.length());
+                    new S7ReadRequestWriter().write(request, body);
+                    body.put(15, (byte)type).putShort(16, (short)(type == 3 ? 4 : 1));
+                    ByteBuffer response = session.exchange(data(body.capacity(), b -> b.put(body.array())),
+                        request.getHeader().getSequence(), 3);
+                    List<ReadResult> results = new S7ReadResponseReader().read(response).getData().getReadResults();
+                    require(results.size() == 1 && results.get(0).getErrorCode() == (byte)255, "typed read failed");
+                    require(hex(results.get(0).getData()).equals("11223344"), "vendor typed payload");
+                    new ReadResponseHandler(blocks).handleResults(results);
+                    require(item.readValue != null && item.readValue.getStatusCode().isGood(), "typed item quality");
+                    require(((Number)item.readValue.getValue().getValue()).intValue() == 0x11223344, "typed item value");
+                }
+            });
             test("alarm_adapter_subscribe_raise_ack_clear_query", () -> {
                 session.subscribe(true);
                 controlSet(2001, 1);
@@ -483,6 +517,29 @@ public final class DriverHarness {
             });
         }
         try (Session session = new Session(port, 240)) {
+            test("szl_large_reply_vendor_framing_adapter", () -> {
+                // No vendor SZL codec exists. Check its framing stack separately;
+                // bypass only the harness's negotiated-size assertion for this reply.
+                short reference = session.next();
+                ByteBuffer body = ByteBuffer.allocate(26).order(ByteOrder.BIG_ENDIAN);
+                new S7HeaderWriter().write(new S7Header((byte)7, reference, (short)8, (short)8), body);
+                body.put(new byte[]{0,1,0x12,4,0x11,0x44,1,0});
+                body.put(new byte[]{(byte)255,9,0,4,0,0x1c,0,0});
+                session.send(Session.transmit(session.protocol, data(body.capacity(), b -> b.put(body.array()))));
+                byte[] packet = session.receive(false);
+                ByteBuffer reply = session.protocol.receive(packet).dataBuffer().slice().order(ByteOrder.BIG_ENDIAN);
+                require(reply.remaining() >= 34 && reply.get(0) == 0x32 && reply.get(1) == 7, "SZL header");
+                require(reply.getShort(4) == reference, "SZL reference");
+                int parameters = reply.getShort(6) & 65535, length = reply.getShort(8) & 65535;
+                require(parameters == 12 && reply.remaining() == 10 + parameters + length, "SZL declared lengths");
+                require(reply.get(15) == (byte)0x84 && reply.get(16) == 1 && reply.getShort(20) == 0, "SZL service result");
+                require(reply.get(22) == (byte)255 && reply.get(23) == 9 && reply.getShort(26) == 0x1c, "SZL payload");
+                int recordWidth = reply.getShort(30) & 65535, records = reply.getShort(32) & 65535;
+                require(recordWidth > 0 && records > 0 && length == 12L + (long)recordWidth * records, "SZL record bounds");
+                session.roundTrip(new Item(address(S7DataType.DINT, 168), -42), -42, "ffffffd6");
+                System.out.println("COMPATIBILITY SZL s7_bytes=" + (packet.length - 7) + " negotiated=" + session.pdu
+                    + " vendor_framing=PASS native_szl_codec=UNSUPPORTED");
+            });
             test("driver_pdu_boundaries", () -> {
                 List<ReadAddressBlock> maximum = new ArrayList<>();
                 for (int i = 0; i < 19; i++) maximum.add(readBlock(new Item(address(S7DataType.BYTE, 0), null)));
@@ -503,6 +560,52 @@ public final class DriverHarness {
             test("driver_small_pdu_reconnect", () ->
                 session.roundTrip(new Item(address(S7DataType.BYTE, 30), 66), 66, "42"));
         }
+        test("driver_server_outage_reconnect_and_alarm_recovery", () -> {
+            for (int cycle = 0; cycle < 3; cycle++) {
+                Item retained = new Item(address(S7DataType.DINT, 176), 123456 + cycle);
+                try (Session old = new Session(port, 480)) {
+                    old.write(Collections.singletonList(retained));
+                    old.subscribe(true);
+                    controlLifecycle(false);
+                    try {
+                        old.read(Collections.singletonList(readBlock(retained)));
+                        throw new AssertionError("old association survived server stop");
+                    } catch (IOException expected) { /* No success or implicit write replay. */ }
+                    try (Session unavailable = new Session(port, 240)) {
+                        throw new AssertionError("stopped server accepted a connection");
+                    } catch (ConnectException expected) { /* Endpoint is down, not merely stalled. */ }
+                    finally { controlLifecycle(true); }
+                }
+                // Retry is owned by this adapter, not the vendor gateway lifecycle.
+                Session recovered = null;
+                for (int attempt = 0; attempt < 5; attempt++) {
+                    try { recovered = new Session(port, 240); break; }
+                    catch (IOException unavailable) {
+                        if (attempt == 4) throw unavailable;
+                        Thread.sleep(25L << attempt);
+                    }
+                }
+                require(recovered != null, "reconnect exhausted");
+                try (Session peer = recovered) {
+                    peer.read(Collections.singletonList(readBlock(retained)));
+                    require(((Number)retained.readValue.getValue().getValue()).intValue() == 123456 + cycle, "restart lost data");
+                    int alarm = 3001 + cycle;
+                    controlSet(alarm, 1);
+                    socketQuiet(peer.socket); // A new association must not inherit a subscription.
+                    require(peer.query(alarm).length == 18, "alarm snapshot not recoverable");
+                    peer.subscribe(true);
+                    socketQuiet(peer.socket); // No replay of the prior association's indications.
+                    controlSet(alarm, 0);
+                    peer.notification(5, alarm, 0);
+                    peer.acknowledge(alarm, 1, 1);
+                    peer.notification(0x0c, alarm, 0);
+                    require(hex(peer.query(alarm)).equals("00010a000000"), "alarm recovery left pending state");
+                    peer.subscribe(false);
+                    peer.roundTrip(new Item(address(S7DataType.DINT, 180), -123 - cycle), -123 - cycle,
+                        hex(ByteBuffer.allocate(4).putInt(-123 - cycle).array()));
+                }
+            }
+        });
         test("driver_concurrent_load", () -> load(port, iterations));
         System.out.println("SUMMARY\t" + failures);
         if (failures != 0) System.exit(1);

@@ -65,6 +65,8 @@ def main():
     for name in ("z7_start", "z7_stop", "z7_deinit"):
         getattr(lib, name).argtypes = [ctypes.c_void_p]
         getattr(lib, name).restype = None
+    lib.z7_get_status.argtypes = [ctypes.c_void_p]
+    lib.z7_get_status.restype = ctypes.c_uint8
     lib.z7_alarm_set.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint8]
     lib.z7_alarm_set.restype = ctypes.c_int32
     if os.name == "nt":
@@ -127,7 +129,16 @@ def main():
             if len(lines) >= 4096:
                 raise RuntimeError("Java harness output exceeded bound")
             lines.append(line)
-            if line.startswith("CONTROL SET "):
+            if line in ("CONTROL STOP", "CONTROL START"):
+                starting = line == "CONTROL START"
+                (lib.z7_start if starting else lib.z7_stop)(ctx)
+                status = lib.z7_get_status(ctx)
+                if status != int(starting):
+                    raise RuntimeError("server lifecycle transition failed")
+                controls.append(dict(lifecycle="start" if starting else "stop", status=status))
+                process.stdin.write("0\n")
+                process.stdin.flush()
+            elif line.startswith("CONTROL SET "):
                 fields = line.split()
                 if len(fields) != 4:
                     raise RuntimeError("invalid fixture control request")
