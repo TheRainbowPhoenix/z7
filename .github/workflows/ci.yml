@@ -63,6 +63,10 @@ jobs:
           - { target: 'x86_64-linux-musl',   os: 'ubuntu-latest',  optimize: 'ReleaseSafe' }
           - { target: 'x86_64-linux-gnu',    os: 'ubuntu-latest',  optimize: 'Debug' }
           - { target: 'x86_64-linux-gnu',    os: 'ubuntu-latest',  optimize: 'ReleaseSafe' }
+          - { target: 'aarch64-linux-gnu',   os: 'ubuntu-24.04-arm', optimize: 'Debug' }
+          - { target: 'aarch64-linux-gnu',   os: 'ubuntu-24.04-arm', optimize: 'ReleaseSafe' }
+          - { target: 'aarch64-linux-musl',  os: 'ubuntu-24.04-arm', optimize: 'ReleaseSafe' }
+          - { target: 'arm-linux-musleabihf', os: 'ubuntu-latest', optimize: 'ReleaseSafe', cpu: 'cortex_a7' }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -75,9 +79,9 @@ jobs:
         if: runner.os == 'Windows'
         run: pwsh ./zig/download.win.ps1
       - name: Build (${{ matrix.optimize }})
-        run: ./zig/zig build -Dtarget=${{ matrix.target }} -Doptimize=${{ matrix.optimize }}
+        run: ./zig/zig build -Dtarget=${{ matrix.target }} -Dcpu=${{ matrix.cpu || 'baseline' }} -Doptimize=${{ matrix.optimize }}
       - name: Test
-        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-linux-gnu' && matrix.optimize == 'Debug'
+        if: (matrix.target == 'x86_64-linux-gnu' || matrix.target == 'aarch64-linux-gnu') && matrix.optimize == 'Debug'
         run: ./zig/zig build test -Dtarget=${{ matrix.target }}
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -164,6 +168,7 @@ jobs:
       matrix:
         include:
           - { os: 'ubuntu-latest', library: 'zig-out/lib/libz7.so' }
+          - { os: 'ubuntu-24.04-arm', library: 'zig-out/lib/libz7.so' }
           - { os: 'windows-latest', library: 'zig-out/bin/z7.dll' }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15

@@ -253,7 +253,7 @@ pub const IO = struct {
                     if (-cqe.res == @intFromEnum(posix.E.TIME)) etime.* = true;
                     continue;
                 }
-                const completion: *Completion = @ptrFromInt(cqe.user_data);
+                const completion: *Completion = @ptrFromInt(@as(usize, @intCast(cqe.user_data)));
                 completion.result = cqe.res;
                 // We do not run the completion here (instead appending to a linked list) to avoid:
                 // * recursion through `flush_submissions()` and `flush_completions()`,
