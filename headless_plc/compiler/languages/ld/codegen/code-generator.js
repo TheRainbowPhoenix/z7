@@ -106,6 +106,8 @@ __power = (${orExpression}) ? 1 : 0;`;
                 return this.generateCompare(instruction, '<=', 'LE');
             case 'LIMIT':
                 return this.generateLIMIT(instruction);
+            case 'JSR':
+                return this.generateJSR(instruction);
             default:
                 return `log.push('Unknown instruction: ${instruction.instructionType}');\n__power = 0;`;
         }
@@ -468,6 +470,31 @@ ${this.indent(this.generateParameterSetter(destParam, `(${sourceAAccessor}) / __
   if (__low <= __high) return (__test >= __low && __test <= __high) ? 1 : 0;
   return (__test >= __low || __test <= __high) ? 1 : 0;
 })();`;
+    }
+
+    generateJSR(instruction) {
+        const routineParam = instruction.parameters[0];
+        if (!routineParam) return `log.push('JSR missing routine name parameter');`;
+
+        // JSR usually takes a raw name, not a tag.
+        // But our parser parses params as tags/literals.
+        // If it's LDTagReference, we use its name.
+        let routineName = '';
+        if (routineParam.type === 'LDTagReference') {
+            routineName = routineParam.name;
+        } else if (routineParam.type === 'LDNumericLiteral') {
+             routineName = String(routineParam.value);
+        } else {
+             return `log.push('JSR invalid parameter type');`;
+        }
+
+        return `if (__power) {
+  if (typeof __routines !== 'undefined' && __routines && __routines['${routineName}']) {
+      __routines['${routineName}'](vars, log, __scanTime, __routines);
+  } else {
+      log.push('Warning: Routine "${routineName}" not found');
+  }
+}`;
     }
     generateParameterGetter(param) {
         switch (param.type) {

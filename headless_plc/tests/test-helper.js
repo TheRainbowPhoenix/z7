@@ -67,9 +67,26 @@ export function it(name, fn) {
 export class AOITestKit {
     constructor(aoi) {
         this.aoi = aoi;
-        // The parser might not return tags as an array if the source was structured differently or if it failed silently.
-        // Also handling if tags is undefined.
-        const tags = Array.isArray(aoi.tags) ? aoi.tags : [];
+
+        // Normalize tags: flatten if object, use array if array, default to empty
+        let tags = [];
+        if (Array.isArray(aoi.tags)) {
+            tags = aoi.tags;
+        } else if (aoi.tags && typeof aoi.tags === 'object') {
+            // Flatten input, output, local, inout
+            ['input', 'output', 'local', 'inout'].forEach(key => {
+                if (Array.isArray(aoi.tags[key])) {
+                    tags = tags.concat(aoi.tags[key]);
+                }
+            });
+        }
+
+        // Store flattened tags back to aoi for run() to use
+        // But run() uses this.aoi.tags, so we should update this.aoi.tags or store it separately.
+        // Better to store separately or update aoi.tags if it's safe (might affect other tests using same object).
+        // For safety, let's just use a local property for compilation context.
+        this.normalizedTags = tags;
+
         this.context = {
             tags: tags.map(tag => {
                 const membersList = getMembersForDataType(tag.dataType);
@@ -111,8 +128,8 @@ export class AOITestKit {
         const execContext = createExecutionContext();
         const vars = execContext.variables;
 
-        // Initialize variables based on tags
-        this.aoi.tags.forEach(tag => {
+        // Initialize variables based on normalized tags
+        this.normalizedTags.forEach(tag => {
             // Determine the base value (skeleton or scalar default)
             let baseValue;
             const members = getMembersForDataType(tag.dataType);
@@ -190,13 +207,6 @@ export class AOITestKit {
         const funcs = runtime.buildFunctions(__scanTime);
 
         try {
-            // The generated code expects 'funcs' if it's ST. LD doesn't use it but won't hurt.
-            // Check signature of generated code?
-            // ST: funcs is used. LD: not used.
-            // We can pass it as a 4th argument if we update the Function constructor.
-            // But wait, generated ST code uses 'funcs'. Generated LD doesn't.
-            // We need to match the arguments expected by the code usage.
-            // Let's pass 'funcs' as 4th arg.
             const runFn = new Function('vars', 'log', '__scanTime', 'funcs', this.code);
             runFn(vars, log, __scanTime, funcs);
         } catch (e) {
