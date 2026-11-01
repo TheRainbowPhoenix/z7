@@ -59,6 +59,24 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(z7);
 
+    const zomsp = b.addExecutable(.{
+        .name = "zOMSp",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/zomsp/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    zomsp.root_module.addImport("zCom", zCom_module);
+    const install_zomsp = b.addInstallArtifact(zomsp, .{});
+    b.step("zomsp", "Build the OMSp proxy draft").dependOn(&install_zomsp.step);
+    const zomsp_tests = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/zomsp/protocol.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+    b.step("test:zomsp", "Test bounded OMSp framing").dependOn(&b.addRunArtifact(zomsp_tests).step);
+
     const check_step = b.step("check", "Check if z7 compiles");
     check_step.dependOn(&z7.step);
 
