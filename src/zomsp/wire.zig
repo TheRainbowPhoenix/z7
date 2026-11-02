@@ -1,7 +1,41 @@
 const std = @import("std");
+const backend = @import("backend.zig");
+const subscriptions = @import("subscriptions.zig");
 pub const limit = 65535;
 pub const qualifier_bytes = [_]u8{ 0, 0, 4, 0xe8, 0x89, 0x69, 0, 0x12, 0, 0, 0, 0, 0x89, 0x6a, 0, 0x13, 0, 0x89, 0x6b, 0, 4, 0, 0 };
 pub const Value = struct { kind: u8, number: u64 = 0, raw: []const u8 };
+const Address = struct {
+    rid: u32,
+    aid: u32,
+    path: [3]u32 = @splat(0),
+    path_len: u8 = 0,
+};
+
+fn addresses(reader: *Reader, target: u32, count: usize, fields: u64, output: *[16]Address) !void {
+    if (count == 0 or count > output.len) return error.ValueLimit;
+    var consumed: u64 = 0;
+    for (output[0..count]) |*address| {
+        address.* = .{ .rid = target, .aid = 0 };
+        if (target == 0) {
+            if (try reader.vlq() != 0) return error.UnsupportedSymbolCrc;
+            const rid = try reader.vlq();
+            const parts = try reader.vlq();
+            if (rid == 0 or rid > std.math.maxInt(u32) or parts == 0 or parts > 4) return error.InvalidAddress;
+            address.rid = @intCast(rid);
+            address.path_len = @intCast(parts - 1);
+            consumed += 3 + parts;
+        } else consumed += 1;
+        const aid = try reader.vlq();
+        if (aid == 0 or aid > std.math.maxInt(u32)) return error.InvalidAddress;
+        address.aid = @intCast(aid);
+        for (address.path[0..address.path_len]) |*part| {
+            const field = try reader.vlq();
+            if (field == 0 or field > std.math.maxInt(u32)) return error.InvalidAddress;
+            part.* = @intCast(field);
+        }
+    }
+    if (consumed != fields) return error.InvalidAddress;
+}
 
 pub const Reader = struct {
     data: []const u8,
@@ -33,18 +67,57 @@ pub const Reader = struct {
         const start = self.offset;
         const flags = try self.byte();
         const kind = try self.byte();
-        if (flags != 0 and !(flags == 0x10 and kind == 2)) return error.UnsupportedValue;
+        if (flags != 0 and flags != 0x10 and flags != 0x20 and flags != 0x40) return error.UnsupportedValue;
         var number: u64 = 0;
-        if (flags == 0x10) {
+        if (flags == 0x40) {
+            var indices: [64]u32 = undefined;
+            var count: usize = 0;
+            while (true) {
+                const index = try self.vlq();
+                if (index == 0) break;
+                if (index > std.math.maxInt(u32) or count == indices.len) return error.ValueLimit;
+                if (std.mem.indexOfScalar(u32, indices[0..count], @intCast(index)) != null) return error.InvalidIndex;
+                indices[count] = @intCast(index);
+                count += 1;
+                switch (kind) {
+                    4, 8 => _ = try self.vlq(),
+                    0x14, 0x15 => {
+                        if (kind == 0x14 and try self.vlq() > 1) return error.UnsupportedValue;
+                        const length = try self.vlq();
+                        if (length > 4096) return error.ValueLimit;
+                        _ = try self.take(@intCast(length));
+                    },
+                    0x16 => _ = try self.value(depth + 1),
+                    else => return error.UnsupportedValue,
+                }
+            }
+        } else if (flags != 0) {
             const count = try self.vlq();
             if (count > 4096) return error.ValueLimit;
-            _ = try self.take(@intCast(count));
+            switch (kind) {
+                1, 2, 6, 0x0a => _ = try self.take(@intCast(count)),
+                3, 7, 0x0b => _ = try self.take(@intCast(count * 2)),
+                4, 5, 8, 9, 0x11, 0x13 => for (0..@intCast(count)) |_| {
+                    _ = try self.vlq();
+                },
+                0x0c, 0x0e, 0x12 => _ = try self.take(@intCast(count * 4)),
+                0x0d, 0x0f, 0x10 => _ = try self.take(@intCast(count * 8)),
+                else => return error.UnsupportedValue,
+            }
         } else switch (kind) {
             0 => {},
-            1, 2 => number = try self.byte(),
-            3 => number = std.mem.readInt(u16, (try self.take(2))[0..2], .big),
-            4, 8, 0x13 => number = try self.vlq(),
-            0x12 => number = try self.u32be(),
+            1, 2, 6, 0x0a => number = try self.byte(),
+            3, 7, 0x0b => number = std.mem.readInt(u16, (try self.take(2))[0..2], .big),
+            4, 5, 8, 9, 0x11, 0x13 => number = try self.vlq(),
+            0x0c, 0x0e, 0x12 => number = try self.u32be(),
+            0x0d, 0x0f, 0x10 => number = std.mem.readInt(u64, (try self.take(8))[0..8], .big),
+            0x14 => {
+                number = try self.vlq();
+                if (number > 1) return error.UnsupportedValue;
+                const length = try self.vlq();
+                if (length > 4096) return error.ValueLimit;
+                _ = try self.take(@intCast(length));
+            },
             0x15 => {
                 const length = try self.vlq();
                 if (length > 4096) return error.ValueLimit;
@@ -52,6 +125,16 @@ pub const Reader = struct {
             },
             0x17 => {
                 number = try self.u32be();
+                if ((number > 0x90000000 and number < 0x9fffffff) or (number > 0x02000000 and number < 0x02ffffff)) {
+                    _ = try self.take(8);
+                    const transport_flags = try self.vlq();
+                    if (transport_flags & ~@as(u64, 0x403) != 0 or transport_flags & 2 == 0) return error.UnsupportedValue;
+                    var length = try self.vlq();
+                    if (transport_flags & 0x400 != 0) length = try self.vlq();
+                    if (length > 4096) return error.ValueLimit;
+                    _ = try self.take(@intCast(length));
+                    return .{ .kind = kind, .number = number, .raw = self.data[start..self.offset] };
+                }
                 var count: usize = 0;
                 while (try self.vlq() != 0) {
                     if (count == 64) return error.ValueLimit;
@@ -65,8 +148,9 @@ pub const Reader = struct {
     }
     pub fn finishRequest(self: *Reader, function: u16, initial: bool) !u32 {
         if (function == 0x542 and try self.byte() != 0) return error.InvalidIndex;
+        if (function == 0x4d4 and try self.byte() != 0) return error.InvalidRequestFlags;
         if (!std.mem.eql(u8, try self.take(qualifier_bytes.len), &qualifier_bytes)) return error.UnsupportedQualifier;
-        if ((function == 0x586 or function == 0x4f2 or function == 0x4d4) and try self.byte() != 0) return error.InvalidRequestFlags;
+        if ((function == 0x586 or function == 0x4f2) and try self.byte() != 0) return error.InvalidRequestFlags;
         if (function == 0x586 and try self.byte() != 1) return error.InvalidReadFlags;
         const integrity = if (initial) 0 else try self.vlq();
         if (integrity > 0xffffffff) return error.Overflow;
@@ -94,6 +178,11 @@ pub const Writer = struct {
     pub fn be32(self: *Writer, v: u32) !void {
         var bytes: [4]u8 = undefined;
         std.mem.writeInt(u32, &bytes, v, .big);
+        try self.put(&bytes);
+    }
+    pub fn be64(self: *Writer, v: u64) !void {
+        var bytes: [8]u8 = undefined;
+        std.mem.writeInt(u64, &bytes, v, .big);
         try self.put(&bytes);
     }
     pub fn vlq(self: *Writer, v: u64) !void {
@@ -192,6 +281,31 @@ pub const Notification = struct {
     }
 };
 
+pub const NotificationQueue = struct {
+    frames: [4][limit]u8 = undefined,
+    lengths: [4]usize = @splat(0),
+    head: usize = 0,
+    count: usize = 0,
+
+    pub fn push(self: *NotificationQueue, data: []const u8) !void {
+        _ = try Notification.parse(data);
+        if (self.count == self.frames.len) return error.NotificationQueueFull;
+        const slot = (self.head + self.count) % self.frames.len;
+        @memcpy(self.frames[slot][0..data.len], data);
+        self.lengths[slot] = data.len;
+        self.count += 1;
+    }
+    pub fn pop(self: *NotificationQueue, output: []u8) !?Notification {
+        if (self.count == 0) return null;
+        const length = self.lengths[self.head];
+        if (output.len < length) return error.BufferTooSmall;
+        @memcpy(output[0..length], self.frames[self.head][0..length]);
+        self.head = (self.head + 1) % self.frames.len;
+        self.count -= 1;
+        return try Notification.parse(output[0..length]);
+    }
+};
+
 pub const State = struct {
     session: u32 = 0x70001001,
     context: u32 = 0x70001002,
@@ -199,9 +313,57 @@ pub const State = struct {
     role: u32 = 2,
     version: []const u8 = &.{},
     negotiated: bool = false,
+    best_effort: bool = false,
     read_counter: u32 = 0,
     write_counter: u32 = 3,
+    backend: ?*backend.Backend = null,
+    subscriptions: [subscriptions.max_subscriptions]subscriptions.Subscription = @splat(.{}),
 };
+
+fn findSubscription(state: *State, rid: u32) ?*subscriptions.Subscription {
+    for (&state.subscriptions) |*subscription| if (subscription.rid == rid and rid != 0) return subscription;
+    return null;
+}
+
+fn readAttribute(writer: *Writer, state: *State, rid_value: u32, aid: u64) !u64 {
+    if (rid_value == state.session) {
+        switch (aid) {
+            299 => try writer.uint(state.role),
+            300 => try writer.rid(state.client),
+            301 => try writer.string("zOMSp_native_reference_port"),
+            1842 => try writer.uint(4),
+            1903 => try writer.uint(4096),
+            1905 => try writer.put(&.{ 0, 8, 0x7f }),
+            else => return 0xa03388000088ffe0,
+        }
+        return 0;
+    }
+    if (findSubscription(state, rid_value)) |subscription| {
+        switch (aid) {
+            1049 => try writer.uint(subscription.cycle_ms),
+            1051 => try writer.put(&.{ 0, 2, @intFromBool(subscription.disabled) }),
+            1053 => {
+                try writer.put(&.{ 0, 7 });
+                try writer.be16(@bitCast(subscription.credit_limit));
+            },
+            else => return 0xa03388000088ffe0,
+        }
+        return 0;
+    }
+    const store = state.backend orelse return 0x8020ab00199afff4;
+    if (aid > std.math.maxInt(u32)) return error.InvalidAddress;
+    var bytes: [backend.max_value_bytes]u8 = undefined;
+    const value = store.get(rid_value, @intCast(aid), &bytes) catch |err| switch (err) {
+        error.ObjectNotFound => return 0x8020ab00199afff4,
+        error.AttributeNotFound => return 0xa03388000088ffe0,
+        else => return err,
+    };
+    var reader = Reader{ .data = value };
+    _ = try reader.value(0);
+    if (reader.offset != value.len) return error.InvalidValue;
+    try writer.put(value);
+    return 0;
+}
 
 pub fn object(reader: *Reader, state: *State, depth: usize) anyerror!void {
     if (depth >= 8 or try reader.byte() != 0xa1) return error.InvalidObject;
@@ -315,7 +477,7 @@ pub fn reply(writer: *Writer, request: Message, state: *State) ![]const u8 {
 fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
     if (request.opcode != 0x31) return error.InvalidMessage;
     var reader = Reader{ .data = request.body };
-    if (request.function == 0x4ca) {
+    if (request.function == 0x4ca and request.version == 1) {
         if (try reader.u32be() != 0x11d) return error.UnsupportedObject;
         _ = try reader.value(0);
         _ = try reader.u32be();
@@ -324,18 +486,153 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         return createReply(writer, request, state);
     }
     if (request.version != 2 or request.session != state.session) return error.InvalidSession;
+    if (request.function == 0x556 or request.function == 0x560) {
+        if (!state.negotiated) return error.NotNegotiated;
+        if (request.function == 0x556) {
+            if (try reader.byte() != 1 or (try reader.value(0)).kind != 0) return error.UnsupportedSequence;
+            state.best_effort = true;
+        } else {
+            if (try reader.byte() > 1 or try reader.byte() != 0 or !state.best_effort) return error.UnsupportedSequence;
+            state.best_effort = false;
+        }
+        const counter = try reader.vlq();
+        if (counter > std.math.maxInt(u32) / 2 or counter != @as(u64, state.write_counter) + 1) return error.InvalidIntegrity;
+        if (try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
+        try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
+        try writer.byte(0);
+        if (request.function == 0x556) try writer.put(&.{ 0, 0 });
+        try writer.vlq(counter << 1);
+        try writer.be32(0);
+        const response = try writer.finish();
+        state.write_counter = @intCast(counter);
+        return response;
+    }
     const target = try reader.u32be();
-    if (target != state.session and request.function != 0x586) return error.InvalidSession;
     if (!state.negotiated and request.function != 0x542) return error.NotNegotiated;
+    if (!state.negotiated and target != state.session) return error.InvalidSession;
+    if (request.function == 0x4bb) return explore(writer, request, state, target, &reader);
+    if (request.function == 0x524) {
+        const aid = try reader.vlq();
+        if (aid == 0 or aid > std.math.maxInt(u32) or (try reader.value(0)).kind != 0) return error.InvalidAddress;
+        const integrity = try reader.vlq();
+        if (integrity > std.math.maxInt(u32) / 4 or integrity != @as(u64, state.read_counter) + 1) return error.InvalidIntegrity;
+        if (try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
+        var buffer: [backend.max_value_bytes]u8 = undefined;
+        var targets: []const u8 = &.{};
+        var status: u64 = 0xa02681000081ffc1;
+        const virtual_object = target == state.session or target == state.context or findSubscription(state, target) != null;
+        if (!virtual_object) {
+            if (state.backend) |store| {
+                const value = store.snapshot(target, @intCast(aid), &buffer) catch |err| switch (err) {
+                    error.ObjectNotFound => null,
+                    error.AttributeNotFound => null,
+                    else => return err,
+                };
+                if (value) |snapshot| {
+                    if (snapshot.flags == 2) {
+                        const raw = snapshot.value;
+                        if (raw.len < 3 or raw[0] != 0x10 or raw[1] != 0x12 or raw[2] > 16 or raw.len != 3 + @as(usize, raw[2]) * 4) return error.InvalidLayout;
+                        targets = raw[3..];
+                        status = 0;
+                    }
+                } else {
+                    _ = store.info(target) catch |err| switch (err) {
+                        error.ObjectNotFound => {
+                            status = 0x8020ab00199afff4;
+                        },
+                        else => return err,
+                    };
+                }
+            } else status = 0x8020ab00199afff4;
+        }
+        try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
+        try writer.vlq(status);
+        try writer.vlq(targets.len / 4);
+        try writer.put(targets);
+        try writer.vlq((integrity << 2) | 1);
+        try writer.be32(0);
+        const response = try writer.finish();
+        state.read_counter = @intCast(integrity);
+        return response;
+    }
+    if (request.function == 0x4ca) {
+        if (!state.negotiated) return error.UnsupportedObject;
+        _ = try reader.value(0);
+        if (try reader.u32be() != 0) return error.InvalidRequestFlags;
+        const integrity = try reader.vlq();
+        if (integrity > std.math.maxInt(u32) / 2 or integrity != @as(u64, state.write_counter) + 1) return error.InvalidIntegrity;
+        const object_start = reader.offset;
+        if (try reader.byte() != 0xa1) return error.InvalidObject;
+        _ = try reader.u32be();
+        const class = try reader.vlq();
+        if (class != 1001) {
+            reader.offset = object_start;
+            var plan: CreatePlan = .{};
+            try plan.parse(&reader, target, 0);
+            if (try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
+            const store = state.backend orelse return error.ObjectNotFound;
+            var assigned: [8]u32 = undefined;
+            try store.createBatch(plan.nodes[0..plan.node_count], plan.values[0..plan.value_count], assigned[0..plan.node_count]);
+            try writer.begin(2, 0x32, 0x4ca, request.sequence, null, request.flags);
+            try writer.byte(0);
+            try writer.vlq(plan.node_count);
+            for (assigned[0..plan.node_count]) |rid| try writer.vlq(rid);
+            try writer.vlq(integrity << 1);
+            try writer.be32(0);
+            const response = try writer.finish();
+            state.write_counter = @intCast(integrity);
+            return response;
+        }
+        if (target != state.context or try reader.vlq() != 0 or try reader.vlq() != 0) return error.UnsupportedObject;
+        var selected: ?*subscriptions.Subscription = null;
+        for (&state.subscriptions, 0..) |*subscription, index| {
+            if (subscription.rid == 0) {
+                selected = subscription;
+                subscription.rid = state.context + 1 + @as(u32, @intCast(index));
+                break;
+            }
+        }
+        const subscription = selected orelse return error.SubscriptionLimit;
+        var closed = false;
+        for (0..32) |_| {
+            const tag = try reader.byte();
+            if (tag == 0xa2) {
+                closed = true;
+                break;
+            }
+            if (tag != 0xa3) return error.UnsupportedObjectField;
+            const aid = try reader.vlq();
+            const value = try reader.value(0);
+            try subscription.set(aid, value, Reader);
+        }
+        if (!closed or try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
+        var any_reference = false;
+        for (&subscription.references) |*reference| if (reference.handle != 0) {
+            any_reference = true;
+        };
+        subscription.pending_empty = any_reference;
+        state.write_counter = @intCast(integrity);
+        try writer.begin(2, 0x32, 0x4ca, request.sequence, null, request.flags);
+        try writer.put(&.{ 0, 1 });
+        try writer.vlq(subscription.rid);
+        try writer.vlq(integrity << 1);
+        try writer.be32(0);
+        return writer.finish();
+    }
+    var updates: [16]backend.Update = undefined;
+    var update_buffers: [16][backend.max_value_bytes]u8 = undefined;
+    var update_count: usize = 0;
+    var parsed_integrity: ?u32 = null;
+    var delete_object: ?u32 = null;
     try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
     try writer.byte(0);
     switch (request.function) {
         0x542 => {
             const count = try reader.vlq();
-            if (count == 0 or count > 16 or try reader.vlq() != count) return error.ValueLimit;
-            var aids: [16]u64 = undefined;
+            if (count == 0 or count > 16) return error.ValueLimit;
+            var items: [16]Address = undefined;
+            try addresses(&reader, target, @intCast(count), try reader.vlq(), &items);
             var seen: u16 = 0;
-            for (aids[0..@intCast(count)]) |*aid| aid.* = try reader.vlq();
             for (0..@intCast(count)) |_| {
                 const index = try reader.vlq();
                 if (index == 0 or index > count) return error.InvalidIndex;
@@ -343,7 +640,32 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
                 if (seen & bit != 0) return error.InvalidIndex;
                 seen |= bit;
                 const value = try reader.value(0);
-                if (aids[@intCast(index - 1)] == 299 and value.kind == 4) {
+                const address = items[@intCast(index - 1)];
+                if (findSubscription(state, address.rid)) |subscription| {
+                    if (address.path_len != 0) return error.UnsupportedAddress;
+                    try subscription.set(address.aid, value, Reader);
+                    continue;
+                }
+                if (address.rid != state.session) {
+                    var raw = value.raw;
+                    var generation: ?u64 = null;
+                    if (address.path_len != 0) {
+                        const store = state.backend orelse return error.ObjectNotFound;
+                        var original: [backend.max_value_bytes]u8 = undefined;
+                        const snapshot = try store.snapshot(address.rid, address.aid, &original);
+                        generation = snapshot.generation;
+                        var replacement: Writer = .{};
+                        try replaceValue(&replacement, snapshot.value, address.path[0..address.path_len], raw);
+                        if (replacement.used > backend.max_value_bytes) return error.ValueLimit;
+                        @memcpy(update_buffers[update_count][0..replacement.used], replacement.data[0..replacement.used]);
+                        raw = update_buffers[update_count][0..replacement.used];
+                    }
+                    updates[update_count] = .{ .rid = address.rid, .aid = address.aid, .value = raw, .generation = generation };
+                    update_count += 1;
+                    continue;
+                }
+                if (address.path_len != 0) return error.UnsupportedAddress;
+                if (address.aid == 299 and value.kind == 4) {
                     if (value.number != 1 and value.number != 2 and value.number != 32) return error.InvalidRole;
                     state.role = @intCast(value.number);
                 }
@@ -352,59 +674,121 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         },
         0x54c => {
             const count = try reader.vlq();
-            if (count == 0 or count > 16 or try reader.vlq() != count) return error.ValueLimit;
+            if (count == 0 or count > 16) return error.ValueLimit;
+            var items: [16]Address = undefined;
+            try addresses(&reader, target, @intCast(count), try reader.vlq(), &items);
+            var errors: [16]u64 = @splat(0);
+            var values: Writer = .{};
             for (0..@intCast(count)) |index| {
-                const aid = try reader.vlq();
-                try writer.vlq(index + 1);
-                if (aid == 1905) {
-                    try writer.put(&.{ 0, 8, 0x7f });
-                    continue;
+                const address = items[index];
+                const before = values.used;
+                try values.vlq(index + 1);
+                errors[index] = try readAddress(&values, state, address);
+                if (errors[index] != 0) {
+                    values.used = before;
+                    if (target == 0) {
+                        try values.vlq(index + 1);
+                        try values.put(&.{ 0, 0 });
+                    }
                 }
-                try writer.uint(switch (aid) {
-                    299 => state.role,
-                    1842 => 4,
-                    1903 => 4096,
-                    else => return error.UnsupportedAttribute,
-                });
             }
-            try writer.put(&.{ 0, 0 });
+            var failed: u64 = 0;
+            for (errors[0..@intCast(count)]) |status| {
+                if (status != 0) failed = status;
+            }
+            if (target == 0) {
+                try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
+                try writer.vlq(if (failed == 0) 0 else 0x2027800000a40013);
+                try writer.put(values.data[0..values.used]);
+                try writer.byte(0);
+                for (errors[0..@intCast(count)], 0..) |status, index| if (status != 0) {
+                    try writer.vlq(index + 1);
+                    try writer.vlq(status);
+                };
+                try writer.byte(0);
+            } else {
+                if (failed == 0) try writer.put(values.data[0..values.used]) else {
+                    try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
+                    try writer.vlq(if (failed == 0x8020ab00199afff4) failed else 0xa0278800004fffe0);
+                    if (failed != 0x8020ab00199afff4) for (0..@intCast(count)) |index| {
+                        try writer.vlq(index + 1);
+                        try writer.put(&.{ 0, 0 });
+                    };
+                }
+                try writer.byte(0);
+                try writer.byte(0);
+            }
         },
         0x586 => {
-            const array = try reader.take(3);
-            if (!std.mem.eql(u8, array, &.{ 0x20, 4, 1 })) return error.InvalidAddress;
-            const aid = try reader.vlq();
-            const status: u64 = if (target != state.session) 0x8020ab00199afff4 else switch (aid) {
-                299, 300, 301, 1842, 1903, 1905 => 0,
-                else => 0xa03388000088ffe0,
-            };
+            const address = try streamedAddress(&reader, target);
+            try writer.byte(0);
+            var value_writer: Writer = .{};
+            var status = try readAttribute(&value_writer, state, target, address.aid);
+            if (status == 0) {
+                const raw = nestedValue(value_writer.data[0..value_writer.used], address.path[0..address.path_len]) catch null;
+                if (raw) |value| try writer.put(value) else status = 0xa03388000088ffe0;
+            }
             if (status != 0) {
                 try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
                 try writer.vlq(status);
                 try writer.put(&.{ 0, 0, 0 });
-            } else {
-                try writer.byte(0);
-                switch (aid) {
-                    299 => try writer.uint(state.role),
-                    300 => try writer.rid(state.client),
-                    301 => try writer.string("zOMSp_native_reference_port"),
-                    1842 => try writer.uint(4),
-                    1903 => try writer.uint(4096),
-                    1905 => try writer.put(&.{ 0, 8, 0x7f }),
-                    else => unreachable,
-                }
             }
         },
         0x4f2 => {
-            if (try reader.vlq() != 1 or try reader.vlq() != 299) return error.UnsupportedAttribute;
+            if (try reader.vlq() != 1) return error.UnsupportedAttribute;
+            const aid = try reader.vlq();
             const value = try reader.value(0);
-            if (value.kind != 4 or !(value.number == state.role or (state.role == 2 and value.number == 32))) return error.InvalidRole;
-            state.role = @intCast(value.number);
+            if (findSubscription(state, target)) |subscription| {
+                try subscription.set(aid, value, Reader);
+            } else if (target == state.session) {
+                if (aid != 299) return error.UnsupportedAttribute;
+                if (value.kind != 4 or !(value.number == state.role or (state.role == 2 and value.number == 32))) return error.InvalidRole;
+                state.role = @intCast(value.number);
+            } else {
+                if (aid > std.math.maxInt(u32)) return error.InvalidAddress;
+                updates[0] = .{ .rid = target, .aid = @intCast(aid), .value = value.raw };
+                update_count = 1;
+            }
         },
-        0x4d4 => try writer.be32(target),
+        0x57c => {
+            const address = try streamedAddress(&reader, target);
+            if (!std.mem.eql(u8, try reader.take(qualifier_bytes.len), &qualifier_bytes)) return error.UnsupportedQualifier;
+            if (try reader.byte() != 0 or try reader.byte() != 1) return error.InvalidRequestFlags;
+            const value = try reader.value(0);
+            if (findSubscription(state, target)) |subscription| {
+                if (address.path_len != 0) return error.UnsupportedAddress;
+                try subscription.set(address.aid, value, Reader);
+            } else if (target == state.session) {
+                if (address.aid != 299 or address.path_len != 0) return error.UnsupportedAttribute;
+                if (value.kind != 4 or !(value.number == state.role or (state.role == 2 and value.number == 32))) return error.InvalidRole;
+                state.role = @intCast(value.number);
+            } else {
+                updates[0] = .{ .rid = target, .aid = address.aid, .value = value.raw };
+                if (address.path_len != 0) {
+                    const store = state.backend orelse return error.ObjectNotFound;
+                    var original: [backend.max_value_bytes]u8 = undefined;
+                    const snapshot = try store.snapshot(target, address.aid, &original);
+                    var replacement: Writer = .{};
+                    try replaceValue(&replacement, snapshot.value, address.path[0..address.path_len], value.raw);
+                    if (replacement.used > backend.max_value_bytes) return error.ValueLimit;
+                    @memcpy(update_buffers[0][0..replacement.used], replacement.data[0..replacement.used]);
+                    updates[0].value = update_buffers[0][0..replacement.used];
+                    updates[0].generation = snapshot.generation;
+                }
+                update_count = 1;
+            }
+            const counter = try reader.vlq();
+            if (counter > std.math.maxInt(u32) or try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
+            parsed_integrity = @intCast(counter);
+        },
+        0x4d4 => {
+            if (findSubscription(state, target)) |subscription| subscription.* = .{} else if (target != state.session) delete_object = target;
+            try writer.be32(target);
+        },
         else => return error.UnsupportedRequest,
     }
     const read = request.function == 0x54c or request.function == 0x586;
-    const integrity = try reader.finishRequest(request.function, request.function == 0x542 and !state.negotiated);
+    const integrity = parsed_integrity orelse try reader.finishRequest(request.function, request.function == 0x542 and !state.negotiated);
     if (request.function == 0x542 and !state.negotiated and integrity == 0) {
         state.negotiated = true;
     } else {
@@ -416,7 +800,266 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
     if (response_integrity > std.math.maxInt(u32)) return error.Overflow;
     try writer.vlq(response_integrity);
     try writer.be32(0);
-    return writer.finish();
+    const response = try writer.finish();
+    if (delete_object) |rid| {
+        const store = state.backend orelse return error.ObjectNotFound;
+        try store.removeApplication(rid);
+    }
+    if (update_count != 0) {
+        const store = state.backend orelse return error.ObjectNotFound;
+        try store.write(updates[0..update_count]);
+    }
+    return response;
+}
+
+fn readAddress(writer: *Writer, state: *State, address: Address) !u64 {
+    if (address.path_len == 0) return readAttribute(writer, state, address.rid, address.aid);
+    var value_writer: Writer = .{};
+    const status = try readAttribute(&value_writer, state, address.rid, address.aid);
+    if (status != 0) return status;
+    const value = nestedValue(value_writer.data[0..value_writer.used], address.path[0..address.path_len]) catch return 0xa03388000088ffe0;
+    try writer.put(value);
+    return 0;
+}
+
+fn streamedAddress(reader: *Reader, target: u32) !Address {
+    if (target == 0 or try reader.byte() != 0x20 or try reader.byte() != 4) return error.InvalidAddress;
+    const count = try reader.vlq();
+    if (count == 0 or count > 4) return error.InvalidAddress;
+    const aid = try reader.vlq();
+    if (aid == 0 or aid > std.math.maxInt(u32)) return error.InvalidAddress;
+    var address: Address = .{ .rid = target, .aid = @intCast(aid), .path_len = @intCast(count - 1) };
+    for (address.path[0..address.path_len]) |*part| {
+        const id = try reader.vlq();
+        if (id == 0 or id > std.math.maxInt(u32)) return error.InvalidAddress;
+        part.* = @intCast(id);
+    }
+    return address;
+}
+
+const CreatePlan = struct {
+    nodes: [8]backend.CreateNode = undefined,
+    values: [32]backend.InitialValue = undefined,
+    node_count: usize = 0,
+    value_count: usize = 0,
+
+    fn parse(self: *CreatePlan, reader: *Reader, parent: u32, depth: usize) anyerror!void {
+        if (depth >= 8 or self.node_count == self.nodes.len) return error.ObjectLimit;
+        if (try reader.byte() != 0xa1) return error.InvalidObject;
+        const temporary = try reader.u32be();
+        const class = try reader.vlq();
+        if (class == 0 or class > std.math.maxInt(u32) or try reader.vlq() != 0 or try reader.vlq() != 0) return error.UnsupportedObject;
+        const index = self.node_count;
+        self.node_count += 1;
+        self.nodes[index] = .{ .temporary = temporary, .parent = parent, .class = @intCast(class), .first = self.value_count, .count = 0 };
+        var children = false;
+        while (true) {
+            const tag = try reader.byte();
+            switch (tag) {
+                0xa2 => return,
+                0xa1 => {
+                    children = true;
+                    reader.offset -= 1;
+                    try self.parse(reader, temporary, depth + 1);
+                },
+                0xa3 => {
+                    if (children or self.value_count == self.values.len) return error.ValueLimit;
+                    const aid = try reader.vlq();
+                    if (aid == 0 or aid > std.math.maxInt(u32)) return error.InvalidAddress;
+                    const value = try reader.value(0);
+                    self.values[self.value_count] = .{ .aid = @intCast(aid), .value = value.raw };
+                    self.value_count += 1;
+                    self.nodes[index].count += 1;
+                },
+                else => return error.UnsupportedObjectField,
+            }
+        }
+    }
+};
+
+fn exploreObject(writer: *Writer, model: *const backend.Layout, rid_value: u32, aids: []const u32, recursive: bool, depth: usize) anyerror!void {
+    if (depth >= 8) return error.DepthLimit;
+    const object_info = for (&model.objects) |*entry| {
+        if (entry.rid == rid_value and rid_value != 0) break entry;
+    } else return error.ObjectNotFound;
+    if (object_info.class == 255 or object_info.flags == 1) return;
+    try openObject(writer, object_info.rid, object_info.class, 0);
+    for (&model.values) |*entry| {
+        if (entry.rid != rid_value) continue;
+        if (entry.flags == 2) continue;
+        if (entry.length < 2 or entry.length > backend.max_value_bytes or entry.flags > 1) return error.InvalidLayout;
+        if (aids.len != 0 and std.mem.indexOfScalar(u32, aids, entry.aid) == null) continue;
+        var reader: Reader = .{ .data = entry.value[0..entry.length] };
+        _ = try reader.value(0);
+        if (reader.offset != reader.data.len) return error.InvalidValue;
+        try attribute(writer, entry.aid);
+        try writer.put(reader.data);
+    }
+    if (recursive) for (&model.objects) |*child| {
+        if (child.rid != 0 and child.parent == rid_value) try exploreObject(writer, model, child.rid, aids, true, depth + 1);
+    };
+    try writer.byte(0xa2);
+}
+
+fn explore(writer: *Writer, request: Message, state: *State, target: u32, reader: *Reader) ![]const u8 {
+    if (try reader.vlq() != 0 or try reader.byte() != 1) return error.UnsupportedExplore;
+    const recursive = try reader.byte();
+    const with_parent = try reader.byte();
+    if (recursive > 1 or with_parent > 1 or try reader.vlq() != 0) return error.UnsupportedExplore;
+    const count = try reader.vlq();
+    if (count > 64) return error.ValueLimit;
+    var aids: [64]u32 = undefined;
+    for (aids[0..@intCast(count)]) |*aid| {
+        const id = try reader.vlq();
+        if (id == 0 or id > std.math.maxInt(u32)) return error.InvalidAddress;
+        aid.* = @intCast(id);
+    }
+    const integrity = try reader.vlq();
+    if (integrity > std.math.maxInt(u32) / 4 or integrity != @as(u64, state.read_counter) + 1) return error.InvalidIntegrity;
+    if (try reader.byte() != 0 or try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
+    var parent: u32 = 0;
+    var model: ?*backend.Layout = null;
+    defer if (model) |copy| std.heap.page_allocator.destroy(copy);
+    var found = target == state.session;
+    if (found) parent = 285 else if (state.backend) |store| {
+        model = try store.snapshotLayout(std.heap.page_allocator);
+        for (&model.?.objects) |*entry| if (entry.rid == target and target != 0) {
+            found = true;
+            parent = entry.parent;
+            break;
+        };
+    }
+    try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
+    try writer.vlq(if (found) 0 else 0x8020ab001a23fff4);
+    try writer.be32(parent);
+    try writer.vlq((integrity << 2) | 1);
+    if (target == state.session) {
+        try openObject(writer, state.session, 287, 0);
+        for ([_]u32{ 299, 300, 301, 1842, 1903, 1905 }) |aid| {
+            if (count != 0 and std.mem.indexOfScalar(u32, aids[0..@intCast(count)], aid) == null) continue;
+            try attribute(writer, aid);
+            if (try readAttribute(writer, state, state.session, aid) != 0) return error.UnsupportedAttribute;
+        }
+        try writer.byte(0xa2);
+    } else if (found) try exploreObject(writer, model.?, target, aids[0..@intCast(count)], recursive != 0, 0);
+    // Parent metadata is always present; ancestor serialization needs a separate bounded walk.
+    if (with_parent != 0) return error.UnsupportedExplore;
+    try writer.be32(0);
+    const result = try writer.finish();
+    state.read_counter = @intCast(integrity);
+    return result;
+}
+
+fn nestedValue(raw: []const u8, path: []const u32) ![]const u8 {
+    if (path.len == 0) return raw;
+    var reader: Reader = .{ .data = raw };
+    if (try reader.byte() != 0 or try reader.byte() != 0x17) return error.UnsupportedValue;
+    _ = try reader.u32be();
+    for (0..64) |_| {
+        const aid = try reader.vlq();
+        if (aid == 0) break;
+        const value = try reader.value(0);
+        if (aid == path[0]) return nestedValue(value.raw, path[1..]);
+    }
+    return error.AttributeNotFound;
+}
+
+fn replaceValue(writer: *Writer, raw: []const u8, path: []const u32, replacement: []const u8) anyerror!void {
+    if (path.len == 0) {
+        if (!backend.sameType(raw, replacement)) return error.TypeMismatch;
+        return writer.put(replacement);
+    }
+    var reader: Reader = .{ .data = raw };
+    if (try reader.byte() != 0 or try reader.byte() != 0x17) return error.UnsupportedValue;
+    _ = try reader.u32be();
+    try writer.put(raw[0..reader.offset]);
+    var found = false;
+    for (0..64) |_| {
+        const aid = try reader.vlq();
+        try writer.vlq(aid);
+        if (aid == 0) {
+            if (!found or reader.offset != raw.len) return error.AttributeNotFound;
+            return;
+        }
+        const value = try reader.value(0);
+        if (aid == path[0]) {
+            if (found) return error.InvalidValue;
+            try replaceValue(writer, value.raw, path[1..], replacement);
+            found = true;
+        } else try writer.put(value.raw);
+    }
+    return error.ValueLimit;
+}
+
+pub fn pollNotification(writer: *Writer, state: *State, now_us: i64) !?[]const u8 {
+    if (now_us < 0 or now_us > std.math.maxInt(i64) - 60_000_000) return error.InvalidTime;
+    for (&state.subscriptions) |*subscription| {
+        if (subscription.rid == 0 or subscription.disabled or now_us < subscription.next_due) continue;
+        if (subscription.credits == 0) {
+            if (subscription.cycle_ms != 0) {
+                if (subscription.blocked and subscription.missed != std.math.maxInt(u16)) subscription.missed += 1;
+                subscription.blocked = true;
+                subscription.next_due = now_us + @as(i64, subscription.cycle_ms) * 1000;
+            }
+            continue;
+        }
+        writer.used = 0;
+        try writer.put(&.{ 0x72, 2, 0, 0, 0x33 });
+        try writer.be32(subscription.rid);
+        try writer.put(&.{ 4, 0 });
+        try writer.be16(subscription.missed);
+        try writer.be16(0);
+        try writer.byte(if (subscription.credit_limit == -1) 0 else subscription.credit_count +% 1);
+        try writer.byte(@truncate(subscription.sequence));
+        try writer.be64(@intCast(@max(0, now_us)));
+        try writer.byte(if (subscription.pending_empty) 1 else 2);
+        var delivered: usize = 0;
+        var generations: [16]struct { reference: *subscriptions.Reference, generation: u64 } = undefined;
+        if (!subscription.pending_empty) {
+            const store = state.backend orelse continue;
+            for (&subscription.references) |*reference| {
+                if (reference.handle == 0) continue;
+                var buffer: [backend.max_value_bytes]u8 = undefined;
+                const snapshot = store.snapshot(reference.rid, reference.aid, &buffer) catch |err| switch (err) {
+                    error.ObjectNotFound, error.AttributeNotFound, error.StoreBusy => continue,
+                    else => return err,
+                };
+                if (reference.generation == snapshot.generation) continue;
+                const value = nestedValue(snapshot.value, reference.path[0..reference.path_len]) catch continue;
+                var check = Reader{ .data = value };
+                _ = try check.value(0);
+                if (check.offset != value.len) return error.InvalidValue;
+                try writer.byte(0x92);
+                try writer.be32(reference.handle);
+                try writer.put(value);
+                generations[delivered] = .{ .reference = reference, .generation = snapshot.generation };
+                delivered += 1;
+                if (delivered == generations.len) break;
+            }
+            if (delivered == 0 and subscription.cycle_ms == 0) {
+                subscription.next_due = now_us + @as(i64, subscription.cycle_ms) * 1000;
+                continue;
+            }
+            if (delivered == 0 and !subscription.ready) writer.data[25] = 1;
+        }
+        try writer.byte(0);
+        try writer.be32(0);
+        const result = try writer.finish();
+        for (generations[0..delivered]) |item| item.reference.generation = item.generation;
+        if (subscription.sequence == std.math.maxInt(u32)) return error.NotificationLimit;
+        subscription.sequence += 1;
+        subscription.pending_empty = false;
+        if (delivered != 0) subscription.ready = true;
+        subscription.blocked = false;
+        subscription.missed = 0;
+        subscription.next_due = now_us + @as(i64, subscription.cycle_ms) * 1000;
+        if (subscription.credits > 0) {
+            subscription.credits -= 1;
+            subscription.credit_count +%= 1;
+        }
+        return result;
+    }
+    return null;
 }
 
 test "VLQ bounds, recursive values, and compact native V2 replies" {
@@ -510,4 +1153,21 @@ test "native unsolicited notification has no request/reply header" {
     for (0..bytes.len) |n| {
         if (n < 9) try std.testing.expectError(error.InvalidNotification, Notification.parse(bytes[0..n])) else try std.testing.expectError(error.InvalidLength, Notification.parse(bytes[0..n]));
     }
+}
+
+test "notification demultiplexer preserves order and rejects queue overflow" {
+    const hex = "7202001b3311e1a302040000000000000000065f4a4c7366a6010000000000";
+    var frame: [hex.len / 2]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&frame, hex);
+    var queue: NotificationQueue = .{};
+    for (0..4) |index| {
+        std.mem.writeInt(u32, frame[5..9], @intCast(index + 1), .big);
+        try queue.push(&frame);
+    }
+    try std.testing.expectError(error.NotificationQueueFull, queue.push(&frame));
+    var small: [8]u8 = undefined;
+    try std.testing.expectError(error.BufferTooSmall, queue.pop(&small));
+    var output: [limit]u8 = undefined;
+    for (0..4) |index| try std.testing.expectEqual(@as(u32, @intCast(index + 1)), (try queue.pop(&output)).?.subscription);
+    try std.testing.expect(try queue.pop(&output) == null);
 }

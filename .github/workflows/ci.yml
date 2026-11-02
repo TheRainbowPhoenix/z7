@@ -116,6 +116,27 @@ jobs:
         run: pwsh ./zig/download.win.ps1
       - name: Build zOMSp and test framing and native wire fixtures
         run: ./zig/zig build zomsp test:zomsp -Doptimize=ReleaseSafe
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Test headless mapped-file ABI (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          python TESTS/omsp/mapped.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/wire.py zig-out/lib/libzomsp.so
+      - name: Test headless mapped-file ABI (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          python TESTS/omsp/mapped.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/wire.py zig-out/bin/zomsp.dll
+      - name: Bundle matching OpenSSL runtime and licenses
+        run: python TESTS/omsp/package_runtime.py zig-out/bin
+      - name: Test bundled TLS with the Linux shared library
+        if: runner.os == 'Linux'
+        run: python TESTS/omsp/tls.py zig-out/lib/libzomsp.so zig-out/bin
+      - name: Test bundled TLS with the Windows shared library
+        if: runner.os == 'Windows'
+        run: python TESTS/omsp/tls.py zig-out/bin/zomsp.dll zig-out/bin
       - name: Upload zOMSp
         uses: actions/upload-artifact@v7
         with:
@@ -124,6 +145,16 @@ jobs:
             zig-out/bin/zOMSp
             zig-out/bin/zOMSp.exe
             zig-out/bin/zOMSp.pdb
+            zig-out/bin/zomsp.dll
+            zig-out/bin/zomsp.pdb
+            zig-out/lib/libzomsp.so
+            zig-out/bin/libssl*
+            zig-out/bin/libcrypto*
+            zig-out/bin/openssl-*
+            zig-out/include/zomsp.h
+            src/zomsp/README.md
+            TESTS/omsp/*.py
+            TESTS/omsp/native_requests.json
           if-no-files-found: error
 
   integration-test:
@@ -252,7 +283,7 @@ jobs:
   core-pipeline:
     if: always() && github.event_name == 'merge_group'
     runs-on: ubuntu-latest
-    needs: [smoke, test, z7, integration-test, ignition]
+    needs: [smoke, test, z7, zomsp, integration-test, ignition]
     steps:
       - if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
         run: exit 0

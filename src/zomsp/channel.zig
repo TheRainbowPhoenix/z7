@@ -19,7 +19,35 @@ extern fn zomsp_tls_read(*anyopaque, [*]u8, c_int) c_int;
 extern fn zomsp_tls_write(*anyopaque, [*]const u8, c_int) c_int;
 
 pub fn load(path: [*:0]const u8) !void {
+    load_mutex.lock();
+    defer load_mutex.unlock();
     if (zomsp_tls_load(path) != 0) return error.TlsLibraryUnavailable;
+}
+var load_mutex: std.Thread.Mutex = .{};
+
+fn socketResult(result: i32) !usize {
+    if (result >= 0) return @intCast(result);
+    return switch (std.os.windows.ws2_32.WSAGetLastError()) {
+        .WSAEWOULDBLOCK, .WSAEINTR => error.WouldBlock,
+        .WSAECONNABORTED, .WSAECONNRESET, .WSAENETRESET, .WSAESHUTDOWN => error.ConnectionResetByPeer,
+        .WSAETIMEDOUT => error.ConnectionTimedOut,
+        .WSAENOTCONN => error.SocketNotConnected,
+        .WSAENOBUFS => error.SystemResources,
+        else => error.SocketIo,
+    };
+}
+fn socketRead(stream: std.net.Stream, bytes: []u8) !usize {
+    if (builtin.os.tag == .windows) return socketResult(std.os.windows.ws2_32.recv(stream.handle, bytes.ptr, @intCast(bytes.len), 0));
+    return std.posix.recv(stream.handle, bytes, 0);
+}
+fn socketWrite(stream: std.net.Stream, bytes: []const u8) !usize {
+    if (builtin.os.tag == .windows) return socketResult(std.os.windows.ws2_32.send(stream.handle, bytes.ptr, @intCast(bytes.len), 0));
+    return std.posix.send(stream.handle, bytes, std.posix.MSG.NOSIGNAL);
+}
+
+pub fn validateServer(certificate: [:0]const u8, key: [:0]const u8) !void {
+    const tls = zomsp_tls_new(1, certificate.ptr, key.ptr, "127.0.0.1") orelse return error.TlsConfiguration;
+    zomsp_tls_free(tls);
 }
 
 pub const Channel = struct {
@@ -29,6 +57,9 @@ pub const Channel = struct {
     plaintext: [wire.limit]u8 = undefined,
     queued: usize = 0,
     consumed: usize = 0,
+    frame_offset: usize = 0,
+    cancel: ?*std.atomic.Value(bool) = null,
+    wait_read: bool = true,
     deadline: i64,
 
     pub fn init(stream: std.net.Stream) Channel {
@@ -38,37 +69,75 @@ pub const Channel = struct {
         if (self.tls) |tls| zomsp_tls_free(tls);
         self.stream.close();
     }
+    pub fn waitInput(self: *Channel, timeout_ms: i32) !void {
+        try self.checkDeadline();
+        var descriptors = [_]std.posix.pollfd{.{ .fd = self.stream.handle, .events = std.posix.POLL.IN, .revents = 0 }};
+        if (builtin.os.tag == .windows) {
+            _ = try socketResult(std.os.windows.poll(&descriptors, descriptors.len, timeout_ms));
+        } else _ = try std.posix.poll(&descriptors, timeout_ms);
+    }
     fn checkDeadline(self: *Channel) !void {
+        if (self.cancel) |cancel| if (cancel.load(.acquire)) return error.Cancelled;
         if (std.time.milliTimestamp() > self.deadline) return error.Timeout;
     }
-    fn exact(self: *Channel, bytes: []u8) !void {
-        var used: usize = 0;
-        while (used < bytes.len) {
+    fn read(self: *Channel, bytes: []u8) !usize {
+        while (true) {
             try self.checkDeadline();
-            const count = try self.stream.read(bytes[used..]);
-            if (count == 0) return error.EndOfStream;
-            used += count;
+            return socketRead(self.stream, bytes) catch |err| switch (err) {
+                error.WouldBlock => {
+                    if (!self.wait_read) return err;
+                    std.Thread.sleep(100 * std.time.ns_per_us);
+                    continue;
+                },
+                else => return err,
+            };
         }
     }
     pub fn frame(self: *Channel) ![]const u8 {
-        try self.exact(self.encrypted[0..4]);
+        while (self.frame_offset < 4) {
+            try self.checkDeadline();
+            const n = try self.read(self.encrypted[self.frame_offset..4]);
+            if (n == 0) return error.EndOfStream;
+            self.frame_offset += n;
+        }
         const length = try protocol.frameSize(self.encrypted[0..4]);
-        try self.exact(self.encrypted[4..length]);
+        while (self.frame_offset < length) {
+            try self.checkDeadline();
+            const n = try self.read(self.encrypted[self.frame_offset..length]);
+            if (n == 0) return error.EndOfStream;
+            self.frame_offset += n;
+        }
         _ = try protocol.classify(self.encrypted[0..length]);
+        self.frame_offset = 0;
         return self.encrypted[0..length];
     }
     pub fn sendFrame(self: *Channel, bytes: []const u8) !void {
         try self.checkDeadline();
         _ = try protocol.classify(bytes);
-        try self.stream.writeAll(bytes);
+        try self.writeAll(bytes);
+    }
+    fn writeAll(self: *Channel, bytes: []const u8) !void {
+        var used: usize = 0;
+        while (used < bytes.len) {
+            try self.checkDeadline();
+            const count = socketWrite(self.stream, bytes[used..]) catch |err| switch (err) {
+                error.WouldBlock => {
+                    std.Thread.sleep(std.time.ns_per_ms);
+                    continue;
+                },
+                else => return err,
+            };
+            if (count == 0) return error.EndOfStream;
+            used += count;
+        }
     }
     pub fn sendData(self: *Channel, bytes: []const u8) !void {
         if (bytes.len > wire.limit - 7) return error.MessageLimit;
         var header = [_]u8{ 3, 0, 0, 0, 2, 0xf0, 0x80 };
         std.mem.writeInt(u16, header[2..4], @intCast(bytes.len + 7), .big);
         try self.checkDeadline();
-        try self.stream.writeAll(&header);
-        try self.stream.writeAll(bytes);
+        try self.writeAll(&header);
+        try self.writeAll(bytes);
     }
     fn flush(self: *Channel) !void {
         const tls = self.tls orelse return error.NoTls;
@@ -94,7 +163,10 @@ pub const Channel = struct {
             try self.flush();
             if (result > 0 and zomsp_tls_finished(self.tls.?) == 1) return;
             if (result != -2) return error.TlsHandshake;
-            try self.feed();
+            self.feed() catch |err| switch (err) {
+                error.WouldBlock, error.ConnectionTimedOut => continue,
+                else => return err,
+            };
         }
         return error.HandshakeLimit;
     }
@@ -114,7 +186,7 @@ pub const Channel = struct {
         return error.OutputLimit;
     }
     pub fn receive(self: *Channel) ![]const u8 {
-        self.deadline = std.time.milliTimestamp() + 10_000;
+        if (self.queued == self.consumed and self.frame_offset == 0) self.deadline = std.time.milliTimestamp() + 10_000;
         for (0..256) |_| {
             if (self.consumed != 0) {
                 std.mem.copyForwards(u8, self.plaintext[0 .. self.queued - self.consumed], self.plaintext[self.consumed..self.queued]);
@@ -146,5 +218,16 @@ pub const Channel = struct {
             }
         }
         return error.InputLimit;
+    }
+
+    pub fn receiveReply(self: *Channel, notifications: *wire.NotificationQueue) ![]const u8 {
+        const deadline = std.time.milliTimestamp() + 10_000;
+        while (std.time.milliTimestamp() <= deadline) {
+            const data = try self.receive();
+            if (data.len >= 5 and data[4] == 0x33) {
+                try notifications.push(data);
+            } else return data;
+        }
+        return error.Timeout;
     }
 };

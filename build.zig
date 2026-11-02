@@ -73,6 +73,17 @@ pub fn build(b: *std.Build) void {
     if (target.result.os.tag == .linux) zomsp.linkSystemLibrary("dl");
     const install_zomsp = b.addInstallArtifact(zomsp, .{});
     b.step("zomsp", "Build the OMSp proxy and endpoints").dependOn(&install_zomsp.step);
+    const zomsp_lib = b.addSharedLibrary(.{
+        .name = "zomsp",
+        .root_module = b.createModule(.{ .root_source_file = b.path("src/zomsp/exports.zig"), .target = target, .optimize = optimize }),
+    });
+    zomsp_lib.addCSourceFile(.{ .file = b.path("src/zomsp/tls_bridge.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
+    zomsp_lib.linkLibC();
+    if (target.result.os.tag == .linux) zomsp_lib.linkSystemLibrary("dl");
+    const install_zomsp_lib = b.addInstallArtifact(zomsp_lib, .{});
+    b.top_level_steps.get("zomsp").?.step.dependOn(&install_zomsp_lib.step);
+    const install_zomsp_header = b.addInstallFile(b.path("src/zomsp/zomsp.h"), "include/zomsp.h");
+    b.top_level_steps.get("zomsp").?.step.dependOn(&install_zomsp_header.step);
     const zomsp_tests = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/zomsp/protocol.zig"),
         .target = target,

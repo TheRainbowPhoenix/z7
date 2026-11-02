@@ -20,6 +20,8 @@ static HMODULE load_library(const char *path) {
 
 typedef struct { void *ctx, *ssl, *input, *output, *pin; } Channel;
 static void *library;
+static int loaded;
+static char loaded_path[32768];
 #ifdef _WIN32
 static void *crypto_library;
 static void *resolve(const char *name) {
@@ -63,7 +65,22 @@ API(int, X509_cmp, (const void *, const void *));
 API(void, X509_free, (void *));
 
 int zomsp_tls_load(const char *path) {
-    if (library) return 0;
+    if (!path || strlen(path) >= sizeof(loaded_path)) return -1;
+    if (loaded) return strcmp(path, loaded_path) == 0 ? 0 : -1;
+#ifndef _WIN32
+    const char *name = strrchr(path, '/');
+    name = name ? name + 1 : path;
+    if (strncmp(name, "libssl.so.", 10) == 0) {
+        char crypto_path[32768];
+        size_t directory = (size_t)(name - path);
+        size_t suffix = strlen(name + 10);
+        if (directory + 13 + suffix >= sizeof(crypto_path)) return -1;
+        memcpy(crypto_path, path, directory);
+        memcpy(crypto_path + directory, "libcrypto.so.", 13);
+        memcpy(crypto_path + directory + 13, name + 10, suffix + 1);
+        if (!dlopen(crypto_path, RTLD_NOW | RTLD_LOCAL)) return -1;
+    }
+#endif
     library = LOAD(path);
     if (!library) return -1;
 #ifdef _WIN32
@@ -95,6 +112,8 @@ int zomsp_tls_load(const char *path) {
     if (!p_SSL_get1_peer_certificate) return -1;
     RESOLVE(X509_cmp); RESOLVE(X509_free);
 #undef RESOLVE
+    loaded = 1;
+    memcpy(loaded_path, path, strlen(path) + 1);
     return 0;
 }
 
