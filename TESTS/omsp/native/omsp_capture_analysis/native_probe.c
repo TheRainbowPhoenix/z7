@@ -368,6 +368,40 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
             printf("session.security_type=%u\n", type);
             if (type != 4) status = -1;
         }
+        if (status >= 0 && getenv("OMSP_PASSWORD")) {
+            unsigned char digest[20];
+            unsigned char *(*sha1)(const unsigned char *, size_t, unsigned char *) = symbol(library, "SHA1");
+            int64_t (*legitimate)(void *, unsigned char *, unsigned) = symbol(library,
+                "_ZN11OMSpWrapper13ClientSession10LegitimateEPhj");
+            const char *password = getenv("OMSP_PASSWORD");
+            sha1((const unsigned char *)password, strlen(password), digest);
+            status = legitimate(session, digest, sizeof(digest));
+            memset(digest, 0, sizeof(digest));
+            printf("session.password.status=0x%016" PRIx64 "\n", (uint64_t)status);
+            uint64_t proof_status = (uint64_t)status;
+            uintptr_t auth_value[2] = {0}, auth_extension[3] = {0};
+            void (*value_init)(void *) = symbol(library, "_ZN11OMSpWrapper5ValueC2Ev");
+            void (*value_destroy)(void *) = symbol(library, "_ZN11OMSpWrapper5ValueD2Ev");
+            void (*extension_init)(void *) = symbol(library, "_ZN11OMSpWrapper17ResponseExtensionC2Ev");
+            uint32_t (*session_rid)(void *) = symbol(library, "_ZN11OMSpWrapper13ClientSession16ServerSessionRIDEv");
+            int64_t (*read_access)(void *, uint32_t, uint32_t, void *, bool, int *, void *, bool *, Qualifier, bool) = symbol(library,
+                "_ZN11OMSpWrapper13ClientSession17GetVariableRemoteEjjPNS_5ValueEbRiPNS_6ObjectERbNS_15ObjectQualifierEb");
+            int64_t (*uint_value)(void *, uint32_t *) = symbol(library, "_ZN11OMSpWrapper5Value8GetValueERj");
+            value_init(auth_value);
+            extension_init(auth_extension);
+            int auth_request = -1;
+            bool auth_extended = false;
+            uint32_t access = 0;
+            status = read_access(session, session_rid(session), 1842, auth_value, false, &auth_request,
+                                 auth_extension, &auth_extended, (Qualifier){0}, false);
+            if (status >= 0) status = uint_value(auth_value, &access);
+            printf("session.password.access=%u\n", access);
+            value_destroy(auth_value);
+            bool wrong = getenv("OMSP_PASSWORD_WRONG") != NULL;
+            if (status >= 0 && ((wrong && proof_status != 0 && access == 4) ||
+                               (!wrong && proof_status == 0 && access == 1))) status = 0;
+            else status = -1;
+        }
         if (status >= 0) {
             int64_t (*ping)(void *) = symbol(library, "_ZN11OMSpWrapper13ClientSession17PingServerSessionEv");
             status = ping(session);
@@ -426,12 +460,20 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                 void (*empty)(void *, uint32_t, uint32_t) = symbol(library, "_ZN11OMSpWrapper5Value18SetEmptyArrayValueEjj");
                 for (unsigned i = 1; i < 4; ++i) empty(arguments[i], 0x40000016, 0);
                 request_id = -1;
-                status = invoke(session, server_rid(session), 0xffffffff, arguments[0], arguments[1], arguments[2], arguments[3], &request_id);
+                uint32_t target = getenv("OMSP_INVOKE_TARGET") ? (uint32_t)strtoul(getenv("OMSP_INVOKE_TARGET"), NULL, 0) : server_rid(session);
+                uint32_t method = getenv("OMSP_INVOKE_METHOD") ? (uint32_t)strtoul(getenv("OMSP_INVOKE_METHOD"), NULL, 0) : 0xffffffff;
+                status = invoke(session, target, method, arguments[0], arguments[1], arguments[2], arguments[3], &request_id);
                 printf("application.invoke.status=0x%016" PRIx64 "\n", (uint64_t)status);
                 if ((uint64_t)status == UINT64_C(0x8020ab00199afff4)) {
                     int64_t (*recover)(void *) = symbol(library, "_ZN11OMSpWrapper13ClientSession17PingServerSessionEv");
                     status = recover(session);
                     printf("application.invoke.recovery=0x%016" PRIx64 "\n", (uint64_t)status);
+                }
+                if (status >= 0 && getenv("OMSP_INVOKE_METHOD")) {
+                    uint32_t result = 0;
+                    status = get_uint(arguments[0], &result);
+                    printf("application.invoke.value=%u\n", result);
+                    if (status >= 0 && result != 42) status = -1;
                 }
                 for (unsigned i = 0; i < 4; ++i) value_dtor(arguments[i]);
             }
@@ -453,14 +495,39 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                     "_ZN11OMSpWrapper13ClientSession11EndSequenceEbRiPNS_6ObjectERb");
                 unsigned char sequence = 0;
                 request_id = -1;
-                status = begin(session, getenv("OMSP_COLLECTIVE") ? 2 : 1, &sequence, &request_id, NULL, response, &extension);
+                if (getenv("OMSP_COLLECTIVE")) {
+                    int64_t (*start_transaction)(void *, void *, int *, void *, bool *) = symbol(library,
+                        "_ZN11OMSpWrapper13ClientSession16StartTransactionEPNS_6ObjectERiS2_Rb");
+                    status = start_transaction(session, NULL, &request_id, response, &extension);
+                } else status = begin(session, 1, &sequence, &request_id, NULL, response, &extension);
                 printf("sequence.begin.status=0x%016" PRIx64 " sequence=%u\n", (uint64_t)status, sequence);
                 if (status >= 0) {
+                    if (getenv("OMSP_TRANSACTION_WRITE")) {
+                        uintptr_t transaction_value[2] = {0};
+                        value_ctor(transaction_value);
+                        int64_t (*set_uint_transaction)(void *, uint32_t) = symbol(library, "_ZN11OMSpWrapper5Value8SetValueEj");
+                        int64_t (*set_remote_transaction)(void *, uint32_t, uint32_t, void *, unsigned char, int *, void *, bool *, Qualifier, bool) = symbol(library,
+                            "_ZN11OMSpWrapper13ClientSession17SetVariableRemoteEjjPNS_5ValueEhRiPNS_6ObjectERbNS_15ObjectQualifierEb");
+                        status = set_uint_transaction(transaction_value, 11);
+                        request_id = -1;
+                        if (status >= 0) status = set_remote_transaction(session,
+                            (uint32_t)strtoul(getenv("OMSP_TRANSACTION_WRITE"), NULL, 0), 42,
+                            transaction_value, 0, &request_id, response, &extension, (Qualifier){0}, false);
+                        value_dtor(transaction_value);
+                        printf("sequence.write.status=0x%016" PRIx64 "\n", (uint64_t)status);
+                        usleep(500000);
+                    }
                     request_id = -1;
-                    status = end(session, false, &request_id, response, &extension);
+                    if (status < 0) goto sequence_done;
+                    if (getenv("OMSP_COLLECTIVE")) {
+                        int64_t (*end_transaction)(void *, bool, int *, void *, bool *) = symbol(library,
+                            "_ZN11OMSpWrapper13ClientSession14EndTransactionEbRiPNS_6ObjectERb");
+                        status = end_transaction(session, getenv("OMSP_ABORT") == NULL, &request_id, response, &extension);
+                    } else status = end(session, false, &request_id, response, &extension);
                     printf("sequence.end.status=0x%016" PRIx64 "\n", (uint64_t)status);
                 }
             }
+sequence_done:
             if (status >= 0 && getenv("OMSP_OBJECT_OPS")) {
                 uintptr_t object[4] = {0};
                 void (*ctor)(void *) = symbol(library, "_ZN11OMSpWrapper6ObjectC2Ev");
@@ -474,6 +541,41 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                 status = explore(session, target, true, getenv("OMSP_EXPLORE_PARENT") != NULL, getenv("OMSP_EXPLORE_FLAG3") != NULL, object, &request);
                 printf("application.explore.status=0x%016" PRIx64 "\n", (uint64_t)status);
                 destroy(object);
+            }
+            if (status >= 0 && getenv("OMSP_FILTER")) {
+                struct { uint32_t operation, count, address[32]; void *value; } filter = {0};
+                _Static_assert(sizeof(filter) == 144, "native wrapper Filter ABI");
+                uintptr_t operand[2] = {0};
+                value_ctor(operand);
+                int64_t (*set_operand)(void *, uint32_t) = symbol(library, "_ZN11OMSpWrapper5Value8SetValueEj");
+                status = set_operand(operand, getenv("OMSP_FILTER_MISS") ? 99 : 32);
+                filter.operation = 1;
+                filter.count = 1;
+                filter.address[0] = 299;
+                filter.value = operand;
+                void *filters[] = {&filter};
+                void **objects = NULL;
+                int count = 0;
+                request_id = -1;
+                int64_t (*explore_filtered)(void *, uint32_t, void ***, int *, int *, unsigned long, uint32_t,
+                    uint32_t, void **, uint32_t, uint32_t *, void *, bool *) = symbol(library,
+                    "_ZN11OMSpWrapper13ClientSession7ExploreEjPPvRiS3_mjjPPNS_6FilterEjPjPNS_6ObjectERb");
+                if (status >= 0) status = explore_filtered(session, server_rid(session), &objects, &count,
+                    &request_id, 1, 0, 1, filters, 0, NULL, response, &extension);
+                printf("application.filter.status=0x%016" PRIx64 " count=%d\n", (uint64_t)status, count);
+                if (count < 0 || count > 128) abort();
+                if (status >= 0 && count != (getenv("OMSP_FILTER_MISS") ? 0 : 1)) status = -1;
+                if (objects) {
+                    for (int i = 0; i < count; ++i) {
+                        if (objects[i]) {
+                            void (**vtable)(void *) = *(void (***)(void *))objects[i];
+                            vtable[1](objects[i]);
+                        }
+                    }
+                    void (*delete_array)(void *) = symbol(library, "_ZdaPv");
+                    delete_array(objects);
+                }
+                value_dtor(operand);
             }
             destroy(response);
             if (status >= 0 && getenv("OMSP_EXTENDED")) {

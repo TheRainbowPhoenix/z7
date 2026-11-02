@@ -1,6 +1,7 @@
 const std = @import("std");
 const backend = @import("backend.zig");
 const subscriptions = @import("subscriptions.zig");
+const application = @import("application.zig");
 pub const limit = 65535;
 pub const qualifier_bytes = [_]u8{ 0, 0, 4, 0xe8, 0x89, 0x69, 0, 0x12, 0, 0, 0, 0, 0x89, 0x6a, 0, 0x13, 0, 0x89, 0x6b, 0, 4, 0, 0 };
 pub const Value = struct { kind: u8, number: u64 = 0, raw: []const u8 };
@@ -62,6 +63,22 @@ pub const Reader = struct {
         }
         return (result << 8) | try self.byte();
     }
+    fn signed(self: *Reader, bits: comptime_int) !u64 {
+        var octet = try self.byte();
+        var result: i128 = @as(i128, octet & 0x3f) - @as(i128, if (octet & 0x40 != 0) 64 else 0);
+        const maximum = if (bits == 32) 5 else 9;
+        var count: usize = 1;
+        while (octet & 0x80 != 0) {
+            if (count == maximum) return error.Overflow;
+            octet = try self.byte();
+            const width: u7 = if (bits == 64 and count == 8) 8 else 7;
+            result = result * (@as(i128, 1) << width) + (octet & (if (width == 8) @as(u8, 0xff) else 0x7f));
+            count += 1;
+            if (width == 8) break;
+        }
+        if (result < std.math.minInt(std.meta.Int(.signed, bits)) or result > std.math.maxInt(std.meta.Int(.signed, bits))) return error.Overflow;
+        return @bitCast(@as(i64, @intCast(result)));
+    }
     pub fn value(self: *Reader, depth: usize) anyerror!Value {
         if (depth >= 8) return error.DepthLimit;
         const start = self.offset;
@@ -80,7 +97,8 @@ pub const Reader = struct {
                 indices[count] = @intCast(index);
                 count += 1;
                 switch (kind) {
-                    4, 8 => _ = try self.vlq(),
+                    4 => _ = try self.vlq(),
+                    8 => _ = try self.signed(32),
                     0x14, 0x15 => {
                         if (kind == 0x14 and try self.vlq() > 1) return error.UnsupportedValue;
                         const length = try self.vlq();
@@ -97,8 +115,14 @@ pub const Reader = struct {
             switch (kind) {
                 1, 2, 6, 0x0a => _ = try self.take(@intCast(count)),
                 3, 7, 0x0b => _ = try self.take(@intCast(count * 2)),
-                4, 5, 8, 9, 0x11, 0x13 => for (0..@intCast(count)) |_| {
+                4, 5, 0x13 => for (0..@intCast(count)) |_| {
                     _ = try self.vlq();
+                },
+                8 => for (0..@intCast(count)) |_| {
+                    _ = try self.signed(32);
+                },
+                9, 0x11 => for (0..@intCast(count)) |_| {
+                    _ = try self.signed(64);
                 },
                 0x0c, 0x0e, 0x12 => _ = try self.take(@intCast(count * 4)),
                 0x0d, 0x0f, 0x10 => _ = try self.take(@intCast(count * 8)),
@@ -108,7 +132,9 @@ pub const Reader = struct {
             0 => {},
             1, 2, 6, 0x0a => number = try self.byte(),
             3, 7, 0x0b => number = std.mem.readInt(u16, (try self.take(2))[0..2], .big),
-            4, 5, 8, 9, 0x11, 0x13 => number = try self.vlq(),
+            4, 5, 0x13 => number = try self.vlq(),
+            8 => number = try self.signed(32),
+            9, 0x11 => number = try self.signed(64),
             0x0c, 0x0e, 0x12 => number = try self.u32be(),
             0x0d, 0x0f, 0x10 => number = std.mem.readInt(u64, (try self.take(8))[0..8], .big),
             0x14 => {
@@ -313,16 +339,38 @@ pub const State = struct {
     role: u32 = 2,
     version: []const u8 = &.{},
     negotiated: bool = false,
+    authentication: @import("authentication.zig").Session = .{},
     best_effort: bool = false,
+    transaction: ?*backend.Transaction = null,
+    transaction_rid: u32 = 0,
+    transaction_serial: u16 = 0,
     read_counter: u32 = 0,
     write_counter: u32 = 3,
     backend: ?*backend.Backend = null,
     subscriptions: [subscriptions.max_subscriptions]subscriptions.Subscription = @splat(.{}),
+    pub fn deinit(self: *State) void {
+        if (self.transaction) |transaction| {
+            self.backend = transaction.source;
+            self.transaction = null;
+            self.transaction_rid = 0;
+            transaction.close();
+        }
+    }
 };
 
 fn findSubscription(state: *State, rid: u32) ?*subscriptions.Subscription {
     for (&state.subscriptions) |*subscription| if (subscription.rid == rid and rid != 0) return subscription;
     return null;
+}
+
+fn passwordRequired(state: *const State) bool {
+    return if (state.backend) |store| store.authentication.digest != null else false;
+}
+
+fn authenticate(state: *State, raw: []const u8) !u64 {
+    if (raw.len != 23 or !std.mem.eql(u8, raw[0..3], &.{ 0x10, 2, 20 })) return error.InvalidProof;
+    const store = state.backend orelse return error.AuthenticationDisabled;
+    return state.authentication.verify(&store.authentication, raw[3..]);
 }
 
 fn readAttribute(writer: *Writer, state: *State, rid_value: u32, aid: u64) !u64 {
@@ -331,7 +379,12 @@ fn readAttribute(writer: *Writer, state: *State, rid_value: u32, aid: u64) !u64 
             299 => try writer.uint(state.role),
             300 => try writer.rid(state.client),
             301 => try writer.string("zOMSp_native_reference_port"),
-            1842 => try writer.uint(4),
+            303 => {
+                state.authentication.issue();
+                try writer.put(&.{ 0x10, 2, 20 });
+                try writer.put(&state.authentication.challenge);
+            },
+            1842 => try writer.uint(if (state.authentication.authenticated) 1 else 4),
             1903 => try writer.uint(4096),
             1905 => try writer.put(&.{ 0, 8, 0x7f }),
             else => return 0xa03388000088ffe0,
@@ -350,6 +403,7 @@ fn readAttribute(writer: *Writer, state: *State, rid_value: u32, aid: u64) !u64 
         }
         return 0;
     }
+    if (passwordRequired(state) and !state.authentication.authenticated) return error.AuthenticationRequired;
     const store = state.backend orelse return 0x8020ab00199afff4;
     if (aid > std.math.maxInt(u32)) return error.InvalidAddress;
     var bytes: [backend.max_value_bytes]u8 = undefined;
@@ -447,15 +501,14 @@ pub fn createReply(writer: *Writer, request: Message, state: *State) ![]const u8
     try writer.string("zOMSp_native_reference_port");
     try attribute(writer, 303);
     try writer.put(&.{ 0x10, 2, 20 });
-    var challenge: [20]u8 = undefined;
-    std.crypto.random.bytes(&challenge);
-    try writer.put(&challenge);
+    state.authentication.issue();
+    try writer.put(&state.authentication.challenge);
     try attribute(writer, 306);
     try writer.put(&.{ 0, 0x17 });
     try writer.be32(0x13a);
     for ([_]u32{ 315, 316, 317, 318 }) |aid| {
         try writer.vlq(aid);
-        try writer.uint(if (aid < 317) 0x400 else 0x802001);
+        try writer.uint(if (aid < 317) (if (passwordRequired(state)) @as(u32, 0x300) else 0x400) else 0x802001);
     }
     for ([_]u32{ 319, 320 }) |aid| {
         try writer.vlq(aid);
@@ -486,51 +539,105 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         return createReply(writer, request, state);
     }
     if (request.version != 2 or request.session != state.session) return error.InvalidSession;
+    if (passwordRequired(state) and !state.authentication.authenticated and request.function != 0x542 and request.function != 0x4f2 and request.function != 0x586 and request.function != 0x54c and request.function != 0x57c) return error.AuthenticationRequired;
     if (request.function == 0x556 or request.function == 0x560) {
         if (!state.negotiated) return error.NotNegotiated;
+        var sequence_type: u8 = 0;
+        var abort = false;
         if (request.function == 0x556) {
-            if (try reader.byte() != 1 or (try reader.value(0)).kind != 0) return error.UnsupportedSequence;
-            state.best_effort = true;
+            if (state.best_effort or state.transaction != null) return error.InvalidSequenceState;
+            sequence_type = try reader.byte();
+            const value = try reader.value(0);
+            if (sequence_type == 1) {
+                if (value.kind != 0) return error.UnsupportedSequence;
+            } else if (sequence_type == 2) {
+                if (value.raw[0] != 0 or value.kind != 1 or value.number != 0) return error.UnsupportedSequence;
+            } else return error.UnsupportedSequence;
         } else {
-            if (try reader.byte() > 1 or try reader.byte() != 0 or !state.best_effort) return error.UnsupportedSequence;
-            state.best_effort = false;
+            const flag = try reader.byte();
+            if (flag > 1 or (!state.best_effort and state.transaction == null)) return error.InvalidSequenceState;
+            abort = flag != 0;
+            if (try reader.signed(32) != @as(u64, if (state.transaction != null) 1 else 0)) return error.UnsupportedSequence;
         }
         const counter = try reader.vlq();
         if (counter > std.math.maxInt(u32) / 2 or counter != @as(u64, state.write_counter) + 1) return error.InvalidIntegrity;
+        if (sequence_type == 2) {
+            var descriptor: CreatePlan = .{};
+            try descriptor.parse(&reader, 0, 0);
+            if (descriptor.node_count != 1 or descriptor.nodes[0].class != 1700) return error.UnsupportedSequence;
+            for (descriptor.values[0..descriptor.value_count]) |field| {
+                if (field.aid != 233 or field.value.len < 2 or field.value[0] != 0 or field.value[1] != 0x15) return error.UnsupportedActivation;
+            }
+        }
         if (try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
+        const supported = sequence_type != 2 or (state.backend != null and state.backend.?.transactions_enabled);
         try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
-        try writer.byte(0);
-        if (request.function == 0x556) try writer.put(&.{ 0, 0 });
+        try writer.vlq(if (supported) 0 else 0xa201a3002ae3ff19);
+        if (request.function == 0x556) {
+            if (sequence_type == 2 and supported) {
+                if (state.transaction_serial == 0x7ff) return error.ObjectLimit;
+                try writer.rid(0x70001800 + @as(u32, state.transaction_serial) + 1);
+            } else try writer.put(&.{ 0, 0 });
+        }
         try writer.vlq(counter << 1);
         try writer.be32(0);
         const response = try writer.finish();
+        if (supported) {
+            if (sequence_type == 2) {
+                const transaction = try backend.Transaction.open(state.backend.?, std.heap.page_allocator);
+                state.transaction = transaction;
+                state.transaction_serial += 1;
+                state.transaction_rid = 0x70001800 + @as(u32, state.transaction_serial);
+                state.backend = &transaction.shadow;
+            } else if (request.function == 0x556) state.best_effort = true else if (state.transaction) |transaction| {
+                if (!abort) try transaction.commit();
+                state.deinit();
+            } else state.best_effort = false;
+        }
         state.write_counter = @intCast(counter);
         return response;
     }
     const target = try reader.u32be();
+    if (passwordRequired(state) and !state.authentication.authenticated and target != state.session) return error.AuthenticationRequired;
+    if (state.transaction != null and (request.function == 0x542 or request.function == 0x4f2 or request.function == 0x57c or request.function == 0x4ca or request.function == 0x4d4) and
+        (target == state.session or target == state.context or findSubscription(state, target) != null)) return error.UnsupportedTransactionTarget;
     if (!state.negotiated and request.function != 0x542) return error.NotNegotiated;
     if (!state.negotiated and target != state.session) return error.InvalidSession;
     if (request.function == 0x56b) {
-        _ = try reader.u32be();
-        for (0..2) |_| {
-            var indices: [16]u32 = undefined;
-            var count: usize = 0;
-            while (true) {
-                const index = try reader.vlq();
-                if (index == 0) break;
-                if (index > std.math.maxInt(u32) or count == indices.len) return error.ValueLimit;
-                if (std.mem.indexOfScalar(u32, indices[0..count], @intCast(index)) != null) return error.InvalidIndex;
-                indices[count] = @intCast(index);
-                count += 1;
-                _ = try reader.value(0);
-            }
-        }
+        if (state.transaction != null) return error.UnsupportedTransactionInvoke;
+        const method_id = try reader.u32be();
+        const arguments_start = reader.offset;
+        try invokeArguments(&reader);
+        const arguments = reader.data[arguments_start..reader.offset];
+        if (arguments.len > application.invoke_bytes) return error.ValueLimit;
         const integrity = try reader.vlq();
         if (integrity > std.math.maxInt(u32) / 2 or integrity != @as(u64, state.write_counter) + 1) return error.InvalidIntegrity;
         if (try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
+        var status: u64 = 0x8020ab00199afff4;
+        var result_buffer: [application.invoke_bytes]u8 = undefined;
+        var result_length: usize = 0;
+        if (state.backend) |store| {
+            if (store.methods.find(target, method_id)) |method| {
+                const target_info = store.info(target) catch |err| switch (err) {
+                    error.ObjectNotFound => null,
+                    else => return err,
+                };
+                if (target_info != null) {
+                    const invocation: application.Invocation = .{ .target = target, .method = method_id, .session = state.session, .client = state.client, .role = state.role };
+                    status = method.callback(method.user, &invocation, arguments.ptr, arguments.len, &result_buffer, result_buffer.len, &result_length);
+                    if (status & 0x8000000000000000 == 0) {
+                        if (result_length > result_buffer.len) return error.InvalidHandlerReply;
+                        var result_reader: Reader = .{ .data = result_buffer[0..result_length] };
+                        _ = try result_reader.value(0);
+                        try invokeArguments(&result_reader);
+                        if (result_reader.offset != result_length) return error.InvalidHandlerReply;
+                    }
+                }
+            }
+        }
         try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
-        try writer.vlq(0x8020ab00199afff4);
-        try writer.put(&.{ 0, 0, 0, 0 });
+        try writer.vlq(status);
+        if (status & 0x8000000000000000 == 0) try writer.put(result_buffer[0..result_length]) else try writer.put(&.{ 0, 0, 0, 0 });
         try writer.vlq(integrity << 1);
         try writer.be32(0);
         const result = try writer.finish();
@@ -592,6 +699,7 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         if (try reader.byte() != 0xa1) return error.InvalidObject;
         _ = try reader.u32be();
         const class = try reader.vlq();
+        if (class == 1001 and state.transaction != null) return error.UnsupportedSequence;
         if (class != 1001) {
             reader.offset = object_start;
             var plan: CreatePlan = .{};
@@ -650,6 +758,7 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
     var update_buffers: [16][backend.max_value_bytes]u8 = undefined;
     var update_count: usize = 0;
     var parsed_integrity: ?u32 = null;
+    var authentication_status: ?u64 = null;
     var delete_object: ?u32 = null;
     try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
     try writer.byte(0);
@@ -659,6 +768,9 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
             if (count == 0 or count > 16) return error.ValueLimit;
             var items: [16]Address = undefined;
             try addresses(&reader, target, @intCast(count), try reader.vlq(), &items);
+            if (state.transaction != null) for (items[0..@intCast(count)]) |item| {
+                if (item.rid == state.session or item.rid == state.context or findSubscription(state, item.rid) != null) return error.UnsupportedTransactionTarget;
+            };
             var seen: u16 = 0;
             for (0..@intCast(count)) |_| {
                 const index = try reader.vlq();
@@ -668,6 +780,7 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
                 seen |= bit;
                 const value = try reader.value(0);
                 const address = items[@intCast(index - 1)];
+                if (passwordRequired(state) and !state.authentication.authenticated and address.rid != state.session) return error.AuthenticationRequired;
                 if (findSubscription(state, address.rid)) |subscription| {
                     if (address.path_len != 0) return error.UnsupportedAddress;
                     try subscription.set(address.aid, value, Reader);
@@ -768,9 +881,13 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
             if (findSubscription(state, target)) |subscription| {
                 try subscription.set(aid, value, Reader);
             } else if (target == state.session) {
-                if (aid != 299) return error.UnsupportedAttribute;
-                if (value.kind != 4 or !(value.number == state.role or (state.role == 2 and value.number == 32))) return error.InvalidRole;
-                state.role = @intCast(value.number);
+                if (aid == 304) {
+                    authentication_status = try authenticate(state, value.raw);
+                } else {
+                    if (aid != 299) return error.UnsupportedAttribute;
+                    if (value.kind != 4 or !(value.number == state.role or (state.role == 2 and value.number == 32))) return error.InvalidRole;
+                    state.role = @intCast(value.number);
+                }
             } else {
                 if (aid > std.math.maxInt(u32)) return error.InvalidAddress;
                 updates[0] = .{ .rid = target, .aid = @intCast(aid), .value = value.raw };
@@ -786,9 +903,13 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
                 if (address.path_len != 0) return error.UnsupportedAddress;
                 try subscription.set(address.aid, value, Reader);
             } else if (target == state.session) {
-                if (address.aid != 299 or address.path_len != 0) return error.UnsupportedAttribute;
-                if (value.kind != 4 or !(value.number == state.role or (state.role == 2 and value.number == 32))) return error.InvalidRole;
-                state.role = @intCast(value.number);
+                if (address.aid == 304 and address.path_len == 0) {
+                    authentication_status = try authenticate(state, value.raw);
+                } else {
+                    if (address.aid != 299 or address.path_len != 0) return error.UnsupportedAttribute;
+                    if (value.kind != 4 or !(value.number == state.role or (state.role == 2 and value.number == 32))) return error.InvalidRole;
+                    state.role = @intCast(value.number);
+                }
             } else {
                 updates[0] = .{ .rid = target, .aid = address.aid, .value = value.raw };
                 if (address.path_len != 0) {
@@ -822,6 +943,10 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         const counter = if (read) &state.read_counter else &state.write_counter;
         if (counter.* == std.math.maxInt(u32) or integrity != counter.* + 1) return error.InvalidIntegrity;
         counter.* = integrity;
+    }
+    if (authentication_status) |status| {
+        try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
+        try writer.vlq(status);
     }
     const response_integrity = if (read) (@as(u64, integrity) << 2) | 1 else @as(u64, integrity) << 1;
     if (response_integrity > std.math.maxInt(u32)) return error.Overflow;
@@ -904,16 +1029,143 @@ const CreatePlan = struct {
     }
 };
 
-fn exploreObject(writer: *Writer, model: *const backend.Layout, rid_value: u32, aids: []const u32, recursive: bool, depth: usize) anyerror!void {
-    if (depth >= 8) return error.DepthLimit;
-    const object_info = for (&model.objects) |*entry| {
-        if (entry.rid == rid_value and rid_value != 0) break entry;
-    } else return error.ObjectNotFound;
-    if (object_info.class == 255 or object_info.flags == 1) return;
+const ExploreFilter = struct {
+    operation: u8 = 0,
+    address_count: u8 = 0,
+    address: [4]u32 = @splat(0),
+    value: []const u8 = &.{},
+};
+
+fn exploreFilters(reader: *Reader, output: *[10]ExploreFilter) ![]const ExploreFilter {
+    var indices: [10]u32 = undefined;
+    var count: usize = 0;
+    while (true) {
+        const index = try reader.vlq();
+        if (index == 0) return output[0..count];
+        if (index > std.math.maxInt(u32) or count == output.len) return error.ValueLimit;
+        if (std.mem.indexOfScalar(u32, indices[0..count], @intCast(index)) != null) return error.InvalidIndex;
+        indices[count] = @intCast(index);
+        const value = try reader.value(0);
+        if (value.kind != 0x17 or value.number != 1246 or value.raw[0] != 0) return error.UnsupportedFilter;
+        var fields: Reader = .{ .data = value.raw[6..] };
+        var filter: ExploreFilter = .{};
+        var seen: u8 = 0;
+        while (true) {
+            const aid = try fields.vlq();
+            if (aid == 0) break;
+            if (aid != 1247 and aid != 1249 and aid != 1250 and aid != 1251) return error.UnsupportedFilter;
+            const bit: u8 = switch (aid) {
+                1247 => 1,
+                1249 => 2,
+                1250 => 4,
+                1251 => 8,
+                else => unreachable,
+            };
+            if (seen & bit != 0) return error.InvalidValue;
+            seen |= bit;
+            const field = try fields.value(0);
+            switch (aid) {
+                1247 => {
+                    if (field.raw[0] != 0 or field.kind != 8 or field.number < 1 or field.number > 8 or field.number == 7) return error.UnsupportedFilter;
+                    filter.operation = @intCast(field.number);
+                },
+                1249 => {
+                    if (field.raw[0] != 0 or field.kind != 4 or field.number > filter.address.len) return error.UnsupportedFilter;
+                    filter.address_count = @intCast(field.number);
+                },
+                1250 => {
+                    if (field.raw[0] != 0x10 or field.kind != 4) return error.UnsupportedFilter;
+                    var addresses_reader: Reader = .{ .data = field.raw[2..] };
+                    if (try addresses_reader.vlq() != 32) return error.UnsupportedFilter;
+                    for (0..32) |slot| {
+                        const address = try addresses_reader.vlq();
+                        if (address > std.math.maxInt(u32)) return error.InvalidAddress;
+                        if (slot < filter.address.len) filter.address[slot] = @intCast(address);
+                    }
+                },
+                1251 => filter.value = field.raw,
+                else => unreachable,
+            }
+        }
+        if (seen != 15 or (filter.operation != 8 and filter.address_count == 0)) return error.UnsupportedFilter;
+        for (filter.address[0..filter.address_count]) |aid| if (aid == 0) return error.InvalidAddress;
+        output[count] = filter;
+        count += 1;
+    }
+}
+
+fn compareFilter(filter: ExploreFilter, actual: []const u8) !bool {
+    var left_reader: Reader = .{ .data = actual };
+    var right_reader: Reader = .{ .data = filter.value };
+    const left = try left_reader.value(0);
+    const right = try right_reader.value(0);
+    if (left.raw[0] != 0 or right.raw[0] != 0 or left.kind != right.kind) return filter.operation == 2;
+    const numeric = struct {
+        fn number(value: Value) !i128 {
+            return switch (value.kind) {
+                1, 2, 3, 4, 5, 0x0a, 0x0b, 0x0c, 0x0d, 0x10, 0x12, 0x13 => @as(i128, value.number),
+                6 => @as(i8, @bitCast(@as(u8, @truncate(value.number)))),
+                7 => @as(i16, @bitCast(@as(u16, @truncate(value.number)))),
+                8 => @as(i32, @bitCast(@as(u32, @truncate(value.number)))),
+                9, 0x11 => @as(i64, @bitCast(value.number)),
+                else => error.UnsupportedFilter,
+            };
+        }
+    };
+    const order: std.math.Order = if (left.kind == 0x15 or left.kind == 0) blk: {
+        if (filter.operation > 2) return error.UnsupportedFilter;
+        break :blk if (std.mem.eql(u8, actual, filter.value)) .eq else .lt;
+    } else blk: {
+        const first = try numeric.number(left);
+        const second = try numeric.number(right);
+        break :blk if (first < second) .lt else if (first > second) .gt else .eq;
+    };
+    return switch (filter.operation) {
+        1 => order == .eq,
+        2 => order != .eq,
+        3 => order == .lt,
+        4 => order != .gt,
+        5 => order == .gt,
+        6 => order != .lt,
+        else => error.UnsupportedFilter,
+    };
+}
+
+fn matchesExplore(state: *State, model: ?*const backend.Layout, rid_value: u32, class: u32, filters: []const ExploreFilter) !bool {
+    for (filters) |filter| {
+        if (filter.operation == 8) {
+            if (filter.address_count != 0) return error.UnsupportedFilter;
+            var reader: Reader = .{ .data = filter.value };
+            const value = try reader.value(0);
+            if (value.raw[0] != 0 or value.kind != 0x12) return error.UnsupportedFilter;
+            if (value.number != class) return false;
+            continue;
+        }
+        var buffer: Writer = .{};
+        const raw = if (model) |layout| blk: {
+            for (&layout.values) |*entry| {
+                if (entry.rid != rid_value or entry.aid != filter.address[0]) continue;
+                if (entry.length < 2 or entry.length > backend.max_value_bytes or entry.flags > 1) return error.InvalidLayout;
+                break :blk entry.value[0..entry.length];
+            }
+            return false;
+        } else blk: {
+            if (try readAttribute(&buffer, state, rid_value, filter.address[0]) != 0) return false;
+            break :blk buffer.data[0..buffer.used];
+        };
+        const nested = nestedValue(raw, filter.address[1..filter.address_count]) catch |err| switch (err) {
+            error.AttributeNotFound, error.UnsupportedValue => return false,
+            else => return err,
+        };
+        if (!try compareFilter(filter, nested)) return false;
+    }
+    return true;
+}
+
+fn exploreFields(writer: *Writer, model: *const backend.Layout, object_info: *const backend.Object, aids: []const u32) !void {
     try openObject(writer, object_info.rid, object_info.class, 0);
     for (&model.values) |*entry| {
-        if (entry.rid != rid_value) continue;
-        if (entry.flags == 2) continue;
+        if (entry.rid != object_info.rid or entry.flags == 2) continue;
         if (entry.length < 2 or entry.length > backend.max_value_bytes or entry.flags > 1) return error.InvalidLayout;
         if (aids.len != 0 and std.mem.indexOfScalar(u32, aids, entry.aid) == null) continue;
         var reader: Reader = .{ .data = entry.value[0..entry.length] };
@@ -922,10 +1174,49 @@ fn exploreObject(writer: *Writer, model: *const backend.Layout, rid_value: u32, 
         try attribute(writer, entry.aid);
         try writer.put(reader.data);
     }
-    if (recursive) for (&model.objects) |*child| {
-        if (child.rid != 0 and child.parent == rid_value) try exploreObject(writer, model, child.rid, aids, true, depth + 1);
+}
+
+fn exploreInfo(model: *const backend.Layout, rid_value: u32) !*const backend.Object {
+    for (&model.objects) |*entry| if (entry.rid == rid_value and rid_value != 0) {
+        if (entry.flags > 1) return error.InvalidLayout;
+        return entry;
     };
-    try writer.byte(0xa2);
+    return error.ObjectNotFound;
+}
+
+fn exploreObject(writer: *Writer, state: *State, model: *const backend.Layout, rid_value: u32, aids: []const u32, recursive: bool, recursive_filter: bool, filters: []const ExploreFilter, depth: usize) anyerror!void {
+    if (depth >= 8) return error.DepthLimit;
+    const object_info = try exploreInfo(model, rid_value);
+    if (object_info.class == 255 or object_info.flags == 1) return;
+    const matched = try matchesExplore(state, model, rid_value, object_info.class, filters);
+    if (matched) try exploreFields(writer, model, object_info, aids);
+    if (recursive and (matched or recursive_filter)) for (&model.objects) |*child| {
+        if (child.rid != 0 and child.parent == rid_value) try exploreObject(writer, state, model, child.rid, aids, true, recursive_filter, if (recursive_filter) filters else &.{}, depth + 1);
+    };
+    if (matched) try writer.byte(0xa2);
+}
+
+fn exploreAncestors(writer: *Writer, state: *State, model: *const backend.Layout, target: u32, aids: []const u32, recursive: bool) !void {
+    var ancestors: [8]*const backend.Object = undefined;
+    var count: usize = 0;
+    var parent = (try exploreInfo(model, target)).parent;
+    while (parent != 0) {
+        if (parent == target or count == ancestors.len - 1) return error.DepthLimit;
+        for (ancestors[0..count]) |entry| if (entry.rid == parent) return error.InvalidLayout;
+        const entry = try exploreInfo(model, parent);
+        if (entry.class == 255 or entry.flags == 1) return;
+        ancestors[count] = entry;
+        count += 1;
+        parent = entry.parent;
+    }
+    if (count == 0) return;
+    var index = count;
+    while (index > 0) {
+        index -= 1;
+        try exploreFields(writer, model, ancestors[index], aids);
+    }
+    try exploreObject(writer, state, model, target, aids, recursive, false, &.{}, count);
+    for (0..count) |_| try writer.byte(0xa2);
 }
 
 fn explore(writer: *Writer, request: Message, state: *State, target: u32, reader: *Reader) ![]const u8 {
@@ -933,7 +1224,10 @@ fn explore(writer: *Writer, request: Message, state: *State, target: u32, reader
     const recursive = try reader.byte();
     const recursive_filter = try reader.byte();
     const with_parent = try reader.byte();
-    if (recursive > 1 or recursive_filter > 1 or with_parent > 1 or try reader.vlq() != 0) return error.UnsupportedExplore;
+    if (recursive > 1 or recursive_filter > 1 or with_parent > 1) return error.UnsupportedExplore;
+    var filter_buffer: [10]ExploreFilter = undefined;
+    const filters = try exploreFilters(reader, &filter_buffer);
+    if (with_parent != 0 and filters.len != 0) return error.UnsupportedExplore;
     const count = try reader.vlq();
     if (count > 64) return error.ValueLimit;
     var aids: [64]u32 = undefined;
@@ -961,7 +1255,7 @@ fn explore(writer: *Writer, request: Message, state: *State, target: u32, reader
     try writer.vlq(if (found) 0 else 0x8020ab001a23fff4);
     try writer.be32(parent);
     try writer.vlq((integrity << 2) | 1);
-    if (target == state.session and with_parent == 0) {
+    if (target == state.session and with_parent == 0 and try matchesExplore(state, null, target, 287, filters)) {
         try openObject(writer, state.session, 287, 0);
         for ([_]u32{ 299, 300, 301, 1842, 1903, 1905 }) |aid| {
             if (count != 0 and std.mem.indexOfScalar(u32, aids[0..@intCast(count)], aid) == null) continue;
@@ -969,12 +1263,29 @@ fn explore(writer: *Writer, request: Message, state: *State, target: u32, reader
             if (try readAttribute(writer, state, state.session, aid) != 0) return error.UnsupportedAttribute;
         }
         try writer.byte(0xa2);
-    } else if (found and target != state.session) try exploreObject(writer, model.?, target, aids[0..@intCast(count)], recursive != 0, 0);
-    if (with_parent != 0 and found and target != state.session) return error.UnsupportedExplore;
+    } else if (found and target != state.session) {
+        if (with_parent != 0) try exploreAncestors(writer, state, model.?, target, aids[0..@intCast(count)], recursive != 0) else try exploreObject(writer, state, model.?, target, aids[0..@intCast(count)], recursive != 0, recursive_filter != 0, filters, 0);
+    }
     try writer.be32(0);
     const result = try writer.finish();
     state.read_counter = @intCast(integrity);
     return result;
+}
+
+fn invokeArguments(reader: *Reader) !void {
+    for (0..2) |_| {
+        var indices: [16]u32 = undefined;
+        var count: usize = 0;
+        while (true) {
+            const index = try reader.vlq();
+            if (index == 0) break;
+            if (index > std.math.maxInt(u32) or count == indices.len) return error.ValueLimit;
+            if (std.mem.indexOfScalar(u32, indices[0..count], @intCast(index)) != null) return error.InvalidIndex;
+            indices[count] = @intCast(index);
+            count += 1;
+            _ = try reader.value(0);
+        }
+    }
 }
 
 fn nestedValue(raw: []const u8, path: []const u32) ![]const u8 {
@@ -1019,6 +1330,7 @@ fn replaceValue(writer: *Writer, raw: []const u8, path: []const u32, replacement
 }
 
 pub fn pollNotification(writer: *Writer, state: *State, now_us: i64) !?[]const u8 {
+    if (state.transaction != null) return null;
     if (now_us < 0 or now_us > std.math.maxInt(i64) - 60_000_000) return error.InvalidTime;
     for (&state.subscriptions) |*subscription| {
         if (subscription.rid == 0 or subscription.disabled or now_us < subscription.next_due) continue;
@@ -1197,4 +1509,39 @@ test "notification demultiplexer preserves order and rejects queue overflow" {
     var output: [limit]u8 = undefined;
     for (0..4) |index| try std.testing.expectEqual(@as(u32, @intCast(index + 1)), (try queue.pop(&output)).?.subscription);
     try std.testing.expect(try queue.pop(&output) == null);
+}
+
+test "native signed VLQ preserves negative values and rejects overflow" {
+    const cases = [_]struct { bytes: []const u8, value: i64 }{
+        .{ .bytes = &.{0x7f}, .value = -1 },
+        .{ .bytes = &.{0x40}, .value = -64 },
+        .{ .bytes = &.{ 0xff, 0x3f }, .value = -65 },
+        .{ .bytes = &.{ 0x80, 0x40 }, .value = 64 },
+        .{ .bytes = &.{ 0x87, 0xff, 0xff, 0xff, 0x7f }, .value = 2147483647 },
+        .{ .bytes = &.{ 0xf8, 0x80, 0x80, 0x80, 0 }, .value = -2147483648 },
+    };
+    for (cases) |case| {
+        var reader: Reader = .{ .data = case.bytes };
+        try std.testing.expectEqual(case.value, @as(i64, @bitCast(try reader.signed(32))));
+    }
+    var overflow: Reader = .{ .data = &.{ 0x88, 0x80, 0x80, 0x80, 0 } };
+    try std.testing.expectError(error.Overflow, overflow.signed(32));
+    var truncated: Reader = .{ .data = &.{0x80} };
+    try std.testing.expectError(error.Truncated, truncated.signed(32));
+}
+
+test "Explore filters compare signed values and reject unsupported orderings" {
+    var filter: ExploreFilter = .{ .operation = 3, .address_count = 1, .address = @splat(0), .value = &.{ 0, 8, 0 } };
+    try std.testing.expect(try compareFilter(filter, &.{ 0, 8, 0x7f }));
+    filter.operation = 5;
+    try std.testing.expect(!try compareFilter(filter, &.{ 0, 8, 0x7f }));
+    filter.operation = 6;
+    try std.testing.expect(try compareFilter(filter, &.{ 0, 8, 0 }));
+    filter.value = &.{ 0, 0x15, 1, 'x' };
+    filter.operation = 1;
+    try std.testing.expect(try compareFilter(filter, &.{ 0, 0x15, 1, 'x' }));
+    filter.operation = 2;
+    try std.testing.expect(try compareFilter(filter, &.{ 0, 0x15, 1, 'y' }));
+    filter.operation = 3;
+    try std.testing.expectError(error.UnsupportedFilter, compareFilter(filter, &.{ 0, 0x15, 1, 'x' }));
 }

@@ -78,10 +78,29 @@ incoming associations. Undefined associations retain the observed native error.
   disable/re-enable and deletion. Python decodes typed notification records;
   the Zig client separates unsolicited frames into a bounded queue, with an
   explicit overflow error.
-- Explore with bounded recursion and attribute selection, explicit GetLink
-  associations, and best-effort BeginSequence/EndSequence. Explore filters and
-  ancestor serialization are not yet implemented. The tested native class 255
-  container does not serialize itself during Explore.
+- Explore with bounded recursion, attribute selection, up to ten filters, and
+  mapped ancestor serialization. Scalar comparisons support equality/ordering;
+  class filters match exact mapped class IDs (no synthesized inheritance).
+  Combining WithParent and filters is rejected. Explicit GetLink associations
+  and best-effort BeginSequence/EndSequence remain available. The tested native
+  class 255 container does not serialize itself during Explore.
+- Registered application Invoke methods: 32 methods, two bounded sparse input
+  lists, 8192-byte validated result and preserved host status. Register using
+  `zomsp_method` before starting/opening sessions. Callbacks may run concurrently;
+  the host owns authorization, callback lifetime and atomic application effects.
+  Invalid callback results are rejected, but host side effects cannot be undone.
+- Opt-in collective transactions (`zomsp_transactions`): StartTransaction's
+  class-1700 descriptor, transaction RID result, isolated mapped reads/writes,
+  commit, abort and disconnect rollback. Publishing checks the original mapping's
+  generation and fails on host conflicts. Notifications pause during a collective.
+  Invokes and control-plane mutation are rejected inside it. There are at most
+  2047 collective starts per connection; reconnect after exhaustion.
+- Opt-in legacy password profile (`zomsp_legacy_password`), explicitly advertised
+  as version 0x300. The TLS endpoint verifies SHA-1 digest XOR challenge, consumes
+  the nonce once, gates mapped application operations until authenticated and
+  reports access level 1/4. A failed attempt requires a new session. The digest
+  is held outside shared memory. Headless dispatch is a trusted transport API;
+  its caller must provide confidentiality. This is not modern UAC authentication.
 - Windows and Linux live TLS tests, independent mapping visibility, restart and
   partial-handshake cancellation. Native client checks cover mapped read/write,
   subscription callbacks, Explore, GetLink, and best-effort sequence completion.
@@ -89,17 +108,20 @@ incoming associations. Undefined associations retain the observed native error.
 
 ## Remaining protocol work
 
-This is not complete OMSp PLC application support. Typed values and changes can
-carry host-provided alarm data, but ASOM alarm event lifecycle and AckJob execution
-are not implemented. Unknown-method Invoke returns the native error and keeps the session usable;
-registered application method handlers, collective transactions, full
-sequence/upload activation, filtered Explore, and full V3 endpoint behavior also
-remain, as does password authentication. Clients currently send DeleteObject and
-close their transport without waiting for a deletion acknowledgement. The bare
-native host did not successfully complete the collective
-transaction/application-create probes; those are unresolved reference
-tests, not evidence that real PLCs lack these operations. The forwarding proxy
-continues to transport such operations to an actual upstream implementation.
+Typed ASOM alarm event execution/AckJob acknowledgement, upload activation
+(including DLTransaction AID 1702 directives), full V3 security negotiation and
+modern TLS/UAC password authentication remain unsupported. Collective success
+only commits the mapped application model; it does not compile or activate PLC
+programs. Unsupported activation directives are rejected. Unknown Invoke keeps
+the native error instead of inventing PLC data. Unauthorized operations fail
+closed; access-denied status translation is not claimed as native parity.
+
+Native SDK tests validate registered Invoke results, matching/nonmatching filters,
+mapped ancestors, collective isolation/commit/abort, and legacy password success
+and rejection. The SDK's generic BeginSequence(type=2) fails locally; proper
+StartTransaction sends a class-1700 descriptor. The bare native server rejects
+that descriptor without an application transaction implementation. Our mapped
+transaction backend is explicit opt-in application behavior.
 
 ## CI and local checks
 
@@ -112,6 +134,9 @@ verified login and mapped reads/writes. Supply both `ZOMSP_TEST_CERT` and
 ```
 python TESTS/omsp/mapped.py zig-out/lib/libzomsp.so
 python TESTS/omsp/wire.py zig-out/lib/libzomsp.so
+python TESTS/omsp/invoke.py zig-out/lib/libzomsp.so
+python TESTS/omsp/transactions.py zig-out/lib/libzomsp.so
+python TESTS/omsp/authentication.py zig-out/lib/libzomsp.so
 python TESTS/omsp/package_runtime.py zig-out/bin
 python TESTS/omsp/tls.py zig-out/lib/libzomsp.so zig-out/bin
 ```

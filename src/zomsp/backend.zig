@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const application = @import("application.zig");
 
 pub const max_objects = 128;
 pub const max_values = 512;
@@ -41,6 +42,10 @@ pub const Backend = struct {
     bytes: []align(std.heap.page_size_min) u8,
     data: *Layout,
     mutex: std.Thread.Mutex = .{},
+    methods: application.Registry = .{},
+    transactions_enabled: bool = false,
+    authentication: @import("authentication.zig").Policy = .{},
+    private: bool = false,
 
     pub fn open(path: []const u8, create: bool) !Backend {
         const file = std.fs.cwd().openFile(path, .{ .mode = .read_write }) catch |err| blk: {
@@ -78,6 +83,8 @@ pub const Backend = struct {
         } else std.posix.munmap(bytes);
     }
     pub fn close(self: *Backend) void {
+        std.debug.assert(!self.private);
+        self.authentication.configure(&.{}) catch unreachable;
         unmap(self.bytes);
         self.file.close();
     }
@@ -97,6 +104,10 @@ pub const Backend = struct {
     fn lock(self: *Backend) !void {
         self.mutex.lock();
         errdefer self.mutex.unlock();
+        if (self.private) {
+            try self.validate();
+            return;
+        }
         if (builtin.os.tag == .windows) {
             var status: windows.IO_STATUS_BLOCK = undefined;
             const offset: windows.LARGE_INTEGER = 0;
@@ -110,7 +121,7 @@ pub const Backend = struct {
         try self.validate();
     }
     fn unlock(self: *Backend) void {
-        self.file.unlock();
+        if (!self.private) self.file.unlock();
         self.mutex.unlock();
     }
     fn findObject(self: *Backend, rid: u32) ?*Object {
@@ -385,6 +396,40 @@ pub const Backend = struct {
             entry.generation = generation;
         }
         self.data.header.generation = generation;
+    }
+};
+
+pub const Transaction = struct {
+    source: *Backend,
+    shadow: Backend,
+    generation: u64,
+    allocator: std.mem.Allocator,
+
+    pub fn open(source: *Backend, allocator: std.mem.Allocator) !*Transaction {
+        if (source.private or !source.transactions_enabled) return error.UnsupportedSequence;
+        const transaction = try allocator.create(Transaction);
+        errdefer allocator.destroy(transaction);
+        const copy = try source.snapshotLayout(allocator);
+        transaction.* = .{
+            .source = source,
+            .generation = copy.header.generation,
+            .allocator = allocator,
+            .shadow = .{ .file = source.file, .bytes = source.bytes, .data = copy, .private = true, .methods = source.methods, .authentication = source.authentication },
+        };
+        return transaction;
+    }
+
+    pub fn commit(self: *Transaction) !void {
+        try self.source.lock();
+        defer self.source.unlock();
+        if (self.source.data.header.generation != self.generation) return error.TransactionConflict;
+        self.source.data.* = self.shadow.data.*;
+    }
+
+    pub fn close(self: *Transaction) void {
+        self.shadow.authentication.configure(&.{}) catch unreachable;
+        self.allocator.destroy(self.shadow.data);
+        self.allocator.destroy(self);
     }
 };
 

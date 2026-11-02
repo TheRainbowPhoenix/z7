@@ -124,11 +124,17 @@ jobs:
         run: |
           python TESTS/omsp/mapped.py zig-out/lib/libzomsp.so
           python TESTS/omsp/wire.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/invoke.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/transactions.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/authentication.py zig-out/lib/libzomsp.so
       - name: Test headless mapped-file ABI (Windows)
         if: runner.os == 'Windows'
         run: |
           python TESTS/omsp/mapped.py zig-out/bin/zomsp.dll
           python TESTS/omsp/wire.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/invoke.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/transactions.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/authentication.py zig-out/bin/zomsp.dll
       - name: Test Git OpenSSL packaging layouts
         if: runner.os == 'Windows'
         run: python TESTS/omsp/test_package_runtime.py

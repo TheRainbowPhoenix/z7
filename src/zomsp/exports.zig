@@ -5,23 +5,32 @@ const wire = @import("wire.zig");
 const endpoints = @import("endpoints.zig");
 const transport = @import("channel.zig");
 const allocator = std.heap.page_allocator;
+const application = @import("application.zig");
 
 const Context = struct {
     store: backend.Backend,
     runtime: ?*endpoints.Runtime = null,
+    sessions: usize = 0,
     certificate: ?[:0]u8 = null,
     key: ?[:0]u8 = null,
 };
-const Session = struct { state: wire.State };
+const Session = struct { state: wire.State, context: *Context };
 
 export fn zomsp_session_open(context: ?*Context) ?*Session {
     const ctx = context orelse return null;
+    if (ctx.sessions == 16) return null;
     const session = allocator.create(Session) catch return null;
-    session.* = .{ .state = .{ .backend = &ctx.store } };
+    session.* = .{ .state = .{ .backend = &ctx.store }, .context = ctx };
+    ctx.sessions += 1;
     return session;
 }
 export fn zomsp_session_close(session: ?*Session) void {
-    if (session) |handle| allocator.destroy(handle);
+    if (session) |handle| {
+        std.debug.assert(handle.context.sessions > 0);
+        handle.state.deinit();
+        handle.context.sessions -= 1;
+        allocator.destroy(handle);
+    }
 }
 export fn zomsp_dispatch(session: ?*Session, input: ?[*]const u8, length: usize, output: ?[*]u8, capacity: usize) isize {
     const handle = session orelse return -1;
@@ -46,8 +55,8 @@ fn failure(err: anyerror) i32 {
         error.ObjectNotFound => -2,
         error.AttributeNotFound => -3,
         error.ReadOnly => -4,
-        error.ObjectLimit, error.ValueLimit, error.BufferTooSmall => -5,
-        error.StoreBusy => -6,
+        error.ObjectLimit, error.ValueLimit, error.BufferTooSmall, error.MethodLimit => -5,
+        error.StoreBusy, error.TransactionConflict => -6,
         error.TypeMismatch => -7,
         else => -1,
     };
@@ -66,6 +75,27 @@ export fn zomsp_open(path: ?[*:0]const u8, create: u8) ?*Context {
         return null;
     } };
     return context;
+}
+export fn zomsp_legacy_password(context: ?*Context, password: ?[*]const u8, length: usize) i32 {
+    const ctx = context orelse return -1;
+    if (length > 256 or (length != 0 and password == null)) return -1;
+    if (ctx.runtime != null or ctx.sessions != 0) return -6;
+    ctx.store.authentication.configure(if (password) |bytes| bytes[0..length] else &.{}) catch return -1;
+    return 0;
+}
+export fn zomsp_transactions(context: ?*Context, enabled: u8) i32 {
+    const ctx = context orelse return -1;
+    if (enabled > 1) return -1;
+    if (ctx.runtime != null or ctx.sessions != 0) return -6;
+    ctx.store.transactions_enabled = enabled != 0;
+    return 0;
+}
+export fn zomsp_method(context: ?*Context, target: u32, id: u32, callback: ?application.Callback, user: ?*anyopaque) i32 {
+    const ctx = context orelse return -1;
+    if (ctx.runtime != null or ctx.sessions != 0) return -6;
+    _ = ctx.store.info(target) catch |err| return failure(err);
+    ctx.store.methods.register(.{ .target = target, .id = id, .callback = callback orelse return -1, .user = user }) catch |err| return failure(err);
+    return 0;
 }
 export fn zomsp_object(context: ?*Context, rid: u32, parent: u32, class: u32) i32 {
     const ctx = context orelse return -1;

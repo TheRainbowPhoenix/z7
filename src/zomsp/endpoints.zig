@@ -86,6 +86,7 @@ fn serveSession(stream: std.net.Stream, certificate: [:0]const u8, key: [:0]cons
     try channel.handshake(true, certificate, key, "127.0.0.1");
     std.log.info("zOMSp server TLS established", .{});
     var state: wire.State = .{ .backend = store };
+    defer state.deinit();
     var notification_writer: wire.Writer = .{};
     var created = false;
     channel.wait_read = false;

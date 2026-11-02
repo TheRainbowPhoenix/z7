@@ -7,7 +7,7 @@ This is a partial implementation checkpoint, not complete PLC application parity
 * Invoke 0x056b uses a fixed-width target/method RID, two sparse Variant argument
   lists, write integrity, and a zero trailer. Inputs are bounded to 16 slots per
   list, reject duplicate slots, and validate all bytes before advancing state.
-  No application methods are registered yet. Unknown methods receive native
+  Application methods can be registered explicitly. Unknown methods receive native
   0x8020ab00199afff4 instead of disconnecting. Native client parses the reply and
   successfully pings afterwards; the native server returns the same status.
 * Explore request order is LinkAID, Recursive, RecursiveFilter, WithParent,
@@ -15,7 +15,7 @@ This is a partial implementation checkpoint, not complete PLC application parity
   required to be 1 and RecursiveFilter incorrectly controlled tree recursion.
   Corrected both. Native session WithParent returns parent RID 285 and no object
   payload; zOMSp matches this and preserves the read counter. Generic mapped
-  ancestor serialization is still unsupported.
+  ancestor serialization is now supported for the mapped application model.
 * CI now runs native -> native as an oracle in addition to both zOMSp/native
   directions, and compares session Explore with/without WithParent. Invoke
   rejection and subsequent recovery are exercised in every native-client run.
@@ -56,20 +56,42 @@ alone do not establish event delivery or acknowledgement execution semantics.
 AS_AlarmJobState defines Waiting=0, Processing=1, Distributing=2; there is no
 verified terminal state in that enum. Do not invent a Completed=3 response.
 
-## Still open / unsuccessful probes
+## Application backend and native SDK validation
 
-Native -> native collective BeginSequence(type=2, null descriptor) returns
-0xa6021400215aff94. No successful collective descriptor/upload activation
-exchange is established. Do not emulate collective success from this test.
+Registered Invoke now dispatches to a bounded host registry; the native client
+parses return/output/inout values. Filtered Explore handles scalar predicates
+and exact-class checks; native SDK matching/nonmatching session filters and a
+mapped ancestor tree deserialize successfully. Class inheritance and combining
+WithParent with filters are explicitly unsupported.
 
-A native-wrapper-generated filtered Explore also failed to complete against the
-bare native host. Its filter operation/32-slot address encoding was captured
-through the Python TLS pivot. Earlier hand-built filter probes used the wrong
-array length and cannot be used as behavior references. Filter matching and
-mapped ancestor trees still need a successful oracle or a fuller application
-host before enabling those paths.
+Collectives are opt-in private mapping snapshots. The proper StartTransaction
+API (wrapper 003b9890 -> 00583340) generates a class-1700 descriptor and expects
+a RID result. Generic BeginSequence(type=2) rejects locally at 00582ca0, so its
+old failure was not a server oracle. Native client mapped writes remain isolated
+until commit; abort and disconnect discard them. Host generation conflicts reject
+publication. The bare native server returns 0xa201a3002ae3ff19 to StartTransaction;
+that remains the default response when the mapped feature is disabled.
 
-Typed ASOM event/reference creation, AckJob execution and completion, positive
-registered Invoke dispatch, collective commit/rollback and upload activation,
-V3 security negotiation/trailers, and password authentication remain open.
-The current TLS/no-password endpoint must not advertise these as implemented.
+Legacy password profile is opt-in and advertises 0x300, retaining required TLS.
+Native Legitimate (003beac0 -> 00577230 -> 0058cb20) reads AID 303 and submits
+SHA-1(password) XOR challenge at AID 304. Server validation at 0059ffb0 and
+0059f060 supplies wrong-proof status 0x26051900092d0016; repeat proof status
+0xa6054c00040afea1 comes from 005a07a0. Native SDK success and incorrect-password
+access levels are tested. Modern Blob-1846/TLS-exporter authentication is distinct
+and remains unsupported.
+
+UploadWithoutStreamedBlobs (003c76c0 -> 00590250) creates request 0x4bb and
+requires a sequence context; it is not a standalone Explore alias. Captured
+DLTransaction AID 1702 directives still require an application activation model.
+The mapped backend rejects them rather than claiming PLC activation.
+
+Typed ASOM event/reference execution, AckJob acknowledgement, upload activation,
+and V3 security negotiation/trailers remain open. The endpoint must not advertise
+those as implemented. `invoke.py`, `transactions.py`, and `authentication.py`
+cover the added application behavior; the Linux native runner also exercises the
+live SDK paths, while Windows/ARM run their headless bounds/lifecycle checks.
+
+VPLC AlarmSubsystem_Imp virtual slot 0x110 (107bd9c0) returns fixed
+0x8000001900008005 after recording an unsupported status. This simulator path
+cannot be treated as a positive alarm execution oracle. The class IDs above
+are schema evidence, not an acknowledgement state machine.

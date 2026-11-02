@@ -69,8 +69,18 @@ def main():
                OMSP_INVOKE='1', OMSP_ENDPOINT_SWEEP='1')
     for name in ('OMSP_VIA_PROXY', 'OMSP_EXTENDED', 'OMSP_APP_RID', 'OMSP_SUBSCRIPTIONS'):
         env.pop(name, None)
-    return subprocess.call([sys.executable, str(work / 'run_python_interop.py'),
-                            str(library)], cwd=HERE, env=env)
+    result = subprocess.call([sys.executable, str(work / 'run_python_interop.py'),
+                              str(library)], cwd=HERE, env=env)
+    if result:
+        return result
+    shared = Path(binary).parent.parent / 'lib' / 'libzomsp.so'
+    for test in ('invoke.py', 'authentication.py'):
+        result = subprocess.call([sys.executable, str(HERE.parent / test), str(shared),
+                                  '--native', str(work / 'native_probe'), '--reference', str(library),
+                                  '--credentials', str(credentials)], cwd=HERE.parents[2])
+        if result:
+            return result
+    return 0
 
 
 if __name__ == '__main__':
