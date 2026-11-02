@@ -148,7 +148,7 @@ if __name__ == '__main__':
     if sys.argv[1:] == ['--python-client']: sys.exit(python_client())
     if sys.argv[1:] == ['--python-server']: python_server(); sys.exit(0)
     if len(sys.argv) != 2: sys.exit('usage: run_python_interop.py LIBRARY')
-    if hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest() != 'e967cc414222a5ff9b869a072094cf769e46b6ca95963ec3ff733ca509155445':
+    if hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest() != 'cd1320970e26efd0696b9cc21d1ba15310476da790879bc97a4dad6c9c56cf5f':
         sys.exit('unsupported native reference build')
     modes = ['python_client', 'python_server']
     if os.environ.get('ZOMSP_BINARY'):
