@@ -68,17 +68,27 @@ pub fn build(b: *std.Build) void {
         }),
     });
     zomsp.root_module.addImport("zCom", zCom_module);
+    zomsp.addCSourceFile(.{ .file = b.path("src/zomsp/tls_bridge.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
+    zomsp.linkLibC();
+    if (target.result.os.tag == .linux) zomsp.linkSystemLibrary("dl");
     const install_zomsp = b.addInstallArtifact(zomsp, .{});
-    b.step("zomsp", "Build the OMSp proxy draft").dependOn(&install_zomsp.step);
+    b.step("zomsp", "Build the OMSp proxy and endpoints").dependOn(&install_zomsp.step);
     const zomsp_tests = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/zomsp/protocol.zig"),
         .target = target,
         .optimize = optimize,
     }) });
     b.step("test:zomsp", "Test bounded OMSp framing").dependOn(&b.addRunArtifact(zomsp_tests).step);
+    const zomsp_wire_tests = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/zomsp/wire.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+    b.top_level_steps.get("test:zomsp").?.step.dependOn(&b.addRunArtifact(zomsp_wire_tests).step);
 
     const check_step = b.step("check", "Check if z7 compiles");
     check_step.dependOn(&z7.step);
+    check_step.dependOn(&zomsp.step);
 
     const run_cmd = b.addRunArtifact(z7);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -136,6 +146,7 @@ pub fn build(b: *std.Build) void {
     }
     if (ci_mode == .@"test" or ci_mode == .default) {
         ci_step.dependOn(test_step);
+        ci_step.dependOn(&b.top_level_steps.get("test:zomsp").?.step);
         // reference_build.zig also does check in smoke, and test usually implies smoke or depends on it.
         // For simplicity we follow the logic:
         if (ci_mode == .@"test") {

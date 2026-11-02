@@ -165,6 +165,9 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
+    if (args.len >= 2 and (std.mem.eql(u8, args[1], "--client") or std.mem.eql(u8, args[1], "--server"))) {
+        return @import("endpoints.zig").run(args);
+    }
     if (args.len != 4) {
         try std.io.getStdErr().writeAll("usage: zOMSp LISTEN_PORT UPSTREAM_IPV4 UPSTREAM_PORT\n");
         return error.InvalidArguments;
