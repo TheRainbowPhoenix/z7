@@ -129,6 +129,9 @@ jobs:
         run: |
           python TESTS/omsp/mapped.py zig-out/bin/zomsp.dll
           python TESTS/omsp/wire.py zig-out/bin/zomsp.dll
+      - name: Test Git OpenSSL packaging layouts
+        if: runner.os == 'Windows'
+        run: python TESTS/omsp/test_package_runtime.py
       - name: Bundle matching OpenSSL runtime and licenses
         run: python TESTS/omsp/package_runtime.py zig-out/bin
       - name: Test bundled TLS with the Linux shared library
@@ -137,6 +140,16 @@ jobs:
       - name: Test bundled TLS with the Windows shared library
         if: runner.os == 'Windows'
         run: python TESTS/omsp/tls.py zig-out/bin/zomsp.dll zig-out/bin
+      - name: Native client/server interoperability (Linux x64)
+        if: matrix.os == 'ubuntu-latest'
+        run: python TESTS/omsp/native/run.py --binary zig-out/bin/zOMSp --cc ./zig/zig
+      - name: Upload native interoperability evidence
+        if: always() && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: zomsp-native-interop
+          path: TESTS/omsp/native/omsp_capture_analysis/python_interop_latest.json
+          if-no-files-found: warn
       - name: Upload zOMSp
         uses: actions/upload-artifact@v7
         with:

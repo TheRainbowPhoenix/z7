@@ -1,0 +1,5 @@
+/native_probe
+/native_socket_trace.so
+/native_test_credentials/
+/python_interop_latest.json
+/__pycache__/
