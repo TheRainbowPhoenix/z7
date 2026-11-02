@@ -19,7 +19,7 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: shellcheck ./zig/download.sh
       - shell: pwsh
         run: Invoke-ScriptAnalyzer -Path zig/download.win.ps1 -Severity Error,Warning,Information -EnableExit
@@ -41,7 +41,7 @@ jobs:
         run: | # Allow unshare for vortex.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 2147483647 } # Fetch full history for tidy.
       - name: Download Zig (Unix)
         if: runner.os != 'Windows'
@@ -69,7 +69,7 @@ jobs:
           - { target: 'arm-linux-musleabihf', os: 'ubuntu-latest', optimize: 'ReleaseSafe', cpu: 'cortex_a7' }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Download Zig (Unix)
         if: runner.os != 'Windows'
         run: |
@@ -84,7 +84,7 @@ jobs:
         if: (matrix.target == 'x86_64-linux-gnu' || matrix.target == 'aarch64-linux-gnu') && matrix.optimize == 'Debug'
         run: ./zig/zig build test -Dtarget=${{ matrix.target }}
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: z7-${{ matrix.target }}-${{ matrix.optimize }}
           path: |
@@ -105,7 +105,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Download Zig (Unix)
         if: runner.os != 'Windows'
         run: |
@@ -117,7 +117,7 @@ jobs:
       - name: Build zOMSp and test framing and native wire fixtures
         run: ./zig/zig build zomsp test:zomsp -Doptimize=ReleaseSafe
       - name: Upload zOMSp
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zomsp-${{ matrix.os }}
           path: |
@@ -134,7 +134,7 @@ jobs:
           # - { os: 'windows-latest' } # Windows skipped: CI runners have localhost networking issues
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Download Zig (Unix)
         if: runner.os != 'Windows'
         run: |
@@ -143,7 +143,7 @@ jobs:
       - name: Download Zig (Windows)
         if: runner.os == 'Windows'
         run: pwsh ./zig/download.win.ps1
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Build z7 server
@@ -204,10 +204,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '11' }
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: { python-version: '3.12' }
       - name: Download Zig (Unix)
         if: runner.os != 'Windows'
@@ -237,7 +237,7 @@ jobs:
         run: python TESTS/ignition/run.py --driver-jar TESTS/ignition/vendor/driver-siemens-5.0.1.jar --z7-library ${{ matrix.library }} --lock-hold-ms 10 --load-iterations 1000 --output .zig-cache/ignition-contended
       - name: Upload interoperability evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ignition-${{ matrix.os }}
           path: |
