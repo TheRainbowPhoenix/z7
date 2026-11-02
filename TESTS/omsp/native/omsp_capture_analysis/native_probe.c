@@ -428,6 +428,11 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                 request_id = -1;
                 status = invoke(session, server_rid(session), 0xffffffff, arguments[0], arguments[1], arguments[2], arguments[3], &request_id);
                 printf("application.invoke.status=0x%016" PRIx64 "\n", (uint64_t)status);
+                if ((uint64_t)status == UINT64_C(0x8020ab00199afff4)) {
+                    int64_t (*recover)(void *) = symbol(library, "_ZN11OMSpWrapper13ClientSession17PingServerSessionEv");
+                    status = recover(session);
+                    printf("application.invoke.recovery=0x%016" PRIx64 "\n", (uint64_t)status);
+                }
                 for (unsigned i = 0; i < 4; ++i) value_dtor(arguments[i]);
             }
             if (status >= 0 && getenv("OMSP_LINK_RID")) {
@@ -448,7 +453,7 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                     "_ZN11OMSpWrapper13ClientSession11EndSequenceEbRiPNS_6ObjectERb");
                 unsigned char sequence = 0;
                 request_id = -1;
-                status = begin(session, 1, &sequence, &request_id, NULL, response, &extension);
+                status = begin(session, getenv("OMSP_COLLECTIVE") ? 2 : 1, &sequence, &request_id, NULL, response, &extension);
                 printf("sequence.begin.status=0x%016" PRIx64 " sequence=%u\n", (uint64_t)status, sequence);
                 if (status >= 0) {
                     request_id = -1;
@@ -464,8 +469,9 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                 ctor(object);
                 int request = -1;
                 uint32_t target = getenv("OMSP_APP_RID") ? (uint32_t)strtoul(getenv("OMSP_APP_RID"), NULL, 0) : 201;
+                if (getenv("OMSP_EXPLORE_SESSION")) target = server_rid(session);
                 if (getenv("OMSP_EXPLORE_RID")) target = (uint32_t)strtoul(getenv("OMSP_EXPLORE_RID"), NULL, 0);
-                status = explore(session, target, true, false, false, object, &request);
+                status = explore(session, target, true, getenv("OMSP_EXPLORE_PARENT") != NULL, getenv("OMSP_EXPLORE_FLAG3") != NULL, object, &request);
                 printf("application.explore.status=0x%016" PRIx64 "\n", (uint64_t)status);
                 destroy(object);
             }

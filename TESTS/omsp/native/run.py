@@ -65,7 +65,8 @@ def main():
         subprocess.run(['openssl', 'x509', '-in', str(cert), '-outform', 'DER',
                         '-out', str(credentials / 'server-cert.der')], check=True)
     env = dict(os.environ, ZOMSP_BINARY=binary,
-               OMSP_INTEROP_MODES='zomsp_client_native,native_client_zomsp')
+               OMSP_INTEROP_MODES='native_both,zomsp_client_native,native_client_zomsp',
+               OMSP_INVOKE='1', OMSP_ENDPOINT_SWEEP='1')
     for name in ('OMSP_VIA_PROXY', 'OMSP_EXTENDED', 'OMSP_APP_RID', 'OMSP_SUBSCRIPTIONS'):
         env.pop(name, None)
     return subprocess.call([sys.executable, str(work / 'run_python_interop.py'),

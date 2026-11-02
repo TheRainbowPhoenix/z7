@@ -91,12 +91,13 @@ incoming associations. Undefined associations retain the observed native error.
 
 This is not complete OMSp PLC application support. Typed values and changes can
 carry host-provided alarm data, but ASOM alarm event lifecycle and AckJob execution
-are not implemented. Generic Invoke handlers, collective transactions, full
+are not implemented. Unknown-method Invoke returns the native error and keeps the session usable;
+registered application method handlers, collective transactions, full
 sequence/upload activation, filtered Explore, and full V3 endpoint behavior also
 remain, as does password authentication. Clients currently send DeleteObject and
 close their transport without waiting for a deletion acknowledgement. The bare
 native host did not successfully complete the collective
-transaction/application-create/Invoke probes; those are unresolved reference
+transaction/application-create probes; those are unresolved reference
 tests, not evidence that real PLCs lack these operations. The forwarding proxy
 continues to transport such operations to an actual upstream implementation.
 

@@ -114,6 +114,23 @@ def check(library):
             dispatch(recreate)
             assert store.get(0x60000002, 233) == b'\0\x15\x06Parent'
             assert store.get(0x60000003, 233) == b'\0\x15\x05Child'
+            invoke = frame(0x56b, 0x70001001, b'\xff' * 4 + b'\0\0\x0c' + b'\0' * 4)
+            invalid_invoke = invoke[:-1] + b'\x01'
+            dispatch(invalid_invoke, expected=-1)
+            rejected = dispatch(invoke)
+            assert rejected == bytes.fromhex('c08895b080e6b5fff4') + b'\0' * 4 + b'\x18' + b'\0' * 4
+            parent = frame(0x4bb, 0x70001001, bytes.fromhex('000100010000') + b'\x06' + b'\0' * 5)
+            assert dispatch(parent) == bytes.fromhex('000000011d1900000000')
+            shallow = frame(0x4bb, 0x70001001, bytes.fromhex('000000000000') + b'\x07' + b'\0' * 5)
+            assert b'\xa1' + struct.pack('>I', 0x70001001) in dispatch(shallow)
+            deep = frame(0x4bb, 0x60000002, bytes.fromhex('000100000000') + b'\x08' + b'\0' * 5)
+            tree = dispatch(deep)
+            assert b'Parent' in tree and b'Child' in tree
+            shallow = frame(0x4bb, 0x60000002, bytes.fromhex('000001000000') + b'\x09' + b'\0' * 5)
+            tree = dispatch(shallow)
+            assert b'Parent' in tree and b'Child' not in tree
+            after_invoke = frame(0x4f2, 0x70001001, b'\x01' + vlq(299) + b'\0\x04\x20' + QUALIFIER + b'\0\x0d' + b'\0' * 4)
+            assert dispatch(after_invoke) == bytes.fromhex('001a00000000')
         finally:
             lib.zomsp_session_close(session)
             store.close()

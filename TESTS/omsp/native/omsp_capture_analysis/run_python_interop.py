@@ -71,13 +71,13 @@ def python_server():
 
 def run_pair(mode, library):
     native = [str(HERE / 'native_probe'), library]
-    env = dict(os.environ, LD_PRELOAD=str(HERE / 'native_socket_trace.so'), OMSP_TEST_PORT='30202')
+    env = dict(os.environ, LD_PRELOAD=str(HERE / 'native_socket_trace.so'), OMSP_TEST_PORT='30202', OMSP_NATIVE_LIBRARY=library)
     zomsp = os.environ.get('ZOMSP_BINARY')
     credentials = HERE / 'native_test_credentials'
     cert = str(credentials / 'server-cert.pem')
     key = str(credentials / 'server-key.pem')
     client_kind, server_kind = {
-        'python_client': ('python', 'native'), 'python_server': ('native', 'python'),
+        'native_both': ('native', 'native'), 'python_client': ('python', 'native'), 'python_server': ('native', 'python'),
         'zomsp_client_native': ('zomsp', 'native'), 'native_client_zomsp': ('native', 'zomsp'),
         'python_client_zomsp': ('python', 'zomsp'), 'zomsp_client_python': ('zomsp', 'python'),
         'zomsp_both': ('zomsp', 'zomsp'),
@@ -157,6 +157,16 @@ if __name__ == '__main__':
     if os.environ.get('OMSP_INTEROP_MODES'):
         modes = os.environ['OMSP_INTEROP_MODES'].split(',')
     results = [run_pair(mode, sys.argv[1]) for mode in modes]
+    if os.environ.get('OMSP_ENDPOINT_SWEEP'):
+        os.environ['OMSP_OBJECT_OPS'] = '1'
+        os.environ['OMSP_EXPLORE_SESSION'] = '1'
+        for parent in (False, True):
+            if parent: os.environ['OMSP_EXPLORE_PARENT'] = '1'
+            else: os.environ.pop('OMSP_EXPLORE_PARENT', None)
+            for mode in ('native_both', 'native_client_zomsp'):
+                result = run_pair(mode, sys.argv[1])
+                result['explore_with_parent'] = parent
+                results.append(result)
     name = 'python_interop_proxy.json' if os.environ.get('OMSP_VIA_PROXY') else 'python_interop_latest.json'
     (HERE / name).write_text(json.dumps(results, indent=2))
     print(json.dumps(results, indent=2))

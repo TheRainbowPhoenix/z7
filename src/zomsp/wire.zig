@@ -510,6 +510,33 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
     const target = try reader.u32be();
     if (!state.negotiated and request.function != 0x542) return error.NotNegotiated;
     if (!state.negotiated and target != state.session) return error.InvalidSession;
+    if (request.function == 0x56b) {
+        _ = try reader.u32be();
+        for (0..2) |_| {
+            var indices: [16]u32 = undefined;
+            var count: usize = 0;
+            while (true) {
+                const index = try reader.vlq();
+                if (index == 0) break;
+                if (index > std.math.maxInt(u32) or count == indices.len) return error.ValueLimit;
+                if (std.mem.indexOfScalar(u32, indices[0..count], @intCast(index)) != null) return error.InvalidIndex;
+                indices[count] = @intCast(index);
+                count += 1;
+                _ = try reader.value(0);
+            }
+        }
+        const integrity = try reader.vlq();
+        if (integrity > std.math.maxInt(u32) / 2 or integrity != @as(u64, state.write_counter) + 1) return error.InvalidIntegrity;
+        if (try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
+        try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
+        try writer.vlq(0x8020ab00199afff4);
+        try writer.put(&.{ 0, 0, 0, 0 });
+        try writer.vlq(integrity << 1);
+        try writer.be32(0);
+        const result = try writer.finish();
+        state.write_counter = @intCast(integrity);
+        return result;
+    }
     if (request.function == 0x4bb) return explore(writer, request, state, target, &reader);
     if (request.function == 0x524) {
         const aid = try reader.vlq();
@@ -902,10 +929,11 @@ fn exploreObject(writer: *Writer, model: *const backend.Layout, rid_value: u32, 
 }
 
 fn explore(writer: *Writer, request: Message, state: *State, target: u32, reader: *Reader) ![]const u8 {
-    if (try reader.vlq() != 0 or try reader.byte() != 1) return error.UnsupportedExplore;
+    if (try reader.vlq() != 0) return error.UnsupportedExplore;
     const recursive = try reader.byte();
+    const recursive_filter = try reader.byte();
     const with_parent = try reader.byte();
-    if (recursive > 1 or with_parent > 1 or try reader.vlq() != 0) return error.UnsupportedExplore;
+    if (recursive > 1 or recursive_filter > 1 or with_parent > 1 or try reader.vlq() != 0) return error.UnsupportedExplore;
     const count = try reader.vlq();
     if (count > 64) return error.ValueLimit;
     var aids: [64]u32 = undefined;
@@ -933,7 +961,7 @@ fn explore(writer: *Writer, request: Message, state: *State, target: u32, reader
     try writer.vlq(if (found) 0 else 0x8020ab001a23fff4);
     try writer.be32(parent);
     try writer.vlq((integrity << 2) | 1);
-    if (target == state.session) {
+    if (target == state.session and with_parent == 0) {
         try openObject(writer, state.session, 287, 0);
         for ([_]u32{ 299, 300, 301, 1842, 1903, 1905 }) |aid| {
             if (count != 0 and std.mem.indexOfScalar(u32, aids[0..@intCast(count)], aid) == null) continue;
@@ -941,9 +969,8 @@ fn explore(writer: *Writer, request: Message, state: *State, target: u32, reader
             if (try readAttribute(writer, state, state.session, aid) != 0) return error.UnsupportedAttribute;
         }
         try writer.byte(0xa2);
-    } else if (found) try exploreObject(writer, model.?, target, aids[0..@intCast(count)], recursive != 0, 0);
-    // Parent metadata is always present; ancestor serialization needs a separate bounded walk.
-    if (with_parent != 0) return error.UnsupportedExplore;
+    } else if (found and target != state.session) try exploreObject(writer, model.?, target, aids[0..@intCast(count)], recursive != 0, 0);
+    if (with_parent != 0 and found and target != state.session) return error.UnsupportedExplore;
     try writer.be32(0);
     const result = try writer.finish();
     state.read_counter = @intCast(integrity);

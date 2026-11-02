@@ -10,3 +10,9 @@ This compiles the probes, creates disposable test credentials, and requires both
 zOMSp client -> native server and native client -> zOMSp server to pass TLS login
 and role read/write/readback. The preload shim redirects native TCP port 102 to
 loopback port 30202 without elevated privileges. JSON evidence includes logs.
+
+The default suite also uses native -> native as an oracle for unknown-method
+Invoke (0x8020ab00199afff4), verifies a follow-up ping, and compares session
+Explore with/without WithParent in both native and zOMSp servers. Seven role/
+Explore combinations must pass. This does not claim successful application
+method execution, filtered Explore, or PLC collective/alarm/authentication parity.
