@@ -141,7 +141,7 @@ pub const Reader = struct {
                 number = try self.vlq();
                 if (number > 1) return error.UnsupportedValue;
                 const length = try self.vlq();
-                if (length > 4096) return error.ValueLimit;
+                if (length > backend.streaming.max_chunk) return error.ValueLimit;
                 _ = try self.take(@intCast(length));
             },
             0x15 => {
@@ -284,9 +284,15 @@ pub const Message = struct {
     flags: u8,
     body: []const u8,
     pub fn parse(data: []const u8) !Message {
-        if (data.len < 14 or data.len > limit or data[0] != 0x72 or data[1] < 1 or data[1] > 2) return error.InvalidMessage;
+        return parseInternal(data, false);
+    }
+    pub fn parseAssembled(data: []const u8) !Message {
+        return parseInternal(data, true);
+    }
+    fn parseInternal(data: []const u8, comptime assembled: bool) !Message {
+        if (data.len < 14 or data.len > (if (assembled) backend.streaming.max_chunk + 1024 else limit) or data[0] != 0x72 or data[1] < 1 or data[1] > 2) return error.InvalidMessage;
         const size = std.mem.readInt(u16, data[2..4], .big);
-        if (size != data.len - 4) return error.InvalidLength;
+        if (!assembled and size != data.len - 4) return error.InvalidLength;
         const request = data[4] == 0x31;
         if (!request and data[4] != 0x32) return error.UnsupportedOpcode;
         const prefix: usize = if (request) 18 else 14;
@@ -586,9 +592,10 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         const supported = sequence_type != 2 or (state.backend != null and state.backend.?.transactions_enabled);
         var status: u64 = if (supported) 0 else 0xa201a3002ae3ff19;
         if (request.function == 0x560 and !abort) if (state.transaction) |transaction| {
-            if (transaction.directives_length != 0) {
+            const call: application.Invocation = .{ .target = state.transaction_rid, .method = 0x560, .session = state.session, .client = state.client, .role = state.role };
+            if (transaction.upload) |*upload| status = try upload.validate(&call);
+            if (status == 0 and transaction.directives_length != 0) {
                 const activator = transaction.source.activator orelse return error.UnsupportedActivation;
-                const call: application.Invocation = .{ .target = state.transaction_rid, .method = 0x560, .session = state.session, .client = state.client, .role = state.role };
                 const image = std.mem.asBytes(transaction.shadow.data);
                 status = activator.callback(activator.user, &call, &transaction.directives, transaction.directives_length, image.ptr, image.len);
             }
@@ -781,6 +788,7 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
     var updates: [16]backend.Update = undefined;
     var update_buffers: [16][backend.max_value_bytes]u8 = undefined;
     var update_count: usize = 0;
+    var blob_update: ?struct { offset: u32, bytes: []const u8 } = null;
     var parsed_integrity: ?u32 = null;
     var authentication_status: ?u64 = null;
     var delete_object: ?u32 = null;
@@ -888,7 +896,11 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
             try writer.byte(0);
             var value_writer: Writer = .{};
             var status = try readAttribute(&value_writer, state, target, address.aid);
-            if (status == 0) {
+            const blob = if (state.backend) |store| store.blob else null;
+            if (blob != null and target == blob.?.rid and address.aid == blob.?.aid and address.path_len == 1 and address.path[0] == 0xfffffff9) {
+                status = 0;
+                try writer.uint(blob.?.length);
+            } else if (status == 0) {
                 const raw = nestedValue(value_writer.data[0..value_writer.used], address.path[0..address.path_len]) catch null;
                 if (raw) |value| try writer.put(value) else status = 0xa03388000088ffe0;
             }
@@ -916,6 +928,9 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
                     state.role = @intCast(value.number);
                 }
             } else {
+                if (state.backend) |store| if (store.blob) |blob| {
+                    if (target == blob.rid and aid == blob.aid) return error.UnsupportedAddress;
+                };
                 if (aid > std.math.maxInt(u32)) return error.InvalidAddress;
                 updates[0] = .{ .rid = target, .aid = @intCast(aid), .value = value.raw };
                 update_count = 1;
@@ -926,7 +941,15 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
             if (!std.mem.eql(u8, try reader.take(qualifier_bytes.len), &qualifier_bytes)) return error.UnsupportedQualifier;
             if (try reader.byte() != 0 or try reader.byte() != 1) return error.InvalidRequestFlags;
             const value = try reader.value(0);
-            if (findSubscription(state, target)) |subscription| {
+            const blob = if (state.backend) |store| store.blob else null;
+            if (blob != null and target == blob.?.rid and address.aid == blob.?.aid) {
+                if (state.transaction == null or address.path_len != 2 or value.kind != 0x14 or value.raw[0] != 0) return error.UnsupportedAddress;
+                var chunk: Reader = .{ .data = value.raw, .offset = 2 };
+                if (try chunk.vlq() != 0) return error.UnsupportedValue;
+                const length = try chunk.vlq();
+                if (length != address.path[1] or length == 0 or length > backend.streaming.max_chunk) return error.ValueLimit;
+                blob_update = .{ .offset = address.path[0], .bytes = try chunk.take(@intCast(length)) };
+            } else if (findSubscription(state, target)) |subscription| {
                 if (address.path_len != 0) return error.UnsupportedAddress;
                 try subscription.set(address.aid, value, Reader);
             } else if (target == state.session) {
@@ -987,6 +1010,15 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         const store = state.backend orelse return error.ObjectNotFound;
         try store.removeApplication(rid);
     }
+    if (blob_update) |update| {
+        const transaction = state.transaction orelse return error.UnsupportedSequence;
+        const blob = transaction.source.blob orelse return error.UnsupportedValue;
+        if (transaction.upload == null) {
+            if (update.offset != 0) return error.InvalidAddress;
+            transaction.upload = try backend.streaming.Upload.open(blob);
+        }
+        try transaction.upload.?.append(update.offset, update.bytes);
+    }
     if (update_count != 0) {
         const store = state.backend orelse return error.ObjectNotFound;
         try store.write(updates[0..update_count]);
@@ -1011,9 +1043,9 @@ fn streamedAddress(reader: *Reader, target: u32) !Address {
     const aid = try reader.vlq();
     if (aid == 0 or aid > std.math.maxInt(u32)) return error.InvalidAddress;
     var address: Address = .{ .rid = target, .aid = @intCast(aid), .path_len = @intCast(count - 1) };
-    for (address.path[0..address.path_len]) |*part| {
+    for (address.path[0..address.path_len], 0..) |*part, index| {
         const id = try reader.vlq();
-        if (id == 0 or id > std.math.maxInt(u32)) return error.InvalidAddress;
+        if ((id == 0 and !(address.path_len == 2 and index == 0)) or id > std.math.maxInt(u32)) return error.InvalidAddress;
         part.* = @intCast(id);
     }
     return address;

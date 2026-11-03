@@ -38,6 +38,7 @@ def linux_path(path):
 def run_native(args,port):
     if args.native_wsl:
         command=['wsl','-d',args.native_wsl,'--','python3',linux_path(Path(__file__).with_name('native_bridge.py')),'--native',linux_path(args.native),'--reference',linux_path(args.native_reference),'--credentials',linux_path(args.credentials),'--program',SOURCE]
+        if getattr(args,'stream_file',None):command += ['--stream-file',linux_path(args.stream_file)]
         process=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
         channel=socket.create_connection(('127.0.0.1',port),3)
         def up():
@@ -57,7 +58,7 @@ def run_native(args,port):
         workers=[threading.Thread(target=up,daemon=True),threading.Thread(target=down,daemon=True)]
         for worker in workers:worker.start()
         try:
-            process.wait(timeout=25)
+            process.wait(timeout=140)
             error=process.stderr.read().decode(errors='replace')
             records=[line[len('NATIVE_RESULT='):] for line in error.splitlines() if line.startswith('NATIVE_RESULT=')]
             assert process.returncode==0 and records,error
@@ -69,7 +70,10 @@ def run_native(args,port):
             for worker in workers:worker.join(2)
     native=Path(args.native).resolve()
     env=dict(os.environ,LD_PRELOAD=str(native.with_name('native_socket_trace.so')),OMSP_TEST_PORT=str(port),OMSP_SEQUENCE='1',OMSP_COLLECTIVE='1',OMSP_ACTIVATION='1',OMSP_TRANSACTION_WRITE='1000',OMSP_PROGRAM=SOURCE)
-    process=subprocess.run([str(native),str(Path(args.native_reference).resolve()),'::127.0.0.1:SIMATIC-ROOT-ES:6.0'],cwd=Path(args.credentials).resolve().parent.parent,env=env,capture_output=True,text=True,timeout=20)
+    if getattr(args,'stream_file',None):
+        env['OMSP_STREAM_FILE']=str(Path(args.stream_file).resolve())
+        env.pop('OMSP_PROGRAM',None);env.pop('OMSP_ACTIVATION',None)
+    process=subprocess.run([str(native),str(Path(args.native_reference).resolve()),'::127.0.0.1:SIMATIC-ROOT-ES:6.0'],cwd=Path(args.credentials).resolve().parent.parent,env=env,capture_output=True,text=True,timeout=120)
     assert process.returncode==0,process.stdout+process.stderr
     return process.stdout
 

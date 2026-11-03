@@ -83,7 +83,10 @@ def main():
         result = subprocess.call(command, cwd=HERE.parents[2])
         if result:
             return result
-    return 0
+    return subprocess.call([sys.executable, str(HERE.parent / 'large_program.py'),
+        '--library', str(shared), '--binary', binary, '--reference', str(library),
+        '--native-reference', str(library), '--native', str(work / 'native_probe'),
+        '--credentials', str(credentials), '--clients', 'native'], cwd=HERE.parents[2])
 
 
 if __name__ == '__main__':

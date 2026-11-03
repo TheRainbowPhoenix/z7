@@ -92,7 +92,7 @@ fn serveSession(stream: std.net.Stream, certificate: [:0]const u8, key: [:0]cons
     channel.wait_read = false;
     var last_message = std.time.milliTimestamp();
     while (true) {
-        const data = channel.receive() catch |err| switch (err) {
+        const request = channel.receiveRequest() catch |err| switch (err) {
             error.EndOfStream => return,
             error.WouldBlock, error.ConnectionTimedOut => {
                 if (std.time.milliTimestamp() - last_message > 30_000) return error.IdleTimeout;
@@ -102,7 +102,6 @@ fn serveSession(stream: std.net.Stream, certificate: [:0]const u8, key: [:0]cons
             },
             else => return err,
         };
-        const request = try wire.Message.parse(data);
         if (!created and request.function != 0x4ca) return error.InvalidSession;
         if (created and request.function == 0x4ca and request.version == 1) return error.AlreadyCreated;
         const response = try reply(&writer, request, &state, cancel);
@@ -219,6 +218,107 @@ fn readRole(channel: *Channel, notifications: *wire.NotificationQueue, writer: *
     const value = try reader.value(0);
     if ((value.kind != 4 and value.kind != 0x12) or value.number > 0xffffffff) return error.UnexpectedType;
     return @intCast(value.number);
+}
+
+fn clientLargeUpload(channel: *Channel, notifications: *wire.NotificationQueue, session: u32, first_sequence: u16, previous_counter: u32) !void {
+    const allocator = std.heap.page_allocator;
+    const path = try std.process.getEnvVarOwned(allocator, "ZOMSP_PROGRAM_FILE");
+    defer allocator.free(path);
+    var file = try std.fs.cwd().openFile(path, .{});
+    defer file.close();
+    const length = try file.getEndPos();
+    if (length < 64 or length > @import("streaming.zig").max_bytes) return error.ValueLimit;
+    var header: [64]u8 = undefined;
+    if (try file.readAll(&header) != header.len or !std.mem.eql(u8, header[0..8], "ZOMSPSIN")) return error.InvalidProgram;
+    const entries = std.mem.readInt(u32, header[12..16], .little);
+    if (entries < 4 or @as(u64, entries) * 4 + 64 != length) return error.InvalidProgram;
+    try file.seekTo(0);
+    var writer: wire.Writer = .{};
+    var sequence = first_sequence;
+    var write_counter = previous_counter + 1;
+    var read_counter = previous_counter - 1;
+    try writer.begin(2, 0x31, 0x556, sequence, session, 0x36);
+    try writer.put(&.{ 2, 0, 1, 0 });
+    try writer.vlq(write_counter);
+    try writer.byte(0xa1);
+    try writer.be32(0x7fffc001);
+    try writer.vlq(1700);
+    try writer.put(&.{ 0, 0, 0xa2, 0, 0, 0, 0 });
+    try channel.send(try writer.finish());
+    _ = try checkReply(try channel.receiveReply(notifications), 0x556, sequence);
+    var offset: u32 = 0;
+    var chunk: [32768]u8 = undefined;
+    while (offset < length) {
+        const count = try file.readAll(chunk[0..@min(chunk.len, length - offset)]);
+        if (count == 0) return error.EndOfStream;
+        sequence += 1;
+        write_counter += 1;
+        try writer.begin(2, 0x31, 0x57c, sequence, session, 0x34);
+        try writer.be32(1000);
+        try writer.put(&.{ 0x20, 4, 3, 42 });
+        try writer.vlq(offset);
+        try writer.vlq(count);
+        try writer.put(&wire.qualifier_bytes);
+        try writer.put(&.{ 0, 1, 0, 0x14, 0 });
+        try writer.vlq(count);
+        try writer.put(chunk[0..count]);
+        try writer.vlq(write_counter);
+        try writer.be32(0);
+        try channel.send(try writer.finish());
+        _ = try checkReply(try channel.receiveReply(notifications), 0x57c, sequence);
+        offset += @intCast(count);
+    }
+    sequence += 1;
+    write_counter += 1;
+    try writer.begin(2, 0x31, 0x560, sequence, session, 0x36);
+    try writer.put(&.{ 0, 1 });
+    try writer.vlq(write_counter);
+    try writer.be32(0);
+    try channel.send(try writer.finish());
+    _ = try checkReply(try channel.receiveReply(notifications), 0x560, sequence);
+    std.log.info("zOMSp streamed program bytes={d}", .{offset});
+    for ([_]u32{ 0, entries / 4, entries / 2, entries * 3 / 4, entries - 1 }, [_]f32{ 0, 1, 0, -1, 0 }) |input, expected| {
+        sequence += 1;
+        write_counter += 1;
+        try writer.begin(2, 0x31, 0x4f2, sequence, session, 0x34);
+        try writer.be32(1000);
+        try writer.put(&.{ 1, 44 });
+        try writer.uint(input);
+        try writer.qualifier(false, write_counter);
+        try channel.send(try writer.finish());
+        _ = try checkReply(try channel.receiveReply(notifications), 0x4f2, sequence);
+        var matched = false;
+        for (0..100) |_| {
+            std.Thread.sleep(10 * std.time.ns_per_ms);
+            sequence += 1;
+            read_counter += 1;
+            try writer.begin(2, 0x31, 0x586, sequence, session, 0x34);
+            try writer.be32(1000);
+            try writer.put(&.{ 0x20, 4, 1, 45 });
+            try writer.qualifier(true, read_counter);
+            try channel.send(try writer.finish());
+            const response = try checkReply(try channel.receiveReply(notifications), 0x586, sequence);
+            var reader: wire.Reader = .{ .data = response.body };
+            if (try reader.vlq() != 0 or try reader.vlq() != 0) return error.ReadRejected;
+            const value = try reader.value(0);
+            if (value.kind != 0x0e or value.number > std.math.maxInt(u32)) return error.UnexpectedType;
+            const output: f32 = @bitCast(@as(u32, @intCast(value.number)));
+            if (std.math.isFinite(output) and @abs(output - expected) < 0.00002) {
+                std.log.info("zOMSp sine input={d} output={d}", .{ input, output });
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) return error.ReadbackMismatch;
+    }
+    sequence += 1;
+    try writer.begin(2, 0x31, 0x4d4, sequence, session, 0x34);
+    try writer.be32(session);
+    try writer.byte(0);
+    try writer.put(&wire.qualifier_bytes);
+    try writer.vlq(write_counter + 1);
+    try writer.be32(0);
+    try channel.send(try writer.finish());
 }
 
 fn clientActivation(channel: *Channel, notifications: *wire.NotificationQueue, session: u32, sequence: u16, previous_counter: u32) !void {
@@ -372,6 +472,7 @@ fn authenticatedClient(channel: *Channel, notifications: *wire.NotificationQueue
     _ = try checkReply(try channel.receiveReply(notifications), 0x4f2, 8);
     if (try readRole(channel, notifications, &writer, session, 9, 299, 4) != 32) return error.ReadbackMismatch;
     std.log.info("zOMSp authenticated roundtrip=ok role={d}->32", .{before});
+    if (std.process.hasEnvVarConstant("ZOMSP_PROGRAM_FILE")) return clientLargeUpload(channel, notifications, session, 10, 5);
     if (std.process.hasEnvVarConstant("ZOMSP_ACTIVATION")) return clientActivation(channel, notifications, session, 10, 5);
     try writer.begin(2, 0x31, 0x4d4, 10, session, 0x34);
     try writer.be32(session);
@@ -454,6 +555,7 @@ fn client(host: [:0]const u8, port: u16, certificate: [:0]const u8) !void {
     const after = try readRole(&channel, notifications, &writer, session, 7, 299, 3);
     if (after != 32) return error.ReadbackMismatch;
     std.log.info("zOMSp roundtrip=ok role={d}->{d}", .{ before, after });
+    if (std.process.hasEnvVarConstant("ZOMSP_PROGRAM_FILE")) return clientLargeUpload(&channel, notifications, session, 8, 4);
     if (std.process.hasEnvVarConstant("ZOMSP_ACTIVATION")) return clientActivation(&channel, notifications, session, 8, 4);
     var close_sequence: u16 = 8;
     if (std.process.hasEnvVarConstant("OMSP_EXTENDED")) {

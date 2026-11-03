@@ -49,11 +49,22 @@ its own reads for those tests. Existing activation tests retain the UDInt probe
 when these variables are absent.
 
 Source remains bounded to 900 UTF-8 bytes by these probes and 1024 encoded bytes
-per mapped value. Large streamed program transfers are not implemented by this
-demo; do not split a program silently or treat a truncated upload as success.
+per mapped value. This counter probe remains small; use `large_program.py` for file-backed large
+program transfers, including its exact 8 MiB sine LUT example.
 
 The CI matrix runs `program.py` through `tls.py` on Windows, Linux x64 and Linux
 ARM64. This stdlib-only variant uses the platform's zOMSp executable and shared
 library, validates the bounded counter instruction, then executes it in a Python
 host. It needs neither tia-tools nor the native SDK. Five reads made by the
 zOMSp executable must increase after upload and commit.
+
+
+## Large sine-LUT demo
+
+`python TESTS/omsp/large_program.py` uses the platform zOMSp executable/server and
+a stdlib Python compiler/runtime to upload and execute an 8 MiB program. Add
+`--clients zomsp,python,native` for all three clients; on Windows also select
+`--native-wsl podman-machine-default`. The Windows zOMSp client and server remain
+Windows binaries. Source SHA-256, committed file SHA-256, and five sine values
+are checked. `--output report.json` records sizes, elapsed times and results.
+The 8 MiB zOMSp-only test runs in the existing cross-platform CI TLS step.

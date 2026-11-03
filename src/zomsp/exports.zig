@@ -164,6 +164,26 @@ export fn zomsp_value_size(bytes: ?[*]const u8, length: usize) isize {
     _ = reader.value(0) catch return -1;
     return @intCast(reader.offset);
 }
+export fn zomsp_blob(context: ?*Context, rid: u32, aid: u32, length: u32, directory: ?[*:0]const u8, validator: ?backend.streaming.Validator, user: ?*anyopaque) i32 {
+    const ctx = context orelse return -1;
+    if (ctx.runtime != null or ctx.sessions != 0) return -6;
+    if (directory == null or validator == null or ctx.store.blob != null) return -1;
+    const object = ctx.store.info(rid) catch |err| return failure(err);
+    if (object.flags != 0) return -4;
+    const blob = allocator.create(backend.streaming.Store) catch return -1;
+    blob.* = backend.streaming.Store.init(rid, aid, length, std.mem.span(directory.?), validator.?, user) catch |err| {
+        allocator.destroy(blob);
+        return failure(err);
+    };
+    ctx.store.blob = blob;
+    return 0;
+}
+export fn zomsp_blob_path(context: ?*Context, output: ?[*]u8, capacity: usize) isize {
+    const ctx = context orelse return -1;
+    if (output == null or capacity == 0) return -1;
+    const blob = ctx.store.blob orelse return -1;
+    return @intCast(blob.path(output.?[0..capacity]) catch |err| return failure(err));
+}
 export fn zomsp_size() usize {
     return @sizeOf(backend.Layout);
 }
@@ -216,6 +236,10 @@ export fn zomsp_stop(context: ?*Context) void {
 export fn zomsp_close(context: ?*Context) void {
     const ctx = context orelse return;
     zomsp_stop(ctx);
+    if (ctx.store.blob) |blob| {
+        blob.deinit();
+        allocator.destroy(blob);
+    }
     ctx.store.close();
     allocator.destroy(ctx);
 }

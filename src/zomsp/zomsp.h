@@ -48,6 +48,19 @@ int32_t zomsp_user_password(zomsp_context *, const uint8_t *username, size_t use
 typedef uint64_t (*zomsp_activation_handler)(void *, const zomsp_invocation *,
     const uint8_t *directives, size_t directives_length, const uint8_t *image, size_t image_length);
 int32_t zomsp_activation(zomsp_context *, zomsp_activation_handler, void *user);
+/* One opt-in file-backed blob per context, length 1..16 MiB, before sessions.
+ * directory must exist. Uploads require a collective and contiguous chunks.
+ * Validation gets an immutable staged file path valid during the callback;
+ * zero accepts, nonzero preserves the host status and discards the upload.
+ * Read/compile the file normally; defer external activation until publication.
+ * Close host file/mmap handles before context close. Committed files are owned
+ * by the context; copy them if persistence beyond its lifetime is required. */
+typedef uint64_t (*zomsp_blob_validator)(void *, const zomsp_invocation *, const char *path, uint64_t length);
+int32_t zomsp_blob(zomsp_context *, uint32_t rid, uint32_t aid, uint32_t length,
+    const char *directory, zomsp_blob_validator, void *user);
+/* Current committed immutable path, NUL terminated; byte count excludes NUL.
+ * -3 before a commit, -5 for insufficient capacity. Path may change on commit. */
+intptr_t zomsp_blob_path(zomsp_context *, char *output, size_t capacity);
 int32_t zomsp_transactions(zomsp_context *, uint8_t enabled);
 int32_t zomsp_method(zomsp_context *, uint32_t target, uint32_t method,
     zomsp_invoke_handler, void *user);

@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const application = @import("application.zig");
+pub const streaming = @import("streaming.zig");
 
 pub const max_objects = 128;
 pub const max_values = 512;
@@ -45,6 +46,7 @@ pub const Backend = struct {
     methods: application.Registry = .{},
     transactions_enabled: bool = false,
     activator: ?application.Activator = null,
+    blob: ?*streaming.Store = null,
     authentication: @import("authentication.zig").Policy = .{},
     private: bool = false,
 
@@ -379,6 +381,7 @@ pub const Backend = struct {
         const generation = try self.next();
         var entries: [16]*Entry = undefined;
         for (updates, 0..) |update, index| {
+            if (self.blob) |blob| if (update.rid == blob.rid and update.aid == blob.aid) return error.UnsupportedAddress;
             if (update.value.len < 2 or update.value.len > max_value_bytes) return error.InvalidValue;
             const object = self.findObject(update.rid) orelse return error.ObjectNotFound;
             if (object.flags != 0) return error.ReadOnly;
@@ -406,6 +409,7 @@ pub const Transaction = struct {
     generation: u64,
     directives: [max_value_bytes]u8 = undefined,
     directives_length: usize = 0,
+    upload: ?streaming.Upload = null,
     allocator: std.mem.Allocator,
 
     pub fn open(source: *Backend, allocator: std.mem.Allocator) !*Transaction {
@@ -417,7 +421,7 @@ pub const Transaction = struct {
             .source = source,
             .generation = copy.header.generation,
             .allocator = allocator,
-            .shadow = .{ .file = source.file, .bytes = source.bytes, .data = copy, .private = true, .methods = source.methods, .authentication = source.authentication },
+            .shadow = .{ .file = source.file, .bytes = source.bytes, .data = copy, .private = true, .methods = source.methods, .blob = source.blob, .authentication = source.authentication },
         };
         return transaction;
     }
@@ -425,11 +429,27 @@ pub const Transaction = struct {
     pub fn commit(self: *Transaction) !void {
         try self.source.lock();
         defer self.source.unlock();
+        if (self.upload != null and self.shadow.data.header.generation == self.generation) {
+            const upload = &self.upload.?;
+            const before = self.shadow.findObject(upload.store.rid) orelse return error.ObjectNotFound;
+            const current = self.source.findObject(upload.store.rid) orelse return error.ObjectNotFound;
+            if (current.generation != before.generation or current.flags != before.flags or current.class != before.class) return error.TransactionConflict;
+            const generation = try self.source.next();
+            try upload.publish();
+            self.source.data.header.generation = generation;
+            return;
+        }
         if (self.source.data.header.generation != self.generation) return error.TransactionConflict;
+        if (self.upload) |*upload| {
+            if (self.generation == std.math.maxInt(u64)) return error.GenerationOverflow;
+            self.shadow.data.header.generation = @max(self.shadow.data.header.generation, self.generation + 1);
+            try upload.publish();
+        }
         self.source.data.* = self.shadow.data.*;
     }
 
     pub fn close(self: *Transaction) void {
+        if (self.upload) |*upload| upload.close();
         self.shadow.authentication.configure(&.{}) catch unreachable;
         self.allocator.destroy(self.shadow.data);
         self.allocator.destroy(self);

@@ -140,6 +140,10 @@ def check(library, runtime):
         check_activation(library, reference=tls_library, credentials=credentials, binary=executable)
         from program import check as check_program
         check_program(library, tls_library, credentials, executable)
+        from types import SimpleNamespace
+        from large_program import check as check_large_program
+        check_large_program(SimpleNamespace(library=library, reference=tls_library,
+            credentials=credentials, binary=executable, clients='zomsp'))
     print('OMSp bundled TLS: verified handshake, native login, mapped read/write and cancelled partial handshake passed')
 
 

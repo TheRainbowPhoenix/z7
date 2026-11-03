@@ -507,6 +507,7 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                 value_dtor(links);
             }
             if (status >= 0 && getenv("OMSP_SEQUENCE")) {
+                uint32_t uploaded_entries = 0;
                 int64_t (*begin)(void *, unsigned char, unsigned char *, int *, void *, void *, bool *) = symbol(library,
                     "_ZN11OMSpWrapper13ClientSession13BeginSequenceEhRhRiPNS_5ValueEPNS_6ObjectERb");
                 int64_t (*end)(void *, bool, int *, void *, bool *) = symbol(library,
@@ -572,7 +573,33 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                         printf("sequence.upload.status=0x%016" PRIx64 "\n", (uint64_t)status);
                         destroy(upload_object);
                     }
-                    if (getenv("OMSP_TRANSACTION_WRITE")) {
+                    if (getenv("OMSP_STREAM_FILE")) {
+                        const char *path = getenv("OMSP_STREAM_FILE");
+                        FILE *input = fopen(path, "rb");
+                        if (!input || fseek(input, 0, SEEK_END) != 0) abort();
+                        long size = ftell(input);
+                        if (size <= 0 || size > 16 * 1024 * 1024 || fseek(input, 0, SEEK_SET) != 0) abort();
+                        unsigned char *bytes = malloc((size_t)size);
+                        if (!bytes || fread(bytes, 1, (size_t)size, input) != (size_t)size) abort();
+                        fclose(input);
+                        if (size >= 64 && memcmp(bytes, "ZOMSPSIN", 8) == 0) {
+                            memcpy(&uploaded_entries, bytes + 12, 4);
+                            if (uploaded_entries < 4 || (uint64_t)uploaded_entries * 4 + 64 != (uint64_t)size) abort();
+                        }
+                        uintptr_t blob[4] = {0};
+                        void (*blob_init)(void *) = symbol(library, "_ZN11OMSpWrapper4BlobC2Ev");
+                        int64_t (*blob_data)(void *, const void *, unsigned) = symbol(library, "_ZN11OMSpWrapper4Blob7SetDataEPhj");
+                        int64_t (*set_blob)(void *, unsigned, unsigned, unsigned *, void *) = symbol(library,
+                            "_ZN11OMSpWrapper13ClientSession13SetBlobRemoteEjjPjPNS_4BlobE");
+                        blob_init(blob);
+                        status = blob_data(blob, bytes, (unsigned)size);
+                        unsigned aid = 42;
+                        if (status >= 0) status = set_blob(session, 1000, 1, &aid, blob);
+                        void (*blob_destroy)(void *) = symbol(library, "_ZN11OMSpWrapper4BlobD2Ev");
+                        blob_destroy(blob);free(bytes);
+                        printf("program.stream.status=0x%016" PRIx64 " bytes=%ld\n", (uint64_t)status, size);
+                    }
+                    if (getenv("OMSP_TRANSACTION_WRITE") && !getenv("OMSP_STREAM_FILE")) {
                         uintptr_t transaction_value[2] = {0};
                         value_ctor(transaction_value);
                         int64_t (*set_uint_transaction)(void *, uint32_t) = symbol(library, "_ZN11OMSpWrapper5Value8SetValueEj");
@@ -601,6 +628,30 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                         status = end_transaction(session, getenv("OMSP_ABORT") == NULL, &request_id, response, &extension);
                     } else status = end(session, false, &request_id, response, &extension);
                     printf("sequence.end.status=0x%016" PRIx64 "\n", (uint64_t)status);
+                    if (status >= 0 && uploaded_entries) {
+                        int64_t (*get_real)(void *, float *) = symbol(library, "_ZN11OMSpWrapper5Value8GetValueERf");
+                        int64_t (*set_input)(void *, uint32_t) = symbol(library, "_ZN11OMSpWrapper5Value8SetValueEj");
+                        int64_t (*write_input)(void *, uint32_t, uint32_t, void *, unsigned char, int *, void *, bool *, Qualifier, bool) = symbol(library,
+                            "_ZN11OMSpWrapper13ClientSession17SetVariableRemoteEjjPNS_5ValueEhRiPNS_6ObjectERbNS_15ObjectQualifierEb");
+                        const uint32_t inputs[] = {0, uploaded_entries/4, uploaded_entries/2, uploaded_entries*3/4, uploaded_entries-1};
+                        const float expected[] = {0, 1, 0, -1, 0};
+                        for (unsigned i = 0; i < 5 && status >= 0; ++i) {
+                            status = set_input(value, inputs[i]);
+                            request_id = -1;
+                            if (status >= 0) status = write_input(session,1000,44,value,0,&request_id,response,&extension,(Qualifier){0},false);
+                            bool matched = false;
+                            float actual = 0;
+                            for (unsigned attempt = 0; attempt < 100 && status >= 0; ++attempt) {
+                                usleep(10000);request_id = -1;
+                                status = get_remote(session,1000,45,value,false,&request_id,response,&extension,(Qualifier){0},false);
+                                if (status >= 0) status = get_real(value,&actual);
+                                float difference = actual-expected[i];
+                                if (difference > -0.00002f && difference < 0.00002f) {matched=true;break;}
+                            }
+                            if (!matched) status = -1;
+                            printf("program.sin input=%u output=%.8f status=0x%016" PRIx64 "\n",inputs[i],(double)actual,(uint64_t)status);
+                        }
+                    }
                     if (status >= 0 && getenv("OMSP_PROGRAM")) {
                         uint32_t previous = 0;
                         for (unsigned i = 0; i < 5 && status >= 0; ++i) {

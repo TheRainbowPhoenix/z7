@@ -62,6 +62,8 @@ pub const Channel = struct {
     cancel: ?*std.atomic.Value(bool) = null,
     wait_read: bool = true,
     deadline: i64,
+    assembly: ?[]u8 = null,
+    assembling: bool = false,
 
     pub fn exporter(self: *Channel) ![32]u8 {
         var result: [32]u8 = undefined;
@@ -72,6 +74,7 @@ pub const Channel = struct {
         return .{ .stream = stream, .deadline = std.time.milliTimestamp() + 10_000 };
     }
     pub fn deinit(self: *Channel) void {
+        if (self.assembly) |bytes| std.heap.page_allocator.free(bytes);
         if (self.tls) |tls| zomsp_tls_free(tls);
         self.stream.close();
     }
@@ -113,7 +116,12 @@ pub const Channel = struct {
             if (n == 0) return error.EndOfStream;
             self.frame_offset += n;
         }
-        _ = try protocol.classify(self.encrypted[0..length]);
+        if (self.tls == null) {
+            _ = try protocol.classify(self.encrypted[0..length]);
+        } else {
+            const header = @as(usize, self.encrypted[4]) + 5;
+            if (header > length or header < 7 or self.encrypted[5] & 0xf0 != 0xf0) return error.InvalidCotp;
+        }
         self.frame_offset = 0;
         return self.encrypted[0..length];
     }
@@ -192,7 +200,7 @@ pub const Channel = struct {
         return error.OutputLimit;
     }
     pub fn receive(self: *Channel) ![]const u8 {
-        if (self.queued == self.consumed and self.frame_offset == 0) self.deadline = std.time.milliTimestamp() + 10_000;
+        if (!self.assembling and self.queued == self.consumed and self.frame_offset == 0) self.deadline = std.time.milliTimestamp() + 10_000;
         for (0..256) |_| {
             if (self.consumed != 0) {
                 std.mem.copyForwards(u8, self.plaintext[0 .. self.queued - self.consumed], self.plaintext[self.consumed..self.queued]);
@@ -222,6 +230,58 @@ pub const Channel = struct {
                 @memcpy(self.plaintext[self.queued..][0..bytes.len], bytes);
                 self.queued += bytes.len;
             }
+        }
+        return error.InputLimit;
+    }
+
+    fn completeBlobRequest(data: []const u8, end: usize) !bool {
+        if (data.len < end + 5) return false;
+        var trailer: wire.Reader = .{ .data = data, .offset = end };
+        _ = trailer.vlq() catch |err| switch (err) {
+            error.Truncated => return false,
+            else => return err,
+        };
+        if (data.len - trailer.offset < 4) return false;
+        if (try trailer.u32be() != 0 or trailer.offset != data.len) return error.InvalidTrailer;
+        return true;
+    }
+
+    pub fn receiveRequest(self: *Channel) !wire.Message {
+        const first = try self.receive();
+        const message = try wire.Message.parse(first);
+        const version = first[1];
+        if (message.function != 0x57c) return message;
+        var reader: wire.Reader = .{ .data = first, .offset = 18 };
+        _ = try reader.u32be();
+        if (try reader.byte() != 0x20 or try reader.byte() != 4) return message;
+        const parts = try reader.vlq();
+        if (parts == 0 or parts > 4) return message;
+        for (0..@intCast(parts)) |_| _ = try reader.vlq();
+        if (!std.mem.eql(u8, try reader.take(wire.qualifier_bytes.len), &wire.qualifier_bytes)) return message;
+        if (try reader.byte() != 0 or try reader.byte() != 1 or try reader.byte() != 0 or try reader.byte() != 0x14) return message;
+        if (try reader.vlq() != 0) return message;
+        const length = try reader.vlq();
+        if (length > @import("streaming.zig").max_chunk) return error.MessageLimit;
+        const end = reader.offset + @as(usize, @intCast(length));
+        if (try completeBlobRequest(first, end)) return message;
+        const previous_wait = self.wait_read;
+        self.wait_read = true;
+        self.assembling = true;
+        defer {
+            self.wait_read = previous_wait;
+            self.assembling = false;
+        }
+        const capacity = @import("streaming.zig").max_chunk + 1024;
+        if (self.assembly == null) self.assembly = try std.heap.page_allocator.alloc(u8, capacity);
+        const bytes = self.assembly.?;
+        @memcpy(bytes[0..first.len], first);
+        var used = first.len;
+        for (0..128) |_| {
+            const fragment = try self.receive();
+            if (fragment.len <= 4 or fragment[1] != version or fragment.len - 4 > bytes.len - used) return error.InvalidFragment;
+            @memcpy(bytes[used..][0 .. fragment.len - 4], fragment[4..]);
+            used += fragment.len - 4;
+            if (try completeBlobRequest(bytes[0..used], end)) return wire.Message.parseAssembled(bytes[0..used]);
         }
         return error.InputLimit;
     }

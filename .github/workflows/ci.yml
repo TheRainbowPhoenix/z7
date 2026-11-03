@@ -127,6 +127,7 @@ jobs:
           python TESTS/omsp/invoke.py zig-out/lib/libzomsp.so
           python TESTS/omsp/transactions.py zig-out/lib/libzomsp.so
           python TESTS/omsp/activation.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/streaming.py zig-out/lib/libzomsp.so
           python TESTS/omsp/test_capture_model.py zig-out/lib/libzomsp.so
           python TESTS/omsp/authentication.py zig-out/lib/libzomsp.so
       - name: Test headless mapped-file ABI (Windows)
@@ -137,6 +138,7 @@ jobs:
           python TESTS/omsp/invoke.py zig-out/bin/zomsp.dll
           python TESTS/omsp/transactions.py zig-out/bin/zomsp.dll
           python TESTS/omsp/activation.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/streaming.py zig-out/bin/zomsp.dll
           python TESTS/omsp/test_capture_model.py zig-out/bin/zomsp.dll
           python TESTS/omsp/authentication.py zig-out/bin/zomsp.dll
       - name: Test Git OpenSSL packaging layouts

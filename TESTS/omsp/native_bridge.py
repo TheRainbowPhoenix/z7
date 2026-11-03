@@ -12,11 +12,14 @@ import threading
 
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--native',required=True);p.add_argument('--reference',required=True);p.add_argument('--credentials',required=True);p.add_argument('--program',required=True)
+    p=argparse.ArgumentParser();p.add_argument('--native',required=True);p.add_argument('--reference',required=True);p.add_argument('--credentials',required=True);p.add_argument('--program',default='');p.add_argument('--stream-file')
     a=p.parse_args()
     listener=socket.socket();listener.bind(('127.0.0.1',0));listener.listen(1);listener.settimeout(12)
     native=Path(a.native).resolve()
     env=dict(os.environ,LD_PRELOAD=str(native.with_name('native_socket_trace.so')),OMSP_TEST_PORT=str(listener.getsockname()[1]),OMSP_SEQUENCE='1',OMSP_COLLECTIVE='1',OMSP_ACTIVATION='1',OMSP_TRANSACTION_WRITE='1000',OMSP_PROGRAM=a.program)
+    if a.stream_file:
+        env['OMSP_STREAM_FILE']=a.stream_file
+        env.pop('OMSP_PROGRAM',None);env.pop('OMSP_ACTIVATION',None)
     child=subprocess.Popen([str(native),str(Path(a.reference).resolve()),'::127.0.0.1:SIMATIC-ROOT-ES:6.0'],cwd=Path(a.credentials).resolve().parent.parent,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     connection=None
     try:
@@ -40,7 +43,7 @@ def main():
             except OSError:pass
         threading.Thread(target=outgoing,daemon=True).start()
         threading.Thread(target=incoming,daemon=True).start()
-        output,error=child.communicate(timeout=15)
+        output,error=child.communicate(timeout=120)
         print('NATIVE_RESULT='+json.dumps({'exit':child.returncode,'stdout':output.decode(errors='replace'),'stderr':error.decode(errors='replace')}),file=sys.stderr,flush=True)
         return child.returncode
     finally:

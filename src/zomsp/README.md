@@ -237,9 +237,10 @@ observed snapshot, not a cycle-consistent image or a PLC behaviour simulation.
 A host can change its mapped values and drive existing value subscriptions.
 
 Current fixed bounds: 128 objects, 512 values, 1024 bytes/value, 16 sessions,
-4 subscriptions/session, 64 references/subscription. Large streamed blobs,
-complete class inheritance/metadata, ASOM job lifecycles and full V3 endpoint
-negotiation still limit real TIA project parity.
+4 subscriptions/session, 64 references/subscription. General streamed reads and multi-blob application models, complete class
+inheritance/metadata, ASOM job lifecycles and full V3 endpoint negotiation still
+limit real TIA project parity. Configured file-backed streamed writes are
+supported as described below.
 
 The capture also contains AlarmSubscriptionRef class 2662 and DAI class 2681
 notifications. Python decodes their typed object events and VLQ sequences
@@ -256,3 +257,60 @@ TLS/COTP. Native, Python and zOMSp clients exercised activation through it. It
 is a transport integration, not an independent protocol oracle; modern TLS
 exporter authentication should use the bundled endpoint until explicitly bound
 by a custom transport.
+
+
+## Large streamed program writes
+
+`zomsp_blob(context, rid, aid, length, directory, validator, user)` registers one
+file-backed, fixed-length blob before starting sessions. The existing directory
+is private to the host. Length is 1..16 MiB. A client starts a collective and
+writes contiguous `SetVariableStreamed` (0x057c) chunks addressed as
+`[aid, offset, byte_count]`, with an untyped Blob value. Metadata read
+`[aid, 0xfffffff9]` returns the configured length, matching the native SDK's
+`SetBlobRemote` contract (libwrapper_native 0056ac00).
+
+The backend creates an exclusive temporary file and bounds the upload by the
+configured length. On EndTransaction, the validator receives its ordinary file
+path and byte count. It can use Python `open(path, 'rb')`, buffered reads or mmap
+without handling transport chunks. Zero accepts; host failure statuses are
+preserved and the staged file is discarded. The validator must not activate
+external code. Incomplete, malformed, out-of-order, rejected, aborted and
+disconnected uploads never replace the live file.
+
+After commit, `zomsp_blob_path` returns the current immutable program path. The
+host then loads/runs it. File-only transactions preserve concurrent register
+updates; competing file uploads conflict. A transaction that also changes mapped
+values retains the original whole-model generation check. Old open files may
+be retained on Windows (maximum 16) and are collected on later publication.
+Close host handles before closing the context. The context owns these temporary
+artifacts; persist a copy if the application needs restart recovery. This is
+in-process commit consistency, not crash-durable activation across a PLC runtime.
+
+Network chunks are bounded to 128 KiB, with bounded OMSp envelope reassembly.
+The zOMSp and Python clients use 32 KiB chunks; the native SDK's default 128 KiB
+chunks were tested. The shared-memory layout stays version 1: large bytes live
+in files, not inline mmap values. General large-blob reads, resumed/random writes
+and multiple configured blobs are outside this implementation.
+
+`TESTS/omsp/large_program.py` generates an exact 8 MiB binary sine-LUT program,
+uploads it, validates SHA-256 with normal file reads, and runs it from a read-only
+file mmap in Python. Input RID 1000/AID 44 selects a LUT entry; output AID 45 is
+an OMSp REAL. Every client checks five inputs across the sine wave itself.
+
+Windows server/shared library and zOMSp executable:
+
+```
+python TESTS/omsp/large_program.py --clients zomsp,python,native --native-wsl podman-machine-default
+```
+
+Linux:
+
+```
+python3 TESTS/omsp/large_program.py --clients zomsp,python,native
+```
+
+The Python oracle needs the sibling tia-tools package; the native oracle uses
+the prepared Linux SDK (WSL on Windows). The default `--clients zomsp` needs only
+stdlib Python, platform zOMSp binaries and test credentials. CI runs that 8 MiB
+case on Windows/Linux x64/Linux ARM64, the native large-write case on Linux x64,
+and headless failure/cleanup/isolation tests on all three platforms.
