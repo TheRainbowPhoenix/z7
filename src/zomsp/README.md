@@ -120,8 +120,9 @@ incoming associations. Undefined associations retain the observed native error.
 
 ## Remaining protocol work
 
-Typed ASOM alarm event execution/AckJob acknowledgement and full V3 security
-negotiation remain unsupported. DLTransaction AID 1702 directives are opt-in via
+Full PLC ASOM semantics and full V3 endpoint negotiation remain unverified.
+Typed DAI delivery and host-driven AckJob execution are supported as described
+below. DLTransaction AID 1702 directives are opt-in via
 `zomsp_activation`: the host validates the staged mapped image before publication.
 Collective success commits that image; the host supplies compilation and runtime
 activation. Without a validator, activation directives are rejected. Unknown Invoke keeps
@@ -210,10 +211,10 @@ python TESTS/omsp/compiler_demo.py zig-out/bin/zomsp.dll --reference zig-out/bin
 bounded activation probe: directive slot 1/UDInt 0, AID 42/UDInt 11, commit.
 The Python Session API supports arbitrary bounded typed values in a transaction.
 
-There is not yet a catch-all host adapter for arbitrary CreateObject jobs or
-typed alarm execution/acknowledgement. Registered Invoke handlers should only
-handle methods actually represented by Invoke; AckJob must not silently be
-reinterpreted as one. Those lifecycle hooks remain protocol work.
+`zomsp_factory` provides validation and post-publication callbacks for registered
+root CreateObject classes. Factory instances have immutable client-facing
+fields; the host updates job state through the mapped API. Factories are rejected
+inside collectives. AckJob uses this object lifecycle, not Invoke.
 
 ## Capture-backed virtual server
 
@@ -245,12 +246,60 @@ supported as described below.
 The capture also contains AlarmSubscriptionRef class 2662 and DAI class 2681
 notifications. Python decodes their typed object events and VLQ sequences
 (including sequence 498); zOMSp's value notifications now use VLQ sequences too.
-This does not implement typed event delivery or AckJob class 3636 on the server.
+The server now forwards typed DAI objects and exposes AckJob through host hooks.
 The pinned native core cannot construct these alarm classes: class lookup fails
 before factory dispatch. VPLC `AlarmSubsystem_Imp` slot 0x110 at 107bd9c0 returns
 0x8000001900008005 on that path. Neither observation establishes the complete
 behaviour of an ASOM-enabled PLC. No successful AckJob exchange was present in
 the supplied captures, so positive acknowledgement parity remains unverified.
+
+## Host-driven typed alarms and AckJob
+
+Run the example (standard-library Python, actual Zig shared-library client/server):
+
+```
+python examples/zomsp/alarm.py --tls-library PATH_TO_LIBSSL --credentials CERT_DIRECTORY
+```
+
+`zomsp_events` enables a bounded 64-entry event journal; `zomsp_event` publishes
+an encoded class-2681 DAI (up to 2048 bytes). CPUAlarmID(2670)/ULInt,
+AllStatesInfo(2671)/USInt and AlarmDomain(2672)/UInt are required. The routing
+domain must equal the DAI domain. Other supported typed fields pass through.
+AlarmSubscriptionRef(2662) can be nested inside Subscription(1001) or created
+under an existing subscription. It selects a subsystem via relation 2660 and a
+scalar/list of up to ten UInt domains through AID 2659. There are four typed
+references per subscription. Advanced Domain2/text filtering is unsupported.
+
+Typed events use the captured reference/status/flags/0x81/PObject section after
+the value section. Each reference tracks its own cursor. Credit, disable/resume,
+subscription/reference deletion and VLQ sequences share the existing lifecycle.
+Readers lagging beyond 64 journal entries receive a saturating missed-sendings
+count. The journal is process-local; restart/reconnect does not replay old alarms.
+
+The example registers an AckJob(3636) factory with Acknowledgements(3647) encoded
+as a bounded sparse Variant list of AS_AlarmAcknfy(3651) structures. Each entry
+contains AlarmDomain(3648)/UInt, AllStatesInfo(3649)/USInt and
+CPUAlarmID(3650)/ULInt. Application/Host/User(3637..3639) are WStrings. Validation
+rejects malformed, duplicate and unknown identities with the host's status before
+creating a job. Post-create delivery queues execution outside backend locks.
+The host drives AlarmJobState(3641): Waiting=0, Processing=1, Distributing=2.
+There is no invented Completed=3. The demo clears requested state bits and treats
+repeat requests idempotently; **this is explicit demo policy, not inferred PLC
+alarm-bit semantics**. Production hosts supply their own authorization, bit
+policy, timestamps, errors and job retention/deletion.
+
+The shared client exposes CreateObject, DeleteObject and raw notification
+delivery (`wait=0` drains its queue; `wait=1` waits with the transport deadline).
+Calls remain serialized. Python bindings expose `create`, `delete`,
+`notification` and `write_raw`; the demo interprets typed event records.
+
+Windows/Linux tests cover actual raise/acknowledge/change delivery, credit and
+disable recovery, domain filtering, invalid requests, idempotency, sequence>127,
+journal overflow and deletion. A provenance-labelled capture fixture (sequence
+498) checks byte-identical forwarding of a real DAI, including its class flags
+and nested Coming/Blob-array fields. CI runs these alongside upload/TLS regressions.
+The native schema probe explicitly records missing ASOM factories; it cannot
+validate positive PLC AckJob execution or its complete request variants.
 
 `MappedServer` in the Python package hosts the headless Zig engine over Python
 TLS/COTP. Native, Python and zOMSp clients exercised activation through it. It

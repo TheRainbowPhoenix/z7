@@ -126,6 +126,12 @@ pub const Reader = struct {
                 },
                 0x0c, 0x0e, 0x12 => _ = try self.take(@intCast(count * 4)),
                 0x0d, 0x0f, 0x10 => _ = try self.take(@intCast(count * 8)),
+                0x14 => for (0..@intCast(count)) |_| {
+                    if (try self.vlq() > 1) return error.UnsupportedValue;
+                    const length = try self.vlq();
+                    if (length > 4096) return error.ValueLimit;
+                    _ = try self.take(@intCast(length));
+                },
                 else => return error.UnsupportedValue,
             }
         } else switch (kind) {
@@ -374,6 +380,88 @@ pub const State = struct {
 fn findSubscription(state: *State, rid: u32) ?*subscriptions.Subscription {
     for (&state.subscriptions) |*subscription| if (subscription.rid == rid and rid != 0) return subscription;
     return null;
+}
+fn findAlarmReference(state: *State, rid: u32) ?*subscriptions.AlarmReference {
+    for (&state.subscriptions) |*subscription| for (&subscription.alarms) |*reference| {
+        if (rid != 0 and reference.rid == rid) return reference;
+    };
+    return null;
+}
+
+fn alarmReference(reader: *Reader, state: *State, subscription: *subscriptions.Subscription) !u32 {
+    if (try reader.byte() != 0xa1) return error.InvalidObject;
+    _ = try reader.u32be();
+    if (try reader.vlq() != 2662 or try reader.vlq() != 0 or try reader.vlq() != 0) return error.UnsupportedObject;
+    const store = state.backend orelse return error.ObjectNotFound;
+    const events = store.events orelse return error.UnsupportedObject;
+    var candidate: subscriptions.AlarmReference = .{ .cursor = events.tail() };
+    var domain_seen = false;
+    var link_seen = false;
+    for (0..32) |_| {
+        const tag = try reader.byte();
+        if (tag == 0xa2) {
+            if (!domain_seen or !link_seen) return error.InvalidReference;
+            _ = try store.info(candidate.subsystem);
+            for (&subscription.alarms, 0..) |*slot, index| {
+                if (slot.rid != 0) continue;
+                candidate.rid = subscription.rid + 0x10000 + @as(u32, @intCast(index)) * 4;
+                slot.* = candidate;
+                return candidate.rid;
+            }
+            return error.ReferenceLimit;
+        }
+        if (tag == 0xa4) {
+            if (link_seen or try reader.vlq() != 2660) return error.UnsupportedReference;
+            candidate.subsystem = try reader.u32be();
+            link_seen = true;
+        } else if (tag == 0xa3) {
+            const aid = try reader.vlq();
+            const value = try reader.value(0);
+            if (aid == 2659) {
+                if (domain_seen) return error.InvalidReference;
+                domain_seen = true;
+                var domains: Reader = .{ .data = value.raw };
+                const flags = try domains.byte();
+                if (try domains.byte() != 3) return error.UnsupportedReference;
+                const count = if (flags == 0x10 or flags == 0x20) try domains.vlq() else if (flags == 0) 1 else return error.UnsupportedReference;
+                if (count == 0 or count > candidate.domains.len) return error.ReferenceLimit;
+                candidate.domain_count = @intCast(count);
+                for (candidate.domains[0..candidate.domain_count]) |*domain| domain.* = std.mem.readInt(u16, (try domains.take(2))[0..2], .big);
+            } else if (aid != 233 and aid != 1005 and aid != 8181 and aid != 8173) return error.UnsupportedSubscriptionAttribute;
+        } else return error.UnsupportedObjectField;
+    }
+    return error.ObjectLimit;
+}
+
+pub fn validateEvent(raw: []const u8, domain: u16) !void {
+    var reader: Reader = .{ .data = raw };
+    if (try reader.byte() != 0xa1) return error.InvalidObject;
+    _ = try reader.u32be();
+    if (try reader.vlq() != 2681 or try reader.vlq() > std.math.maxInt(u32) or try reader.vlq() > std.math.maxInt(u32)) return error.UnsupportedObject;
+    var aids: [32]u32 = undefined;
+    var count: usize = 0;
+    var identity: u3 = 0;
+    while (true) {
+        const tag = try reader.byte();
+        if (tag == 0xa2) break;
+        if (tag != 0xa3 or count == aids.len) return error.UnsupportedObjectField;
+        const aid = try reader.vlq();
+        if (aid == 0 or aid > std.math.maxInt(u32) or std.mem.indexOfScalar(u32, aids[0..count], @intCast(aid)) != null) return error.InvalidValue;
+        aids[count] = @intCast(aid);
+        count += 1;
+        const value = try reader.value(0);
+        if (aid == 2670) {
+            if (value.raw[0] != 0 or value.kind != 0x0d) return error.InvalidValue;
+            identity |= 1;
+        } else if (aid == 2671) {
+            if (value.raw[0] != 0 or value.kind != 2) return error.InvalidValue;
+            identity |= 2;
+        } else if (aid == 2672) {
+            if (value.raw[0] != 0 or value.kind != 3 or value.number != domain) return error.InvalidValue;
+            identity |= 4;
+        }
+    }
+    if (reader.offset != raw.len or identity != 7) return error.InvalidTrailer;
 }
 
 fn passwordRequired(state: *const State) bool {
@@ -736,6 +824,20 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         if (try reader.byte() != 0xa1) return error.InvalidObject;
         _ = try reader.u32be();
         const class = try reader.vlq();
+        if (class == 2662 and findSubscription(state, target) != null) {
+            if (state.transaction != null) return error.UnsupportedSequence;
+            const subscription = findSubscription(state, target).?;
+            reader.offset = object_start;
+            const assigned = try alarmReference(&reader, state, subscription);
+            if (try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
+            state.write_counter = @intCast(integrity);
+            try writer.begin(2, 0x32, 0x4ca, request.sequence, null, request.flags);
+            try writer.put(&.{ 0, 1 });
+            try writer.vlq(assigned);
+            try writer.vlq(integrity << 1);
+            try writer.be32(0);
+            return writer.finish();
+        }
         if (class == 1001 and state.transaction != null) return error.UnsupportedSequence;
         if (class != 1001) {
             reader.offset = object_start;
@@ -743,8 +845,26 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
             try plan.parse(&reader, target, 0);
             if (try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
             const store = state.backend orelse return error.ObjectNotFound;
+            var factory: ?application.Factory = null;
+            for (store.factories) |entry| if (entry) |registered| {
+                if (registered.class == class) factory = registered;
+            };
+            if (factory != null and state.transaction != null) return error.UnsupportedSequence;
+            const descriptor = reader.data[object_start .. reader.offset - 4];
+            const call: application.Invocation = .{ .target = target, .method = @intCast(class), .session = state.session, .client = state.client, .role = state.role };
+            if (factory) |registered| if (registered.validate) |validate| {
+                const status = validate(registered.user, &call, descriptor.ptr, descriptor.len);
+                if (status != 0) {
+                    state.write_counter = @intCast(integrity);
+                    try writer.begin(2, 0x32, 0x4ca, request.sequence, null, request.flags);
+                    try writer.vlq(status);
+                    try writer.vlq(integrity << 1);
+                    try writer.be32(0);
+                    return writer.finish();
+                }
+            };
             var assigned: [8]u32 = undefined;
-            try store.createBatch(plan.nodes[0..plan.node_count], plan.values[0..plan.value_count], assigned[0..plan.node_count]);
+            try store.createBatch(plan.nodes[0..plan.node_count], plan.values[0..plan.value_count], assigned[0..plan.node_count], factory != null);
             try writer.begin(2, 0x32, 0x4ca, request.sequence, null, request.flags);
             try writer.byte(0);
             try writer.vlq(plan.node_count);
@@ -753,6 +873,7 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
             try writer.be32(0);
             const response = try writer.finish();
             state.write_counter = @intCast(integrity);
+            if (factory) |registered| registered.created(registered.user, &call, assigned[0], descriptor.ptr, descriptor.len);
             return response;
         }
         if (target != state.context or try reader.vlq() != 0 or try reader.vlq() != 0) return error.UnsupportedObject;
@@ -766,11 +887,20 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         }
         const subscription = selected orelse return error.SubscriptionLimit;
         var closed = false;
+        var assigned_refs: [4]u32 = undefined;
+        var assigned_count: usize = 0;
         for (0..32) |_| {
             const tag = try reader.byte();
             if (tag == 0xa2) {
                 closed = true;
                 break;
+            }
+            if (tag == 0xa1) {
+                if (assigned_count == assigned_refs.len) return error.ReferenceLimit;
+                reader.offset -= 1;
+                assigned_refs[assigned_count] = try alarmReference(&reader, state, subscription);
+                assigned_count += 1;
+                continue;
             }
             if (tag != 0xa3) return error.UnsupportedObjectField;
             const aid = try reader.vlq();
@@ -782,11 +912,13 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         for (&subscription.references) |*reference| if (reference.handle != 0) {
             any_reference = true;
         };
-        subscription.pending_empty = any_reference;
+        subscription.pending_empty = any_reference or assigned_count != 0;
         state.write_counter = @intCast(integrity);
         try writer.begin(2, 0x32, 0x4ca, request.sequence, null, request.flags);
-        try writer.put(&.{ 0, 1 });
+        try writer.byte(0);
+        try writer.vlq(1 + assigned_count);
         try writer.vlq(subscription.rid);
+        for (assigned_refs[0..assigned_count]) |rid| try writer.vlq(rid);
         try writer.vlq(integrity << 1);
         try writer.be32(0);
         return writer.finish();
@@ -989,7 +1121,7 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
             parsed_integrity = @intCast(counter);
         },
         0x4d4 => {
-            if (findSubscription(state, target)) |subscription| subscription.* = .{} else if (target != state.session) delete_object = target;
+            if (findSubscription(state, target)) |subscription| subscription.* = .{} else if (findAlarmReference(state, target)) |reference| reference.* = .{} else if (target != state.session) delete_object = target;
             try writer.be32(target);
         },
         else => return error.UnsupportedRequest,
@@ -1448,16 +1580,32 @@ pub fn pollNotification(writer: *Writer, state: *State, now_us: i64) !?[]const u
                 delivered += 1;
                 if (delivered == generations.len) break;
             }
-            if (delivered == 0 and subscription.cycle_ms == 0) {
-                subscription.next_due = now_us + @as(i64, subscription.cycle_ms) * 1000;
-                continue;
-            }
-            if (delivered == 0 and !subscription.ready) writer.data[phase_offset] = 1;
         }
+        const value_delivered = delivered;
         try writer.byte(0);
+        if (!subscription.pending_empty) if (state.backend) |store| if (store.events) |events| {
+            for (&subscription.alarms) |*reference| {
+                if (reference.rid == 0) continue;
+                for (0..@import("events.zig").capacity) |_| {
+                    var event: @import("events.zig").Event = undefined;
+                    const missed = events.next(reference.cursor, &event) orelse break;
+                    reference.cursor = event.sequence;
+                    subscription.missed +|= @intCast(@min(missed, std.math.maxInt(u16)));
+                    if (!reference.accepts(event.subsystem, event.domain)) continue;
+                    try writer.be32(reference.rid);
+                    try writer.put(&.{ 0, 0, 0x81 });
+                    try writer.put(event.bytes[0..event.length]);
+                    delivered += 1;
+                    break;
+                }
+            }
+        };
+        if (!subscription.pending_empty and delivered == 0 and subscription.cycle_ms == 0) continue;
+        if (delivered == 0 and !subscription.ready) writer.data[phase_offset] = 1;
+        std.mem.writeInt(u16, writer.data[11..13], subscription.missed, .big);
         try writer.be32(0);
         const result = try writer.finish();
-        for (generations[0..delivered]) |item| item.reference.generation = item.generation;
+        for (generations[0..value_delivered]) |item| item.reference.generation = item.generation;
         if (subscription.sequence == std.math.maxInt(u32)) return error.NotificationLimit;
         subscription.sequence += 1;
         subscription.pending_empty = false;

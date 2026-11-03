@@ -6,6 +6,9 @@ pub const Invocation = extern struct { target: u32, method: u32, session: u32, c
 pub const Callback = *const fn (?*anyopaque, *const Invocation, [*]const u8, usize, [*]u8, usize, *usize) callconv(.c) u64;
 pub const ActivationCallback = *const fn (?*anyopaque, *const Invocation, [*]const u8, usize, [*]const u8, usize) callconv(.c) u64;
 pub const Activator = struct { callback: ActivationCallback, user: ?*anyopaque };
+pub const CreateValidator = *const fn (?*anyopaque, *const Invocation, [*]const u8, usize) callconv(.c) u64;
+pub const Created = *const fn (?*anyopaque, *const Invocation, u32, [*]const u8, usize) callconv(.c) void;
+pub const Factory = struct { class: u32, validate: ?CreateValidator, created: Created, user: ?*anyopaque };
 pub const Method = struct {
     target: u32,
     id: u32,

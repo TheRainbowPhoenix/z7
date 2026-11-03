@@ -7,6 +7,38 @@ const transport = @import("channel.zig");
 const allocator = std.heap.page_allocator;
 const application = @import("application.zig");
 const client_api = @import("client.zig");
+const events_api = @import("events.zig");
+
+export fn zomsp_events(context: ?*Context) i32 {
+    const ctx = context orelse return -1;
+    if (ctx.runtime != null or ctx.sessions != 0) return -6;
+    if (ctx.store.events != null) return 0;
+    const events = allocator.create(events_api.Store) catch return -1;
+    events.* = .{};
+    ctx.store.events = events;
+    return 0;
+}
+export fn zomsp_event(context: ?*Context, subsystem: u32, domain: u16, data: ?[*]const u8, length: usize) i32 {
+    const ctx = context orelse return -1;
+    if (data == null or length == 0 or length > events_api.max_bytes) return -1;
+    const events = ctx.store.events orelse return -1;
+    _ = ctx.store.info(subsystem) catch |err| return failure(err);
+    wire.validateEvent(data.?[0..length], domain) catch |err| return failure(err);
+    events.publish(subsystem, domain, data.?[0..length]) catch |err| return failure(err);
+    return 0;
+}
+export fn zomsp_factory(context: ?*Context, class: u32, validate: ?application.CreateValidator, created: ?application.Created, user: ?*anyopaque) i32 {
+    const ctx = context orelse return -1;
+    if (ctx.runtime != null or ctx.sessions != 0) return -6;
+    if (class == 0 or created == null) return -1;
+    for (ctx.store.factories) |entry| if (entry) |factory| if (factory.class == class) return -1;
+    for (&ctx.store.factories) |*entry| {
+        if (entry.* != null) continue;
+        entry.* = .{ .class = class, .validate = validate, .created = created.?, .user = user };
+        return 0;
+    }
+    return -5;
+}
 
 const Context = struct {
     store: backend.Backend,
@@ -303,6 +335,28 @@ fn clientFailure(client: *client_api.Client, err: anyerror) i32 {
 }
 export fn zomsp_client_session(client: ?*const client_api.Client) u32 {
     return if (client) |handle| handle.session else 0;
+}
+export fn zomsp_client_context(client: ?*const client_api.Client) u32 {
+    return if (client) |handle| handle.context else 0;
+}
+export fn zomsp_client_create(client: ?*client_api.Client, parent: u32, descriptor: ?[*]const u8, length: usize, output: ?[*]u32, capacity: usize) isize {
+    const handle = client orelse return -1;
+    if (parent == 0 or descriptor == null or length < 9 or length > 8192 or output == null or capacity < 8) return -1;
+    var assigned: [8]u32 = undefined;
+    const count = handle.create(parent, descriptor.?[0..length], &assigned) catch |err| return clientFailure(handle, err);
+    @memcpy(output.?[0..count], assigned[0..count]);
+    return @intCast(count);
+}
+export fn zomsp_client_delete(client: ?*client_api.Client, rid: u32) i32 {
+    const handle = client orelse return -1;
+    if (rid == 0) return -1;
+    handle.delete(rid) catch |err| return clientFailure(handle, err);
+    return 0;
+}
+export fn zomsp_client_notification(client: ?*client_api.Client, output: ?[*]u8, capacity: usize, wait: u8) isize {
+    const handle = client orelse return -1;
+    if (output == null or capacity < wire.limit or wait > 1) return -1;
+    return @intCast(handle.notification(output.?[0..capacity], wait != 0) catch |err| return clientFailure(handle, err));
 }
 export fn zomsp_client_status(client: ?*const client_api.Client) u64 {
     return if (client) |handle| handle.status else 0;

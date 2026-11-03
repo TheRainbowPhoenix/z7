@@ -25,6 +25,22 @@ zomsp_context *zomsp_open(const char *path, uint8_t create);
 typedef struct zomsp_invocation {
     uint32_t target, method, session, client, role;
 } zomsp_invocation;
+/* Enable a bounded typed-event journal before sessions. publish accepts a DAI
+ * (class 2681) PObject, <=2048 bytes. Each subscription has its own cursor;
+ * lag beyond 64 events reports missed_sendings. Disabled/no-credit readers
+ * retain their cursor. The host supplies alarm data and acknowledgement policy. */
+int32_t zomsp_events(zomsp_context *);
+int32_t zomsp_event(zomsp_context *, uint32_t subsystem, uint16_t domain,
+    const uint8_t *object, size_t length);
+/* Root CreateObject hook, bounded to 16 classes. Register a class template too.
+ * validate is optional, side-effect free, before creation; nonzero native status
+ * rejects. created runs after publication, outside locks; copy borrowed bytes
+ * before queueing work. No created event on malformed/failed creation. Factories
+ * cannot execute inside collectives. The host owns job state and authorization.
+ * call.target is parent, call.method is class; callbacks may be concurrent. */
+typedef uint64_t (*zomsp_create_validator)(void *, const zomsp_invocation *, const uint8_t *, size_t);
+typedef void (*zomsp_created)(void *, const zomsp_invocation *, uint32_t rid, const uint8_t *, size_t);
+int32_t zomsp_factory(zomsp_context *, uint32_t class_id, zomsp_create_validator, zomsp_created, void *);
 typedef uint64_t (*zomsp_invoke_handler)(void *user, const zomsp_invocation *call,
     const uint8_t *arguments, size_t arguments_length, uint8_t *result,
     size_t result_capacity, size_t *result_length);
@@ -110,6 +126,15 @@ typedef struct zomsp_client zomsp_client;
 zomsp_client *zomsp_client_open(const char *ipv4, uint16_t port, const char *certificate, const char *tls_library);
 void zomsp_client_close(zomsp_client *);
 uint32_t zomsp_client_session(const zomsp_client *);
+uint32_t zomsp_client_context(const zomsp_client *);
+/* Complete bounded PObject descriptor; output capacity must be >=8 RIDs. */
+intptr_t zomsp_client_create(zomsp_client *, uint32_t parent, const uint8_t *, size_t,
+    uint32_t *assigned, size_t capacity);
+int32_t zomsp_client_delete(zomsp_client *, uint32_t rid);
+/* Complete encoded notification frame; capacity >=65535. wait=0 drains queued
+ * notifications, wait=1 waits up to transport deadline (10 seconds). Serialize
+ * with requests. Queue overflow/transport failure requires reconnect. */
+intptr_t zomsp_client_notification(zomsp_client *, uint8_t *, size_t capacity, uint8_t wait);
 uint64_t zomsp_client_status(const zomsp_client *);
 int32_t zomsp_client_authenticate(zomsp_client *, const uint8_t *username, size_t username_length,
     const uint8_t *password, size_t password_length);

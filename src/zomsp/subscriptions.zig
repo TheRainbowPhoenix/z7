@@ -1,6 +1,16 @@
 const std = @import("std");
 pub const max_subscriptions = 4;
 pub const max_references = 64;
+pub const AlarmReference = struct {
+    rid: u32 = 0,
+    subsystem: u32 = 0,
+    domains: [10]u16 = @splat(0),
+    domain_count: u8 = 1,
+    cursor: u64 = 0,
+    pub fn accepts(self: *const AlarmReference, subsystem: u32, domain: u16) bool {
+        return self.subsystem == subsystem and std.mem.indexOfScalar(u16, self.domains[0..self.domain_count], domain) != null;
+    }
+};
 pub const Reference = struct {
     handle: u32 = 0,
     rid: u32 = 0,
@@ -23,6 +33,7 @@ pub const Subscription = struct {
     missed: u16 = 0,
     blocked: bool = false,
     references: [max_references]Reference = @splat(.{}),
+    alarms: [4]AlarmReference = @splat(.{}),
 
     pub fn set(self: *Subscription, aid: u64, value: anytype, comptime Reader: type) !void {
         switch (aid) {

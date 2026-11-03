@@ -9,6 +9,7 @@ pub const Client = struct {
     notifications: wire.NotificationQueue = .{},
     writer: wire.Writer = .{},
     session: u32 = 0,
+    context: u32 = 0,
     sequence: u16 = 3,
     read_counter: u32 = 0,
     write_counter: u32 = 3,
@@ -56,7 +57,9 @@ pub const Client = struct {
         const rid = try reader.vlq();
         if (rid == 0 or rid > std.math.maxInt(u32)) return error.InvalidSession;
         self.session = @intCast(rid);
-        _ = try reader.vlq();
+        const context = try reader.vlq();
+        if (context == 0 or context > std.math.maxInt(u32)) return error.InvalidSession;
+        self.context = @intCast(context);
         var state: wire.State = .{};
         defer state.close();
         try wire.object(&reader, &state, 0);
@@ -201,6 +204,50 @@ pub const Client = struct {
             try finish(&reader, @as(u64, self.write_responses) << 1);
             offset += chunk.len;
         }
+    }
+    pub fn create(self: *Client, parent: u32, descriptor: []const u8, assigned: *[8]u32) !usize {
+        const counter = try self.begin(0x4ca, false);
+        try self.writer.be32(parent);
+        try self.writer.put(&.{ 0, 4, 0 });
+        try self.writer.be32(0);
+        try self.writer.vlq(counter);
+        try self.writer.put(descriptor);
+        try self.writer.be32(0);
+        var reader = try self.exchange(0x4ca);
+        const count = try reader.vlq();
+        if (count == 0 or count > assigned.len) return error.ObjectLimit;
+        for (assigned[0..@intCast(count)]) |*rid| {
+            const value = try reader.vlq();
+            if (value == 0 or value > std.math.maxInt(u32)) return error.InvalidObject;
+            rid.* = @intCast(value);
+        }
+        try finish(&reader, @as(u64, self.write_responses) << 1);
+        return @intCast(count);
+    }
+    pub fn delete(self: *Client, rid: u32) !void {
+        const counter = try self.begin(0x4d4, false);
+        try self.writer.be32(rid);
+        try self.writer.byte(0);
+        try self.writer.put(&wire.qualifier_bytes);
+        try self.writer.vlq(counter);
+        try self.writer.be32(0);
+        var reader = try self.exchange(0x4d4);
+        if (try reader.u32be() != rid) return error.UnexpectedReply;
+        try finish(&reader, @as(u64, self.write_responses) << 1);
+    }
+    pub fn notification(self: *Client, output: []u8, wait: bool) !usize {
+        if (self.failed) return error.InvalidSequenceState;
+        if (self.notifications.count != 0) {
+            const length = self.notifications.lengths[self.notifications.head];
+            _ = try self.notifications.pop(output);
+            return length;
+        }
+        if (!wait) return 0;
+        const raw = try self.channel.receive();
+        _ = try wire.Notification.parse(raw);
+        if (output.len < raw.len) return error.BufferTooSmall;
+        @memcpy(output[0..raw.len], raw);
+        return raw.len;
     }
     pub fn find(self: *Client, root: u32, name: []const u8) !u32 {
         const counter = try self.begin(0x4bb, true);

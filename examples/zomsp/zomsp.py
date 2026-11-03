@@ -19,6 +19,8 @@ class Invocation(C.Structure):
 
 Validate = C.CFUNCTYPE(C.c_uint64, C.c_void_p, C.POINTER(Invocation), C.c_void_p, C.c_size_t)
 Complete = C.CFUNCTYPE(None, C.c_void_p, C.POINTER(Invocation), C.c_void_p)
+CreateValidate = C.CFUNCTYPE(C.c_uint64, C.c_void_p, C.POINTER(Invocation), C.c_void_p, C.c_size_t)
+Created = C.CFUNCTYPE(None, C.c_void_p, C.POINTER(Invocation), C.c_uint32, C.c_void_p, C.c_size_t)
 
 
 def vlq(number):
@@ -100,6 +102,15 @@ class Library:
             "client_open": ([C.c_char_p, C.c_uint16, C.c_char_p, C.c_char_p], pointer),
             "client_close": ([pointer], None),
             "client_session": ([pointer], C.c_uint32),
+            "client_context": ([pointer], C.c_uint32),
+            "client_create": ([pointer, C.c_uint32, pointer, size, C.POINTER(C.c_uint32), size], C.c_ssize_t),
+            "client_delete": ([pointer, C.c_uint32], integer),
+            "client_notification": ([pointer, pointer, size, C.c_uint8], C.c_ssize_t),
+            "events": ([pointer], integer),
+            "event": ([pointer, C.c_uint32, C.c_uint16, pointer, size], integer),
+            "factory": ([pointer, C.c_uint32, CreateValidate, Created, pointer], integer),
+            "template": ([pointer, C.c_uint32], integer),
+            "value_size": ([pointer, size], C.c_ssize_t),
             "client_status": ([pointer], C.c_uint64),
             "client_read": ([pointer, C.c_uint32, C.c_uint32, pointer, size], C.c_ssize_t),
             "client_write": ([pointer, C.c_uint32, C.c_uint32, pointer, size], integer),
@@ -257,6 +268,40 @@ class Server:
         self.library.check(self.dll.zomsp_start(self.handle, port, os.fsencode(certificate), os.fsencode(key), os.fsencode(tls_library)))
         return self.dll.zomsp_port(self.handle)
 
+    def events(self):
+        self.library.check(self.dll.zomsp_events(self.handle))
+
+    def event(self, subsystem, domain, encoded_object):
+        self._call(lambda: self.dll.zomsp_event(self.handle, subsystem, domain, encoded_object, len(encoded_object)))
+
+    def factory(self, class_id, defaults, on_create, validate=None):
+        prototype = 0x50000000 + class_id
+        self.library.check(self.dll.zomsp_object(self.handle, prototype, 201, class_id))
+        for aid, raw in defaults.items():
+            self.library.check(self.dll.zomsp_set(self.handle, prototype, aid, raw, len(raw), 0))
+        self.library.check(self.dll.zomsp_template(self.handle, prototype))
+
+        @CreateValidate
+        def check(user, call, data, length):
+            try:
+                return validate(call.contents.target, C.string_at(data, length)) if validate else 0
+            except Exception as error:
+                self._error(error)
+                return 0x8020ab00199afff4
+
+        @Created
+        def created(user, call, rid, data, length):
+            try:
+                on_create(rid, C.string_at(data, length))
+            except Exception as error:
+                self._error(error)
+
+        self.callbacks.extend([check, created])
+        self.library.check(self.dll.zomsp_factory(self.handle, class_id, check, created, None))
+
+    def set_raw(self, rid, aid, raw, writable=False):
+        self._call(lambda: self.dll.zomsp_set(self.handle, rid, aid, raw, len(raw), writable))
+
     def close(self):
         if self.handle:
             self.dll.zomsp_close(self.handle)
@@ -288,6 +333,23 @@ class Client:
     def session(self):
         return self.dll.zomsp_client_session(self.handle)
 
+    @property
+    def context(self):
+        return self.dll.zomsp_client_context(self.handle)
+
+    def create(self, parent, descriptor):
+        assigned = (C.c_uint32 * 8)()
+        count = self._check(self.dll.zomsp_client_create(self.handle, parent, descriptor, len(descriptor), assigned, 8))
+        return list(assigned[:count])
+
+    def delete(self, rid):
+        self._check(self.dll.zomsp_client_delete(self.handle, rid))
+
+    def notification(self, wait=False):
+        output = C.create_string_buffer(65535)
+        length = self._check(self.dll.zomsp_client_notification(self.handle, output, len(output), wait))
+        return output.raw[:length] if length else None
+
     def authenticate(self, password, username=""):
         user, secret = username.encode(), password.encode()
         self._check(self.dll.zomsp_client_authenticate(self.handle, user, len(user), secret, len(secret)))
@@ -310,6 +372,9 @@ class Client:
     def write(self, name, value, aid=42):
         rid = self.resolve(name) if isinstance(name, str) else name
         raw = encode(value)
+        self.write_raw(rid, aid, raw)
+
+    def write_raw(self, rid, aid, raw):
         self._check(self.dll.zomsp_client_write(self.handle, rid, aid, raw, len(raw)))
 
     def begin(self):

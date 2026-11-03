@@ -79,6 +79,17 @@ keeps the event loop available until native callbacks finish.
 
 ## Upload completion and ownership
 
+For typed alarms and host-driven acknowledgement, run:
+
+```sh
+python examples/zomsp/alarm.py --tls-library PATH_TO_LIBSSL --credentials CERT_DIRECTORY
+```
+
+It subscribes, raises a typed DAI, creates an AckJob, executes it on a Python
+worker, verifies the changed DAI and job state, then deletes both objects.
+See `src/zomsp/README.md` for bounds and the distinction between the demo's
+acknowledgement policy and verified PLC behaviour.
+
 Register `server.stream(rid, aid, exact_length, on_complete, validate=None)`
 before starting. The callback means the collective **committed**, rather than
 merely receiving its last chunk. Abort, conflict, incomplete data and rejection

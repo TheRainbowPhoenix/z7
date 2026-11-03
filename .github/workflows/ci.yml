@@ -190,6 +190,7 @@ jobs:
             examples/zomsp/README.md
             TESTS/omsp/*.py
             TESTS/omsp/native_requests.json
+            TESTS/omsp/alarm_capture.json
           if-no-files-found: error
 
   integration-test:

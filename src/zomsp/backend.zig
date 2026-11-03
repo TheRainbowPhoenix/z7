@@ -49,6 +49,8 @@ pub const Backend = struct {
     blob: ?*streaming.Store = null,
     authentication: @import("authentication.zig").Policy = .{},
     private: bool = false,
+    events: ?*@import("events.zig").Store = null,
+    factories: [16]?application.Factory = @splat(null),
 
     pub fn open(path: []const u8, create: bool) !Backend {
         const file = std.fs.cwd().openFile(path, .{ .mode = .read_write }) catch |err| blk: {
@@ -87,6 +89,7 @@ pub const Backend = struct {
     }
     pub fn close(self: *Backend) void {
         std.debug.assert(!self.private);
+        if (self.events) |events| std.heap.page_allocator.destroy(events);
         self.authentication.configure(&.{}) catch unreachable;
         unmap(self.bytes);
         self.file.close();
@@ -237,7 +240,7 @@ pub const Backend = struct {
         object.generation = generation;
         self.data.header.generation = generation;
     }
-    pub fn createBatch(self: *Backend, nodes: []const CreateNode, initial: []const InitialValue, assigned: []u32) !void {
+    pub fn createBatch(self: *Backend, nodes: []const CreateNode, initial: []const InitialValue, assigned: []u32, immutable: bool) !void {
         if (nodes.len == 0 or nodes.len > 8 or assigned.len != nodes.len or initial.len > 32) return error.ObjectLimit;
         try self.lock();
         defer self.unlock();
@@ -292,7 +295,7 @@ pub const Backend = struct {
                 if (value.value.len < 2 or value.value.len > max_value_bytes) return error.InvalidValue;
                 for (values[0..value_index]) |previous| if (previous.aid == value.aid) return error.DuplicateAttribute;
                 const entry = self.findValue(prototype, value.aid) orelse return error.AttributeNotFound;
-                if (entry.flags != 1) return error.ReadOnly;
+                if (entry.flags != 1 and !immutable) return error.ReadOnly;
                 if (!sameType(entry.value[0..entry.length], value.value)) return error.TypeMismatch;
             }
         }
@@ -308,6 +311,7 @@ pub const Backend = struct {
                 entry.* = source.*;
                 entry.rid = assigned[index];
                 entry.generation = generation;
+                if (immutable) entry.flags = 0;
                 for (initial[node.first..][0..node.count]) |value| if (value.aid == source.aid) {
                     entry.length = @intCast(value.value.len);
                     @memcpy(entry.value[0..value.value.len], value.value);
@@ -421,7 +425,7 @@ pub const Transaction = struct {
             .source = source,
             .generation = copy.header.generation,
             .allocator = allocator,
-            .shadow = .{ .file = source.file, .bytes = source.bytes, .data = copy, .private = true, .methods = source.methods, .blob = source.blob, .authentication = source.authentication },
+            .shadow = .{ .file = source.file, .bytes = source.bytes, .data = copy, .private = true, .methods = source.methods, .blob = source.blob, .authentication = source.authentication, .factories = source.factories, .events = source.events },
         };
         return transaction;
     }

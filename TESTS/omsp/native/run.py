@@ -73,6 +73,11 @@ def main():
                               str(library)], cwd=HERE, env=env)
     if result:
         return result
+    schema = subprocess.run([str(work / 'native_probe'), str(library), '--schema-probe'],
+        cwd=HERE, capture_output=True, text=True, timeout=20, check=True)
+    acknowledgement = next(line for line in schema.stdout.splitlines() if line.startswith('schema.class=3636 '))
+    assert int(acknowledgement.split('status=')[1], 16) & (1 << 63), acknowledgement
+    print('Native alarm reference limitation confirmed:', acknowledgement, flush=True)
     shared = Path(binary).parent.parent / 'lib' / 'libzomsp.so'
     for test in ('invoke.py', 'authentication.py', 'modern.py', 'activation.py'):
         command = [sys.executable, str(HERE.parent / test), str(shared),
