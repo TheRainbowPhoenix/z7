@@ -4,6 +4,15 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    if (target.result.os.tag == .windows) {
+        const zdcp = b.addExecutable(.{ .name = "zDCP", .target = target, .optimize = optimize });
+        zdcp.addCSourceFile(.{ .file = b.path("src/zdcp/main.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
+        zdcp.linkLibC();
+        zdcp.linkSystemLibrary("iphlpapi");
+        const install_zdcp = b.addInstallArtifact(zdcp, .{});
+        b.step("zdcp", "Build the Windows DCP discovery helper (Npcap runtime)").dependOn(&install_zdcp.step);
+    }
+
     // --- Modules ---
 
     const stdx_module = b.addModule("stdx", .{

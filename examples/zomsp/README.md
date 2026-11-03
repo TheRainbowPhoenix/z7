@@ -15,6 +15,17 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 1 -su
 
 ## Python examples
 
+For a persistent TIA experiment on Windows, run `serve.py --library PATH_TO_DLL
+--tls-library PATH_TO_LIBSSL --certificate CERT_PEM --key KEY_PEM --port 1102`.
+It publishes Counter and Setpoint until Ctrl+C. If the existing Python dummy PLC
+generated a combined certificate/private-key PEM, supply that path for both
+certificate and key. The runtime listens on loopback; expose it from an elevated
+terminal with `netsh interface portproxy add v4tov4 listenaddress=192.168.10.100
+listenport=102 connectaddress=127.0.0.1 connectport=1102`. Allow TCP/102 in the VM
+firewall and run zDCP separately. Remove the forwarding rule afterwards using
+`netsh interface portproxy delete v4tov4 listenaddress=192.168.10.100 listenport=102`.
+This is an application-model experiment, not full TIA go-online compatibility.
+
 ```sh
 python examples/zomsp/simple.py --tls-library PATH_TO_LIBSSL --credentials CERT_DIRECTORY
 python examples/zomsp/upload.py --tls-library PATH_TO_LIBSSL --credentials CERT_DIRECTORY
