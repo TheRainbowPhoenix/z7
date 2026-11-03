@@ -74,10 +74,13 @@ def main():
     if result:
         return result
     shared = Path(binary).parent.parent / 'lib' / 'libzomsp.so'
-    for test in ('invoke.py', 'authentication.py'):
-        result = subprocess.call([sys.executable, str(HERE.parent / test), str(shared),
-                                  '--native', str(work / 'native_probe'), '--reference', str(library),
-                                  '--credentials', str(credentials)], cwd=HERE.parents[2])
+    for test in ('invoke.py', 'authentication.py', 'modern.py'):
+        command = [sys.executable, str(HERE.parent / test), str(shared),
+                   '--native', str(work / 'native_probe'), '--reference', str(library),
+                   '--credentials', str(credentials)]
+        if test == 'modern.py':
+            command += ['--binary', binary]
+        result = subprocess.call(command, cwd=HERE.parents[2])
         if result:
             return result
     return 0

@@ -129,6 +129,15 @@ def check(library, native=None, reference=None, credentials=None):
                         assert 'application.explore.status=0x0000000000000000' in process.stdout, process.stdout
                         assert ('count=0' if miss else 'count=1') in process.stdout, process.stdout
                     print('Native client -> mapped ancestor Explore and matching/nonmatching filters: passed')
+                    upload_env = dict(env, OMSP_SEQUENCE='1', OMSP_UPLOAD_RID='1000')
+                    for name in ('OMSP_OBJECT_OPS','OMSP_FILTER','OMSP_FILTER_MISS'):
+                        upload_env.pop(name,None)
+                    process = subprocess.run([str(Path(native).resolve()), str(Path(reference).resolve()),
+                        '::127.0.0.1:SIMATIC-ROOT-ES:6.0'], cwd=Path(credentials).parent.parent,
+                        env=upload_env,capture_output=True,text=True,timeout=12)
+                    assert process.returncode == 0,process.stdout+process.stderr
+                    assert 'sequence.upload.status=0x0000000000000000' in process.stdout,process.stdout
+                    print('Native client -> sequenced mapped object upload: passed')
                     for abort in (False, True):
                         env.update(OMSP_SEQUENCE='1', OMSP_COLLECTIVE='1', OMSP_TRANSACTION_WRITE='2000')
                         for name in ('OMSP_OBJECT_OPS', 'OMSP_FILTER', 'OMSP_FILTER_MISS'):

@@ -100,7 +100,19 @@ incoming associations. Undefined associations retain the observed native error.
   the nonce once, gates mapped application operations until authenticated and
   reports access level 1/4. A failed attempt requires a new session. The digest
   is held outside shared memory. Headless dispatch is a trusted transport API;
-  its caller must provide confidentiality. This is not modern UAC authentication.
+  its caller must provide confidentiality.
+- Modern TLS credentials (`zomsp_password`) and one named UAC account
+  (`zomsp_user_password`): native structure 40400, types 1/2, exporter label
+  `EXPERIMENTAL_OMS`, SHA-256-derived AES-256-CBC key, challenge IV and single-use
+  proof. Passwords/usernames are bounded to 256/128 bytes; only hashes remain in
+  the context. The network endpoint binds verification to its own TLS connection.
+  Native SDK and Python tests cover correct/incorrect credentials and application
+  access. Named-user SDK return status alone is insufficient: inspect the granted
+  access level. Account administration, password changes, and token login are
+  outside this single-account proxy policy.
+- Native UploadWithoutStreamedBlobs over a best-effort sequence, including the
+  internal Explore filter 11. The mapped backend supplies inline values; this
+  does not activate or compile PLC programs.
 - Windows and Linux live TLS tests, independent mapping visibility, restart and
   partial-handshake cancellation. Native client checks cover mapped read/write,
   subscription callbacks, Explore, GetLink, and best-effort sequence completion.
@@ -109,16 +121,16 @@ incoming associations. Undefined associations retain the observed native error.
 ## Remaining protocol work
 
 Typed ASOM alarm event execution/AckJob acknowledgement, upload activation
-(including DLTransaction AID 1702 directives), full V3 security negotiation and
-modern TLS/UAC password authentication remain unsupported. Collective success
+(including DLTransaction AID 1702 directives) and full V3 security negotiation
+remain unsupported. Collective success
 only commits the mapped application model; it does not compile or activate PLC
 programs. Unsupported activation directives are rejected. Unknown Invoke keeps
 the native error instead of inventing PLC data. Unauthorized operations fail
 closed; access-denied status translation is not claimed as native parity.
 
 Native SDK tests validate registered Invoke results, matching/nonmatching filters,
-mapped ancestors, collective isolation/commit/abort, and legacy password success
-and rejection. The SDK's generic BeginSequence(type=2) fails locally; proper
+mapped ancestors, sequenced upload, collective isolation/commit/abort, and legacy
+and modern password/UAC success and rejection. The SDK's generic BeginSequence(type=2) fails locally; proper
 StartTransaction sends a class-1700 descriptor. The bare native server rejects
 that descriptor without an application transaction implementation. Our mapped
 transaction backend is explicit opt-in application behavior.
@@ -144,3 +156,18 @@ python TESTS/omsp/tls.py zig-out/lib/libzomsp.so zig-out/bin
 The native oracle and live Python interoperability runner reside in tia-tools
 under `sps7/native/omsp_capture_analysis`; its reports distinguish native checks
 from application-model-only tests.
+
+## Authenticated client
+
+The executable client uses `ZOMSP_PASSWORD` and optional `ZOMSP_USERNAME` for
+modern TLS password/UAC login. Set them in the launching process environment,
+then run `zOMSp --client HOST PORT TRUSTED_CERT LIBSSL`. Credentials are bounded,
+never printed, and password buffers are cleared after use. A login must grant
+access level 1 before the client performs its read/write/readback roundtrip.
+Incorrect passwords and unknown usernames fail the client process.
+
+The bundled TLS test now exercises authenticated zOMSp client/server pairs on
+Windows, Linux x64 and Linux ARM64 in CI. The x64 native-reference job additionally
+uses the native SDK against zOMSp's modern/password and UAC server profiles.
+Python client usage and its optional TLS exporter dependencies are documented in
+tia-tools at `sps7/s7commplus/omsp/MODERN_CLIENT.md`.

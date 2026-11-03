@@ -375,7 +375,12 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                 "_ZN11OMSpWrapper13ClientSession10LegitimateEPhj");
             const char *password = getenv("OMSP_PASSWORD");
             sha1((const unsigned char *)password, strlen(password), digest);
-            status = legitimate(session, digest, sizeof(digest));
+            if (getenv("OMSP_USERNAME")) {
+                void *native = (void *)session[1];
+                int64_t (*user_password)(void *, unsigned, const char *, unsigned, const char *) =
+                    *(void **)((uintptr_t)*(void **)native + 0x628);
+                status = user_password(native, 2, getenv("OMSP_USERNAME"), (unsigned)strlen(password), password);
+            } else status = legitimate(session, digest, sizeof(digest));
             memset(digest, 0, sizeof(digest));
             printf("session.password.status=0x%016" PRIx64 "\n", (uint64_t)status);
             uint64_t proof_status = (uint64_t)status;
@@ -398,7 +403,7 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
             printf("session.password.access=%u\n", access);
             value_destroy(auth_value);
             bool wrong = getenv("OMSP_PASSWORD_WRONG") != NULL;
-            if (status >= 0 && ((wrong && proof_status != 0 && access == 4) ||
+            if (status >= 0 && ((wrong && (proof_status != 0 || getenv("OMSP_USERNAME")) && access == 4) ||
                                (!wrong && proof_status == 0 && access == 1))) status = 0;
             else status = -1;
         }
@@ -502,6 +507,17 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                 } else status = begin(session, 1, &sequence, &request_id, NULL, response, &extension);
                 printf("sequence.begin.status=0x%016" PRIx64 " sequence=%u\n", (uint64_t)status, sequence);
                 if (status >= 0) {
+                    if (getenv("OMSP_UPLOAD_RID")) {
+                        uintptr_t upload_object[4] = {0};
+                        void (*object_init)(void *) = symbol(library, "_ZN11OMSpWrapper6ObjectC2Ev");
+                        int64_t (*upload)(void *, uint32_t, void *, int *, void *, bool *) = symbol(library,
+                            "_ZN11OMSpWrapper13ClientSession26UploadWithoutStreamedBlobsEjPNS_6ObjectERiS2_Rb");
+                        object_init(upload_object);
+                        status = upload(session, (uint32_t)strtoul(getenv("OMSP_UPLOAD_RID"), NULL, 0),
+                            upload_object, &request_id, response, &extension);
+                        printf("sequence.upload.status=0x%016" PRIx64 "\n", (uint64_t)status);
+                        destroy(upload_object);
+                    }
                     if (getenv("OMSP_TRANSACTION_WRITE")) {
                         uintptr_t transaction_value[2] = {0};
                         value_ctor(transaction_value);

@@ -33,6 +33,12 @@ typedef uint64_t (*zomsp_invoke_handler)(void *user, const zomsp_invocation *cal
  * This explicitly advertises protocol profile 0x300, not V3/UAC authentication. */
 int32_t zomsp_legacy_password(zomsp_context *context, const uint8_t *password, size_t length);
 /* Enable before starting/opening sessions. Application mapped objects only. */
+/* Modern TLS credentials. Anonymous password or one named UAC account.
+ * Password: 1..256 UTF-8 bytes; username: 1..128 UTF-8 bytes.
+ * The network runtime binds proof verification to the verified TLS exporter. */
+int32_t zomsp_password(zomsp_context *, const uint8_t *password, size_t length);
+int32_t zomsp_user_password(zomsp_context *, const uint8_t *username, size_t username_length,
+    const uint8_t *password, size_t length);
 int32_t zomsp_transactions(zomsp_context *, uint8_t enabled);
 int32_t zomsp_method(zomsp_context *, uint32_t target, uint32_t method,
     zomsp_invoke_handler, void *user);

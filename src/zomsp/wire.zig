@@ -338,6 +338,7 @@ pub const State = struct {
     client: u32 = 0x11e1a301,
     role: u32 = 2,
     version: []const u8 = &.{},
+    tls_secret: ?[32]u8 = null,
     negotiated: bool = false,
     authentication: @import("authentication.zig").Session = .{},
     best_effort: bool = false,
@@ -348,6 +349,12 @@ pub const State = struct {
     write_counter: u32 = 3,
     backend: ?*backend.Backend = null,
     subscriptions: [subscriptions.max_subscriptions]subscriptions.Subscription = @splat(.{}),
+    pub fn close(self: *State) void {
+        self.deinit();
+        if (self.tls_secret) |*secret| std.crypto.utils.secureZero(u8, secret);
+        self.tls_secret = null;
+        std.crypto.utils.secureZero(u8, &self.authentication.challenge);
+    }
     pub fn deinit(self: *State) void {
         if (self.transaction) |transaction| {
             self.backend = transaction.source;
@@ -508,7 +515,7 @@ pub fn createReply(writer: *Writer, request: Message, state: *State) ![]const u8
     try writer.be32(0x13a);
     for ([_]u32{ 315, 316, 317, 318 }) |aid| {
         try writer.vlq(aid);
-        try writer.uint(if (aid < 317) (if (passwordRequired(state)) @as(u32, 0x300) else 0x400) else 0x802001);
+        try writer.uint(if (aid < 317) (if (passwordRequired(state)) state.backend.?.authentication.profile else 0x400) else 0x802001);
     }
     for ([_]u32{ 319, 320 }) |aid| {
         try writer.vlq(aid);
@@ -539,7 +546,7 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         return createReply(writer, request, state);
     }
     if (request.version != 2 or request.session != state.session) return error.InvalidSession;
-    if (passwordRequired(state) and !state.authentication.authenticated and request.function != 0x542 and request.function != 0x4f2 and request.function != 0x586 and request.function != 0x54c and request.function != 0x57c) return error.AuthenticationRequired;
+    if (passwordRequired(state) and !state.authentication.authenticated and request.function != 0x542 and request.function != 0x4f2 and request.function != 0x586 and request.function != 0x54c and request.function != 0x57c and request.function != 0x4d4) return error.AuthenticationRequired;
     if (request.function == 0x556 or request.function == 0x560) {
         if (!state.negotiated) return error.NotNegotiated;
         var sequence_type: u8 = 0;
@@ -881,7 +888,10 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
             if (findSubscription(state, target)) |subscription| {
                 try subscription.set(aid, value, Reader);
             } else if (target == state.session) {
-                if (aid == 304) {
+                if (aid == 1846) {
+                    const store = state.backend orelse return error.AuthenticationDisabled;
+                    authentication_status = try state.authentication.verifyModern(&store.authentication, state.tls_secret orelse return error.TlsRequired, value.raw);
+                } else if (aid == 304) {
                     authentication_status = try authenticate(state, value.raw);
                 } else {
                     if (aid != 299) return error.UnsupportedAttribute;
@@ -903,7 +913,10 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
                 if (address.path_len != 0) return error.UnsupportedAddress;
                 try subscription.set(address.aid, value, Reader);
             } else if (target == state.session) {
-                if (address.aid == 304 and address.path_len == 0) {
+                if (address.aid == 1846 and address.path_len == 0) {
+                    const store = state.backend orelse return error.AuthenticationDisabled;
+                    authentication_status = try state.authentication.verifyModern(&store.authentication, state.tls_secret orelse return error.TlsRequired, value.raw);
+                } else if (address.aid == 304 and address.path_len == 0) {
                     authentication_status = try authenticate(state, value.raw);
                 } else {
                     if (address.aid != 299 or address.path_len != 0) return error.UnsupportedAttribute;
@@ -1066,7 +1079,7 @@ fn exploreFilters(reader: *Reader, output: *[10]ExploreFilter) ![]const ExploreF
             const field = try fields.value(0);
             switch (aid) {
                 1247 => {
-                    if (field.raw[0] != 0 or field.kind != 8 or field.number < 1 or field.number > 8 or field.number == 7) return error.UnsupportedFilter;
+                    if (field.raw[0] != 0 or field.kind != 8 or field.number < 1 or (field.number > 8 and field.number != 11) or field.number == 7) return error.UnsupportedFilter;
                     filter.operation = @intCast(field.number);
                 },
                 1249 => {
@@ -1087,7 +1100,7 @@ fn exploreFilters(reader: *Reader, output: *[10]ExploreFilter) ![]const ExploreF
                 else => unreachable,
             }
         }
-        if (seen != 15 or (filter.operation != 8 and filter.address_count == 0)) return error.UnsupportedFilter;
+        if (seen != 15 or (filter.operation != 8 and filter.operation != 11 and filter.address_count == 0)) return error.UnsupportedFilter;
         for (filter.address[0..filter.address_count]) |aid| if (aid == 0) return error.InvalidAddress;
         output[count] = filter;
         count += 1;
@@ -1133,6 +1146,10 @@ fn compareFilter(filter: ExploreFilter, actual: []const u8) !bool {
 
 fn matchesExplore(state: *State, model: ?*const backend.Layout, rid_value: u32, class: u32, filters: []const ExploreFilter) !bool {
     for (filters) |filter| {
+        if (filter.operation == 11) {
+            if (!state.best_effort or filter.address_count != 0 or !std.mem.eql(u8, filter.value, &.{ 0, 0 })) return error.UnsupportedFilter;
+            continue;
+        }
         if (filter.operation == 8) {
             if (filter.address_count != 0) return error.UnsupportedFilter;
             var reader: Reader = .{ .data = filter.value };

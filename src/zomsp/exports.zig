@@ -27,7 +27,7 @@ export fn zomsp_session_open(context: ?*Context) ?*Session {
 export fn zomsp_session_close(session: ?*Session) void {
     if (session) |handle| {
         std.debug.assert(handle.context.sessions > 0);
-        handle.state.deinit();
+        handle.state.close();
         handle.context.sessions -= 1;
         allocator.destroy(handle);
     }
@@ -81,6 +81,26 @@ export fn zomsp_legacy_password(context: ?*Context, password: ?[*]const u8, leng
     if (length > 256 or (length != 0 and password == null)) return -1;
     if (ctx.runtime != null or ctx.sessions != 0) return -6;
     ctx.store.authentication.configure(if (password) |bytes| bytes[0..length] else &.{}) catch return -1;
+    return 0;
+}
+export fn zomsp_password(context: ?*Context, password: ?[*]const u8, length: usize) i32 {
+    if (password == null or length == 0 or length > 256) return -1;
+    const result = zomsp_legacy_password(context, password, length);
+    if (result != 0) return result;
+    context.?.store.authentication.profile = 0x400;
+    return 0;
+}
+export fn zomsp_user_password(context: ?*Context, username: ?[*]const u8, username_length: usize, password: ?[*]const u8, length: usize) i32 {
+    if (username == null or username_length == 0 or username_length > 128 or password == null or length == 0 or length > 256) return -1;
+    const result = zomsp_password(context, password, length);
+    if (result != 0) return result;
+    var user_hash: [32]u8 = undefined;
+    var password_hash: [32]u8 = undefined;
+    defer std.crypto.utils.secureZero(u8, &password_hash);
+    std.crypto.hash.sha2.Sha256.hash(username.?[0..username_length], &user_hash, .{});
+    std.crypto.hash.sha2.Sha256.hash(password.?[0..length], &password_hash, .{});
+    context.?.store.authentication.user = user_hash;
+    context.?.store.authentication.password = password_hash;
     return 0;
 }
 export fn zomsp_transactions(context: ?*Context, enabled: u8) i32 {

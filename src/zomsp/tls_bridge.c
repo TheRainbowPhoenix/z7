@@ -51,6 +51,7 @@ API(int, X509_VERIFY_PARAM_set1_ip_asc, (void *, const char *));
 API(int, SSL_do_handshake, (void *));
 API(int, SSL_get_error, (void *, int));
 API(int, SSL_is_init_finished, (const void *));
+API(int, SSL_export_keying_material, (void *, unsigned char *, size_t, const char *, size_t, const unsigned char *, size_t, int));
 API(int, SSL_read, (void *, void *, int));
 API(int, SSL_write, (void *, const void *, int));
 API(const void *, BIO_s_mem, (void));
@@ -104,7 +105,7 @@ int zomsp_tls_load(const char *path) {
     RESOLVE(SSL_set_bio); RESOLVE(SSL_set_accept_state); RESOLVE(SSL_set_connect_state);
     RESOLVE(SSL_set_verify); RESOLVE(SSL_get0_param); RESOLVE(X509_VERIFY_PARAM_set1_ip_asc);
     RESOLVE(SSL_do_handshake); RESOLVE(SSL_get_error); RESOLVE(SSL_is_init_finished);
-    RESOLVE(SSL_read); RESOLVE(SSL_write); RESOLVE(BIO_s_mem); RESOLVE(BIO_new);
+    RESOLVE(SSL_export_keying_material); RESOLVE(SSL_read); RESOLVE(SSL_write); RESOLVE(BIO_s_mem); RESOLVE(BIO_new);
     RESOLVE(BIO_read); RESOLVE(BIO_write); RESOLVE(BIO_free);
     RESOLVE(BIO_new_file); RESOLVE(PEM_read_bio_X509);
     p_SSL_get1_peer_certificate = (void *)resolve("SSL_get1_peer_certificate");
@@ -193,3 +194,9 @@ int zomsp_tls_feed(Channel *c, const void *data, int length) {
 int zomsp_tls_drain(Channel *c, void *data, int length) { return p_BIO_read(c->output, data, length); }
 int zomsp_tls_read(Channel *c, void *data, int length) { return outcome(c, p_SSL_read(c->ssl, data, length)); }
 int zomsp_tls_write(Channel *c, const void *data, int length) { return outcome(c, p_SSL_write(c->ssl, data, length)); }
+
+int zomsp_tls_exporter(Channel *channel, unsigned char *output) {
+    if (!channel || !output || !p_SSL_is_init_finished(channel->ssl)) return -1;
+    return p_SSL_export_keying_material(channel->ssl, output, 32,
+        "EXPERIMENTAL_OMS", 16, NULL, 0, 0) == 1 ? 0 : -1;
+}

@@ -77,11 +77,25 @@ Native Legitimate (003beac0 -> 00577230 -> 0058cb20) reads AID 303 and submits
 SHA-1(password) XOR challenge at AID 304. Server validation at 0059ffb0 and
 0059f060 supplies wrong-proof status 0x26051900092d0016; repeat proof status
 0xa6054c00040afea1 comes from 005a07a0. Native SDK success and incorrect-password
-access levels are tested. Modern Blob-1846/TLS-exporter authentication is distinct
-and remains unsupported.
+access levels are tested. Modern Blob-1846/TLS-exporter authentication is distinct and is now supported
+for password-only and one named UAC account. TLSHandler_ServiceHandshakeIO at
+00692e90 verifies the exporter label: `EXPERIMENTAL_OMS` (16 bytes), not the old
+Python client's guessed label. Native-generated ciphertext decrypts with
+SHA256(exporter) and the first 16 challenge bytes, PKCS#7 AES-256-CBC. The payload
+is structure 40400: Type 40401, Username Blob 40402, Password Blob 40403. Type 1
+contains SHA1(password), type 2 contains UTF-8 username/password. Native modern
+entry 0058d300 is synchronous vtable slot 0x628; the public LegitimateTls overload
+still returns unsupported and must not be used as a success oracle. Native and
+Python clients pass correct/incorrect credential checks. Native named-user login
+can return zero with access level 4, so tests verify granted access and data
+access rather than status alone.
 
 UploadWithoutStreamedBlobs (003c76c0 -> 00590250) creates request 0x4bb and
-requires a sequence context; it is not a standalone Explore alias. Captured
+requires a sequence context; it is not a standalone Explore alias. Its internal
+filter 11 has no address and a Null value. VPLC 1041f8a0 handles it by setting
+bit 0 at +0x83c in the active sequence object, failing if no sequence exists.
+zOMSp accepts that filter only during a best-effort sequence and supplies mapped
+inline objects/values. The native SDK upload call now succeeds. Captured
 DLTransaction AID 1702 directives still require an application activation model.
 The mapped backend rejects them rather than claiming PLC activation.
 

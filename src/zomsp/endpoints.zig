@@ -85,8 +85,8 @@ fn serveSession(stream: std.net.Stream, certificate: [:0]const u8, key: [:0]cons
     try clearFooter(&channel);
     try channel.handshake(true, certificate, key, "127.0.0.1");
     std.log.info("zOMSp server TLS established", .{});
-    var state: wire.State = .{ .backend = store };
-    defer state.deinit();
+    var state: wire.State = .{ .backend = store, .tls_secret = try channel.exporter() };
+    defer state.close();
     var notification_writer: wire.Writer = .{};
     var created = false;
     channel.wait_read = false;
@@ -221,6 +221,93 @@ fn readRole(channel: *Channel, notifications: *wire.NotificationQueue, writer: *
     return @intCast(value.number);
 }
 
+fn authenticatedClient(channel: *Channel, notifications: *wire.NotificationQueue, session: u32, password: []const u8, username: []const u8) !void {
+    if (password.len == 0 or password.len > 256 or username.len > 128) return error.InvalidCredentials;
+    var writer: wire.Writer = .{};
+    try writer.begin(2, 0x31, 0x586, 4, session, 0x34);
+    try writer.be32(session);
+    try writer.put(&.{ 0x20, 4, 1 });
+    try writer.vlq(303);
+    try writer.qualifier(true, 1);
+    try channel.send(try writer.finish());
+    const challenge_reply = try checkReply(try channel.receiveReply(notifications), 0x586, 4);
+    var reader: wire.Reader = .{ .data = challenge_reply.body };
+    if (try reader.vlq() != 0 or try reader.byte() != 0) return error.InvalidProof;
+    const challenge = try reader.value(0);
+    if (challenge.raw.len != 23 or !std.mem.eql(u8, challenge.raw[0..3], &.{ 0x10, 2, 20 })) return error.InvalidProof;
+    const iv = challenge.raw[3..19].*;
+    var payload: wire.Writer = .{};
+    defer std.crypto.utils.secureZero(u8, &payload.data);
+    try payload.put(&.{ 0, 0x17 });
+    try payload.be32(40400);
+    try payload.vlq(40401);
+    try payload.uint(if (username.len == 0) 1 else 2);
+    try payload.vlq(40402);
+    try payload.put(&.{ 0, 0x14, 0 });
+    try payload.vlq(username.len);
+    try payload.put(username);
+    try payload.vlq(40403);
+    try payload.put(&.{ 0, 0x14, 0 });
+    var digest: [20]u8 = undefined;
+    defer std.crypto.utils.secureZero(u8, &digest);
+    const credential = if (username.len == 0) blk: {
+        std.crypto.hash.Sha1.hash(password, &digest, .{});
+        break :blk &digest;
+    } else password;
+    try payload.vlq(credential.len);
+    try payload.put(credential);
+    try payload.byte(0);
+    const padding: u8 = @intCast(16 - payload.used % 16);
+    for (0..padding) |_| try payload.byte(padding);
+    var secret = try channel.exporter();
+    defer std.crypto.utils.secureZero(u8, &secret);
+    var key: [32]u8 = undefined;
+    defer std.crypto.utils.secureZero(u8, &key);
+    std.crypto.hash.sha2.Sha256.hash(&secret, &key, .{});
+    var aes = std.crypto.core.aes.Aes256.initEnc(key);
+    defer std.crypto.utils.secureZero(u8, std.mem.asBytes(&aes));
+    var encrypted: [1024]u8 = undefined;
+    if (payload.used > encrypted.len) return error.InvalidCredentials;
+    var previous = iv;
+    var offset: usize = 0;
+    while (offset < payload.used) : (offset += 16) {
+        var block: [16]u8 = undefined;
+        defer std.crypto.utils.secureZero(u8, &block);
+        for (payload.data[offset..][0..16], previous, &block) |byte, before, *out| out.* = byte ^ before;
+        aes.encrypt(encrypted[offset..][0..16], &block);
+        previous = encrypted[offset..][0..16].*;
+    }
+    try writer.begin(2, 0x31, 0x4f2, 5, session, 0x36);
+    try writer.be32(session);
+    try writer.byte(1);
+    try writer.vlq(1846);
+    try writer.put(&.{ 0, 0x14, 0 });
+    try writer.vlq(payload.used);
+    try writer.put(encrypted[0..payload.used]);
+    try writer.qualifier(false, 4);
+    try channel.send(try writer.finish());
+    _ = try checkReply(try channel.receiveReply(notifications), 0x4f2, 5);
+    if (try readRole(channel, notifications, &writer, session, 6, 1842, 2) != 1) return error.AuthenticationDenied;
+    const before = try readRole(channel, notifications, &writer, session, 7, 299, 3);
+    try writer.begin(2, 0x31, 0x4f2, 8, session, 0x36);
+    try writer.be32(session);
+    try writer.byte(1);
+    try writer.vlq(299);
+    try writer.uint(32);
+    try writer.qualifier(false, 5);
+    try channel.send(try writer.finish());
+    _ = try checkReply(try channel.receiveReply(notifications), 0x4f2, 8);
+    if (try readRole(channel, notifications, &writer, session, 9, 299, 4) != 32) return error.ReadbackMismatch;
+    std.log.info("zOMSp authenticated roundtrip=ok role={d}->32", .{before});
+    try writer.begin(2, 0x31, 0x4d4, 10, session, 0x34);
+    try writer.be32(session);
+    try writer.byte(0);
+    try writer.put(&wire.qualifier_bytes);
+    try writer.vlq(6);
+    try writer.be32(0);
+    try channel.send(try writer.finish());
+}
+
 fn client(host: [:0]const u8, port: u16, certificate: [:0]const u8) !void {
     const stream = try std.net.tcpConnectToAddress(try std.net.Address.parseIp4(host, port));
     var channel = Channel.init(stream);
@@ -266,6 +353,19 @@ fn client(host: [:0]const u8, port: u16, certificate: [:0]const u8) !void {
     try channel.send(try writer.finish());
     _ = try checkReply(try channel.receiveReply(notifications), 0x542, 3);
     std.log.info("zOMSp login=ok session={x}", .{session});
+    if (std.process.getEnvVarOwned(std.heap.page_allocator, "ZOMSP_PASSWORD")) |password| {
+        defer {
+            std.crypto.utils.secureZero(u8, password);
+            std.heap.page_allocator.free(password);
+        }
+        const username = std.process.getEnvVarOwned(std.heap.page_allocator, "ZOMSP_USERNAME") catch |err| switch (err) {
+            error.EnvironmentVariableNotFound => try std.heap.page_allocator.dupe(u8, ""),
+            else => return err,
+        };
+        defer std.heap.page_allocator.free(username);
+        return authenticatedClient(&channel, notifications, session, password, username);
+    } else |err| if (err != error.EnvironmentVariableNotFound) return err;
+
     if (try readRole(&channel, notifications, &writer, session, 4, 300, 1) != 0x11e1a301) return error.PingMismatch;
     const before = try readRole(&channel, notifications, &writer, session, 5, 299, 2);
     if (before != 2) return error.RoleMismatch;

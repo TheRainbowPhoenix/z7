@@ -129,6 +129,13 @@ def check(library, runtime):
                 assert time.monotonic() - started < 1
         finally:
             store.close()
+        from modern import check as check_credentials
+        credentials = folder / 'credentials'
+        credentials.mkdir()
+        shutil.copyfile(cert, credentials / 'server-cert.pem')
+        shutil.copyfile(key, credentials / 'server-key.pem')
+        executable = runtime / ('zOMSp.exe' if os.name == 'nt' else 'zOMSp')
+        check_credentials(library, tls_library, credentials, binary=executable)
     print('OMSp bundled TLS: verified handshake, native login, mapped read/write and cancelled partial handshake passed')
 
 

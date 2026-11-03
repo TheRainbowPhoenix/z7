@@ -16,6 +16,7 @@ extern fn zomsp_tls_finished(*anyopaque) c_int;
 extern fn zomsp_tls_feed(*anyopaque, [*]const u8, c_int) c_int;
 extern fn zomsp_tls_drain(*anyopaque, [*]u8, c_int) c_int;
 extern fn zomsp_tls_read(*anyopaque, [*]u8, c_int) c_int;
+extern fn zomsp_tls_exporter(*anyopaque, *[32]u8) c_int;
 extern fn zomsp_tls_write(*anyopaque, [*]const u8, c_int) c_int;
 
 pub fn load(path: [*:0]const u8) !void {
@@ -62,6 +63,11 @@ pub const Channel = struct {
     wait_read: bool = true,
     deadline: i64,
 
+    pub fn exporter(self: *Channel) ![32]u8 {
+        var result: [32]u8 = undefined;
+        if (zomsp_tls_exporter(self.tls orelse return error.TlsRequired, &result) != 0) return error.TlsExporter;
+        return result;
+    }
     pub fn init(stream: std.net.Stream) Channel {
         return .{ .stream = stream, .deadline = std.time.milliTimestamp() + 10_000 };
     }
