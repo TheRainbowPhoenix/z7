@@ -103,6 +103,12 @@ export fn zomsp_user_password(context: ?*Context, username: ?[*]const u8, userna
     context.?.store.authentication.password = password_hash;
     return 0;
 }
+export fn zomsp_activation(context: ?*Context, callback: ?application.ActivationCallback, user: ?*anyopaque) i32 {
+    const ctx = context orelse return -1;
+    if (ctx.runtime != null or ctx.sessions != 0) return -6;
+    ctx.store.activator = if (callback) |handler| .{ .callback = handler, .user = user } else null;
+    return 0;
+}
 export fn zomsp_transactions(context: ?*Context, enabled: u8) i32 {
     const ctx = context orelse return -1;
     if (enabled > 1) return -1;
@@ -151,6 +157,12 @@ export fn zomsp_get(context: ?*Context, rid: u32, aid: u32, output: ?[*]u8, capa
     if (output == null or capacity == 0) return -1;
     const value = ctx.store.get(rid, aid, output.?[0..@min(capacity, backend.max_value_bytes)]) catch |err| return failure(err);
     return @intCast(value.len);
+}
+export fn zomsp_value_size(bytes: ?[*]const u8, length: usize) isize {
+    if (bytes == null or length < 2 or length > wire.limit) return -1;
+    var reader: wire.Reader = .{ .data = bytes.?[0..length] };
+    _ = reader.value(0) catch return -1;
+    return @intCast(reader.offset);
 }
 export fn zomsp_size() usize {
     return @sizeOf(backend.Layout);

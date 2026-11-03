@@ -550,6 +550,7 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
     if (request.function == 0x556 or request.function == 0x560) {
         if (!state.negotiated) return error.NotNegotiated;
         var sequence_type: u8 = 0;
+        var directives: []const u8 = &.{};
         var abort = false;
         if (request.function == 0x556) {
             if (state.best_effort or state.transaction != null) return error.InvalidSequenceState;
@@ -573,13 +574,27 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
             try descriptor.parse(&reader, 0, 0);
             if (descriptor.node_count != 1 or descriptor.nodes[0].class != 1700) return error.UnsupportedSequence;
             for (descriptor.values[0..descriptor.value_count]) |field| {
-                if (field.aid != 233 or field.value.len < 2 or field.value[0] != 0 or field.value[1] != 0x15) return error.UnsupportedActivation;
+                if (field.aid == 1702) {
+                    if (directives.len != 0 or field.value.len < 3 or field.value.len > backend.max_value_bytes or field.value[0] != 0x40 or field.value[1] != 0x16) return error.UnsupportedActivation;
+                    const store = state.backend orelse return error.UnsupportedActivation;
+                    if (store.activator == null) return error.UnsupportedActivation;
+                    directives = field.value;
+                } else if (field.aid != 233 or field.value.len < 2 or field.value[0] != 0 or field.value[1] != 0x15) return error.UnsupportedActivation;
             }
         }
         if (try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
         const supported = sequence_type != 2 or (state.backend != null and state.backend.?.transactions_enabled);
+        var status: u64 = if (supported) 0 else 0xa201a3002ae3ff19;
+        if (request.function == 0x560 and !abort) if (state.transaction) |transaction| {
+            if (transaction.directives_length != 0) {
+                const activator = transaction.source.activator orelse return error.UnsupportedActivation;
+                const call: application.Invocation = .{ .target = state.transaction_rid, .method = 0x560, .session = state.session, .client = state.client, .role = state.role };
+                const image = std.mem.asBytes(transaction.shadow.data);
+                status = activator.callback(activator.user, &call, &transaction.directives, transaction.directives_length, image.ptr, image.len);
+            }
+        };
         try writer.begin(2, 0x32, request.function, request.sequence, null, request.flags);
-        try writer.vlq(if (supported) 0 else 0xa201a3002ae3ff19);
+        try writer.vlq(status);
         if (request.function == 0x556) {
             if (sequence_type == 2 and supported) {
                 if (state.transaction_serial == 0x7ff) return error.ObjectLimit;
@@ -592,12 +607,14 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         if (supported) {
             if (sequence_type == 2) {
                 const transaction = try backend.Transaction.open(state.backend.?, std.heap.page_allocator);
+                @memcpy(transaction.directives[0..directives.len], directives);
+                transaction.directives_length = directives.len;
                 state.transaction = transaction;
                 state.transaction_serial += 1;
                 state.transaction_rid = 0x70001800 + @as(u32, state.transaction_serial);
                 state.backend = &transaction.shadow;
             } else if (request.function == 0x556) state.best_effort = true else if (state.transaction) |transaction| {
-                if (!abort) try transaction.commit();
+                if (!abort and status == 0) try transaction.commit();
                 state.deinit();
             } else state.best_effort = false;
         }
@@ -1366,8 +1383,9 @@ pub fn pollNotification(writer: *Writer, state: *State, now_us: i64) !?[]const u
         try writer.be16(subscription.missed);
         try writer.be16(0);
         try writer.byte(if (subscription.credit_limit == -1) 0 else subscription.credit_count +% 1);
-        try writer.byte(@truncate(subscription.sequence));
+        try writer.vlq(subscription.sequence);
         try writer.be64(@intCast(@max(0, now_us)));
+        const phase_offset = writer.used;
         try writer.byte(if (subscription.pending_empty) 1 else 2);
         var delivered: usize = 0;
         var generations: [16]struct { reference: *subscriptions.Reference, generation: u64 } = undefined;
@@ -1396,7 +1414,7 @@ pub fn pollNotification(writer: *Writer, state: *State, now_us: i64) !?[]const u
                 subscription.next_due = now_us + @as(i64, subscription.cycle_ms) * 1000;
                 continue;
             }
-            if (delivered == 0 and !subscription.ready) writer.data[25] = 1;
+            if (delivered == 0 and !subscription.ready) writer.data[phase_offset] = 1;
         }
         try writer.byte(0);
         try writer.be32(0);
@@ -1561,4 +1579,20 @@ test "Explore filters compare signed values and reject unsupported orderings" {
     try std.testing.expect(try compareFilter(filter, &.{ 0, 0x15, 1, 'y' }));
     filter.operation = 3;
     try std.testing.expectError(error.UnsupportedFilter, compareFilter(filter, &.{ 0, 0x15, 1, 'x' }));
+}
+
+test "notification sequence VLQ keeps timestamp and phase aligned" {
+    for ([_]u32{ 127, 128, 498, 16384 }) |sequence| {
+        var state: State = .{};
+        state.subscriptions[0] = .{ .rid = 0x70001046, .sequence = sequence, .pending_empty = true };
+        var writer: Writer = .{};
+        const packet = (try pollNotification(&writer, &state, 123456)).?;
+        var reader: Reader = .{ .data = packet, .offset = 16 };
+        try std.testing.expectEqual(@as(u64, sequence), try reader.vlq());
+        const timestamp = try reader.take(8);
+        try std.testing.expectEqual(@as(u64, 123456), std.mem.readInt(u64, timestamp[0..8], .big));
+        try std.testing.expectEqual(@as(u8, 1), try reader.byte());
+        try std.testing.expectEqualSlices(u8, &.{ 0, 0, 0, 0, 0 }, try reader.take(5));
+        try std.testing.expectEqual(packet.len, reader.offset);
+    }
 }

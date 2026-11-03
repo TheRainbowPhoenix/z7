@@ -4,6 +4,8 @@ pub const max_methods = 32;
 pub const invoke_bytes = 8192;
 pub const Invocation = extern struct { target: u32, method: u32, session: u32, client: u32, role: u32 };
 pub const Callback = *const fn (?*anyopaque, *const Invocation, [*]const u8, usize, [*]u8, usize, *usize) callconv(.c) u64;
+pub const ActivationCallback = *const fn (?*anyopaque, *const Invocation, [*]const u8, usize, [*]const u8, usize) callconv(.c) u64;
+pub const Activator = struct { callback: ActivationCallback, user: ?*anyopaque };
 pub const Method = struct {
     target: u32,
     id: u32,

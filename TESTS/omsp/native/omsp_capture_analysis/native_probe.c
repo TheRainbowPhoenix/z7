@@ -457,6 +457,19 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                 }
             }
             value_dtor(value);
+            if (status >= 0 && getenv("OMSP_CAPTURE_RID")) {
+                uintptr_t captured[2] = {0};
+                value_ctor(captured);
+                request_id = -1;
+                status = get_remote(session, (uint32_t)strtoul(getenv("OMSP_CAPTURE_RID"), NULL, 0),
+                    (uint32_t)strtoul(getenv("OMSP_CAPTURE_AID"), NULL, 0), captured, false,
+                    &request_id, response, &extension, (Qualifier){0}, false);
+                uint32_t actual = 0;
+                if (status >= 0) status = get_uint(captured, &actual);
+                if (status >= 0 && actual != (uint32_t)strtoul(getenv("OMSP_CAPTURE_UINT"), NULL, 0)) status = -1;
+                printf("capture.read.status=0x%016" PRIx64 " value=%u\n", (uint64_t)status, actual);
+                value_dtor(captured);
+            }
             if (status >= 0 && getenv("OMSP_INVOKE")) {
                 uintptr_t arguments[4][2] = {{0}};
                 int64_t (*invoke)(void *, uint32_t, uint32_t, void *, void *, void *, void *, int *) = symbol(library,
@@ -503,7 +516,48 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                 if (getenv("OMSP_COLLECTIVE")) {
                     int64_t (*start_transaction)(void *, void *, int *, void *, bool *) = symbol(library,
                         "_ZN11OMSpWrapper13ClientSession16StartTransactionEPNS_6ObjectERiS2_Rb");
-                    status = start_transaction(session, NULL, &request_id, response, &extension);
+                    uintptr_t descriptor[4] = {0};
+                    void *transaction_object = NULL;
+                    if (getenv("OMSP_ACTIVATION")) {
+                        Dl_info image_info;
+                        if (!dladdr(start_transaction, &image_info)) abort();
+                        int64_t (*make_transaction)(void *, void **, unsigned) =
+                            (void *)((uintptr_t)image_info.dli_fbase + 0x475210);
+                        void *native_transaction = NULL;
+                        void (*descriptor_init)(void *) = symbol(library, "_ZN11OMSpWrapper6ObjectC2Ev");
+                        descriptor_init(descriptor);
+                        status = make_transaction((void *)session[1], &native_transaction, 0);
+                        descriptor[1] = (uintptr_t)native_transaction;
+
+                        uintptr_t directives[2] = {0}, amount[2] = {0};
+                        value_ctor(directives);
+                        value_ctor(amount);
+                        void (*empty_directives)(void *, uint32_t, uint32_t) = symbol(library, "_ZN11OMSpWrapper5Value18SetEmptyArrayValueEjj");
+                        int64_t (*set_amount)(void *, uint32_t) = symbol(library, "_ZN11OMSpWrapper5Value8SetValueEj");
+                        int64_t (*set_slot)(void *, uint32_t, void *) = symbol(library, "_ZN11OMSpWrapper5Value8SetValueEjPS0_");
+                        empty_directives(directives, 0x40000016, 0);
+                        if (status >= 0) status = set_amount(amount, 0);
+                        if (status >= 0) status = set_slot(directives, 0, amount);
+                        void *(*raw_value)(void *) = symbol(library, "_ZN11OMSpWrapper5Value15UnmanagedObjectEv");
+                        int64_t (*native_set)(void *, uint32_t, void *) =
+                            (void *)((uintptr_t)image_info.dli_fbase + 0x335390);
+                        if (status >= 0) status = native_set(native_transaction, 1702, raw_value(directives));
+                        value_dtor(amount);
+                        value_dtor(directives);
+                        transaction_object = descriptor;
+                    }
+                    if (status >= 0 && transaction_object) {
+                        void *native_session = (void *)session[1];
+                        int64_t (*native_start)(void *, void *, int *, void **) =
+                            *(void **)((uintptr_t)*(void **)native_session + 0x8b0);
+                        void *native_extension = NULL;
+                        status = native_start(native_session, (void *)descriptor[1], &request_id, &native_extension);
+                        if (native_extension) abort();
+                    } else if (status >= 0) status = start_transaction(session, NULL, &request_id, response, &extension);
+                    if (transaction_object) {
+                        descriptor[1] = 0;
+                        destroy(descriptor);
+                    }
                 } else status = begin(session, 1, &sequence, &request_id, NULL, response, &extension);
                 printf("sequence.begin.status=0x%016" PRIx64 " sequence=%u\n", (uint64_t)status, sequence);
                 if (status >= 0) {
@@ -524,7 +578,13 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                         int64_t (*set_uint_transaction)(void *, uint32_t) = symbol(library, "_ZN11OMSpWrapper5Value8SetValueEj");
                         int64_t (*set_remote_transaction)(void *, uint32_t, uint32_t, void *, unsigned char, int *, void *, bool *, Qualifier, bool) = symbol(library,
                             "_ZN11OMSpWrapper13ClientSession17SetVariableRemoteEjjPNS_5ValueEhRiPNS_6ObjectERbNS_15ObjectQualifierEb");
-                        status = set_uint_transaction(transaction_value, 11);
+                        const char *program = getenv("OMSP_PROGRAM");
+                        if (program) {
+                            size_t length = strlen(program);
+                            int64_t (*set_source)(void *, const unsigned char *, uint32_t) = symbol(library,
+                                "_ZN11OMSpWrapper5Value14SetStringValueEPhj");
+                            status = length > 0 && length <= 900 ? set_source(transaction_value, (const unsigned char *)program, (uint32_t)length) : -1;
+                        } else status = set_uint_transaction(transaction_value, 11);
                         request_id = -1;
                         if (status >= 0) status = set_remote_transaction(session,
                             (uint32_t)strtoul(getenv("OMSP_TRANSACTION_WRITE"), NULL, 0), 42,
@@ -541,6 +601,20 @@ static int64_t connect_client(void *library, Wrapper *root, const char *address)
                         status = end_transaction(session, getenv("OMSP_ABORT") == NULL, &request_id, response, &extension);
                     } else status = end(session, false, &request_id, response, &extension);
                     printf("sequence.end.status=0x%016" PRIx64 "\n", (uint64_t)status);
+                    if (status >= 0 && getenv("OMSP_PROGRAM")) {
+                        uint32_t previous = 0;
+                        for (unsigned i = 0; i < 5 && status >= 0; ++i) {
+                            usleep(60000);
+                            request_id = -1;
+                            status = get_remote(session, (uint32_t)strtoul(getenv("OMSP_TRANSACTION_WRITE"), NULL, 0),
+                                43, value, false, &request_id, response, &extension, (Qualifier){0}, false);
+                            uint32_t current = 0;
+                            if (status >= 0) status = get_uint(value, &current);
+                            if (status >= 0 && i && current <= previous) status = -1;
+                            previous = current;
+                            printf("program.counter=%u status=0x%016" PRIx64 "\n", current, (uint64_t)status);
+                        }
+                    }
                 }
             }
 sequence_done:
@@ -699,6 +773,15 @@ int main(int argc, char **argv) {
                 destroy(fixture);
             } else sleep(15);
             *(void **)(root.words[1] + 0x1a8) = old_policy;
+        } else if (argc == 3 && strcmp(argv[2], "--schema-probe") == 0) {
+            const uint32_t classes[] = {213,1700,2669,2662,2681,3636};
+            for (size_t i=0;i<sizeof(classes)/sizeof(classes[0]);++i) {
+                uintptr_t object[4] = {0};
+                int64_t result = create_child(library,&root,classes[i],object);
+                printf("schema.class=%u construct.status=0x%016" PRIx64 "\n",classes[i],(uint64_t)result);
+                destroy(object);
+            }
+            status = 0;
         } else if (argc == 3 && strcmp(argv[2], "--server-objects") == 0) {
             status = serve_native(library, &root);
         } else if (argc == 3) status = connect_client(library, &root, argv[2]);

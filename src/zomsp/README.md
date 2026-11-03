@@ -120,11 +120,11 @@ incoming associations. Undefined associations retain the observed native error.
 
 ## Remaining protocol work
 
-Typed ASOM alarm event execution/AckJob acknowledgement, upload activation
-(including DLTransaction AID 1702 directives) and full V3 security negotiation
-remain unsupported. Collective success
-only commits the mapped application model; it does not compile or activate PLC
-programs. Unsupported activation directives are rejected. Unknown Invoke keeps
+Typed ASOM alarm event execution/AckJob acknowledgement and full V3 security
+negotiation remain unsupported. DLTransaction AID 1702 directives are opt-in via
+`zomsp_activation`: the host validates the staged mapped image before publication.
+Collective success commits that image; the host supplies compilation and runtime
+activation. Without a validator, activation directives are rejected. Unknown Invoke keeps
 the native error instead of inventing PLC data. Unauthorized operations fail
 closed; access-denied status translation is not claimed as native parity.
 
@@ -171,3 +171,88 @@ Windows, Linux x64 and Linux ARM64 in CI. The x64 native-reference job additiona
 uses the native SDK against zOMSp's modern/password and UAC server profiles.
 Python client usage and its optional TLS exporter dependencies are documented in
 tia-tools at `sps7/s7commplus/omsp/MODERN_CLIENT.md`.
+
+
+## Host application integration
+
+zOMSp owns transport, sessions and bounded protocol framing. The host owns data,
+compiler, runtime, authorization and domain behaviour. The C ABI in `zomsp.h`
+works with Python ctypes, C/C++, Rust, Zig or any language with an FFI.
+
+| Host task | Interface |
+| --- | --- |
+| Expose application objects/typed values | `zomsp_object`, `zomsp_set`, `zomsp_get`, shared mmap |
+| Expose associations and creation templates | `zomsp_link`, `zomsp_template` |
+| Implement application methods | `zomsp_method`, with native status and encoded result |
+| Validate an uploaded collective | `zomsp_transactions`, `zomsp_activation` |
+| Supply a different transport | `zomsp_session_open`, `zomsp_dispatch`, `zomsp_poll` |
+| Run the bundled TCP/TLS endpoint | `zomsp_start`, `zomsp_stop` |
+
+Callbacks must remain alive, return promptly, and handle concurrent sessions.
+Configure them before opening sessions or starting the runtime. Activation gets
+an owned private image valid only during the callback and bounded directives;
+zero accepts, nonzero rejects with the host status unchanged. Compilation may
+produce a disposable cache, but validation must not activate external code:
+a generation conflict can still prevent commit. A host worker observes the
+published image and installs the compiled program after publication. External
+runtime activation and shared-memory publication are not one atomic operation.
+
+`TESTS/omsp/compiler_demo.py` demonstrates this contract using a deliberately
+small arithmetic compiler, an uploaded WString at RID 1000/AID 42, and a host
+result at AID 43. It checks staging, compilation, readback and rejection of an
+overflowing program. It does not execute uploaded Python or PLC instructions.
+
+```
+python TESTS/omsp/compiler_demo.py zig-out/bin/zomsp.dll --reference zig-out/bin/libssl-1_1-x64.dll --credentials ../tia-tools/sps7/native/omsp_capture_analysis/native_test_credentials --python-path ../tia-tools/sps7
+```
+
+`ZOMSP_ACTIVATION=1` plus `ZOMSP_APPLICATION_RID` enables the executable client's
+bounded activation probe: directive slot 1/UDInt 0, AID 42/UDInt 11, commit.
+The Python Session API supports arbitrary bounded typed values in a transaction.
+
+There is not yet a catch-all host adapter for arbitrary CreateObject jobs or
+typed alarm execution/acknowledgement. Registered Invoke handlers should only
+handle methods actually represented by Invoke; AckJob must not silently be
+reinterpreted as one. Those lifecycle hooks remain protocol work.
+
+## Capture-backed virtual server
+
+`TESTS/omsp/capture_model.py` imports bytes assignments from decrypted capture
+ZIPs using literal parsing, never executing the files. It pairs requests and
+replies by function/sequence, reconstructs known Explore topology, A4 links and
+successfully read top-level typed values, and creates a read-only mapped model.
+Unsupported values, nested reads, session objects and incomplete topology are
+counted and skipped. Existing output mappings are never overwritten.
+
+```
+python TESTS/omsp/capture_model.py zig-out/bin/zomsp.dll CAPTURE.zip --output model.json --mmap application.shm
+zOMSp --server PORT CERT KEY LIBSSL application.shm
+```
+
+The two supplied captures yielded 11 objects and 128 mapped values. A Python
+client read all 128 through new TLS sessions with identical encoded PValues;
+the native SDK independently read a captured UDInt. These are live replies with
+new session/integrity fields, not replayed reply packets. The model is the last
+observed snapshot, not a cycle-consistent image or a PLC behaviour simulation.
+A host can change its mapped values and drive existing value subscriptions.
+
+Current fixed bounds: 128 objects, 512 values, 1024 bytes/value, 16 sessions,
+4 subscriptions/session, 64 references/subscription. Large streamed blobs,
+complete class inheritance/metadata, ASOM job lifecycles and full V3 endpoint
+negotiation still limit real TIA project parity.
+
+The capture also contains AlarmSubscriptionRef class 2662 and DAI class 2681
+notifications. Python decodes their typed object events and VLQ sequences
+(including sequence 498); zOMSp's value notifications now use VLQ sequences too.
+This does not implement typed event delivery or AckJob class 3636 on the server.
+The pinned native core cannot construct these alarm classes: class lookup fails
+before factory dispatch. VPLC `AlarmSubsystem_Imp` slot 0x110 at 107bd9c0 returns
+0x8000001900008005 on that path. Neither observation establishes the complete
+behaviour of an ASOM-enabled PLC. No successful AckJob exchange was present in
+the supplied captures, so positive acknowledgement parity remains unverified.
+
+`MappedServer` in the Python package hosts the headless Zig engine over Python
+TLS/COTP. Native, Python and zOMSp clients exercised activation through it. It
+is a transport integration, not an independent protocol oracle; modern TLS
+exporter authentication should use the bundled endpoint until explicitly bound
+by a custom transport.

@@ -126,6 +126,8 @@ jobs:
           python TESTS/omsp/wire.py zig-out/lib/libzomsp.so
           python TESTS/omsp/invoke.py zig-out/lib/libzomsp.so
           python TESTS/omsp/transactions.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/activation.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/test_capture_model.py zig-out/lib/libzomsp.so
           python TESTS/omsp/authentication.py zig-out/lib/libzomsp.so
       - name: Test headless mapped-file ABI (Windows)
         if: runner.os == 'Windows'
@@ -134,16 +136,18 @@ jobs:
           python TESTS/omsp/wire.py zig-out/bin/zomsp.dll
           python TESTS/omsp/invoke.py zig-out/bin/zomsp.dll
           python TESTS/omsp/transactions.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/activation.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/test_capture_model.py zig-out/bin/zomsp.dll
           python TESTS/omsp/authentication.py zig-out/bin/zomsp.dll
       - name: Test Git OpenSSL packaging layouts
         if: runner.os == 'Windows'
         run: python TESTS/omsp/test_package_runtime.py
       - name: Bundle matching OpenSSL runtime and licenses
         run: python TESTS/omsp/package_runtime.py zig-out/bin
-      - name: Test bundled TLS with the Linux shared library
+      - name: Test bundled TLS and program upload/run (Linux)
         if: runner.os == 'Linux'
         run: python TESTS/omsp/tls.py zig-out/lib/libzomsp.so zig-out/bin
-      - name: Test bundled TLS with the Windows shared library
+      - name: Test bundled TLS and program upload/run (Windows)
         if: runner.os == 'Windows'
         run: python TESTS/omsp/tls.py zig-out/bin/zomsp.dll zig-out/bin
       - name: Native client/server interoperability (Linux x64)

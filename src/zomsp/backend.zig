@@ -44,6 +44,7 @@ pub const Backend = struct {
     mutex: std.Thread.Mutex = .{},
     methods: application.Registry = .{},
     transactions_enabled: bool = false,
+    activator: ?application.Activator = null,
     authentication: @import("authentication.zig").Policy = .{},
     private: bool = false,
 
@@ -403,6 +404,8 @@ pub const Transaction = struct {
     source: *Backend,
     shadow: Backend,
     generation: u64,
+    directives: [max_value_bytes]u8 = undefined,
+    directives_length: usize = 0,
     allocator: std.mem.Allocator,
 
     pub fn open(source: *Backend, allocator: std.mem.Allocator) !*Transaction {

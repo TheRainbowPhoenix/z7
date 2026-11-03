@@ -221,6 +221,79 @@ fn readRole(channel: *Channel, notifications: *wire.NotificationQueue, writer: *
     return @intCast(value.number);
 }
 
+fn clientActivation(channel: *Channel, notifications: *wire.NotificationQueue, session: u32, sequence: u16, previous_counter: u32) !void {
+    const allocator = std.heap.page_allocator;
+    const target_text = try std.process.getEnvVarOwned(allocator, "ZOMSP_APPLICATION_RID");
+    defer allocator.free(target_text);
+    const target = try std.fmt.parseInt(u32, target_text, 0);
+    if (target == 0 or target == session) return error.InvalidAddress;
+    const program = std.process.getEnvVarOwned(allocator, "ZOMSP_PROGRAM") catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => null,
+        else => return err,
+    };
+    defer if (program) |source| allocator.free(source);
+    if (program) |source| if (source.len == 0 or source.len > 900) return error.ValueLimit;
+    var writer: wire.Writer = .{};
+    try writer.begin(2, 0x31, 0x556, sequence, session, 0x36);
+    try writer.put(&.{ 2, 0, 1, 0 });
+    try writer.vlq(previous_counter + 1);
+    try writer.byte(0xa1);
+    try writer.be32(0x7fffc001);
+    try writer.vlq(1700);
+    try writer.put(&.{ 0, 0, 0xa3 });
+    try writer.vlq(1702);
+    try writer.put(&.{ 0x40, 0x16, 1, 0, 4, 0, 0, 0xa2 });
+    try writer.be32(0);
+    try channel.send(try writer.finish());
+    const started = try checkReply(try channel.receiveReply(notifications), 0x556, sequence);
+    var reader: wire.Reader = .{ .data = started.body };
+    _ = try reader.vlq();
+    if ((try reader.value(0)).kind != 0x12) return error.InvalidSequenceState;
+    try writer.begin(2, 0x31, 0x4f2, sequence + 1, session, 0x36);
+    try writer.be32(target);
+    try writer.put(&.{ 1, 42 });
+    if (program) |source| try writer.string(source) else try writer.uint(11);
+    try writer.qualifier(false, previous_counter + 2);
+    try channel.send(try writer.finish());
+    _ = try checkReply(try channel.receiveReply(notifications), 0x4f2, sequence + 1);
+    try writer.begin(2, 0x31, 0x560, sequence + 2, session, 0x36);
+    try writer.put(&.{ 0, 1 });
+    try writer.vlq(previous_counter + 3);
+    try writer.be32(0);
+    try channel.send(try writer.finish());
+    _ = try checkReply(try channel.receiveReply(notifications), 0x560, sequence + 2);
+    std.log.info("zOMSp mapped activation=ok", .{});
+    var close_sequence = sequence + 3;
+    if (program != null) {
+        var previous: ?u32 = null;
+        for (0..5) |index| {
+            std.Thread.sleep(60 * std.time.ns_per_ms);
+            try writer.begin(2, 0x31, 0x586, close_sequence, session, 0x34);
+            try writer.be32(target);
+            try writer.put(&.{ 0x20, 4, 1, 43 });
+            try writer.qualifier(true, previous_counter + @as(u32, @intCast(index)));
+            try channel.send(try writer.finish());
+            const response = try checkReply(try channel.receiveReply(notifications), 0x586, close_sequence);
+            var value_reader: wire.Reader = .{ .data = response.body };
+            if (try value_reader.vlq() != 0 or try value_reader.vlq() != 0) return error.ReadRejected;
+            const value = try value_reader.value(0);
+            if (value.kind != 4 or value.number > std.math.maxInt(u32)) return error.UnexpectedType;
+            const count: u32 = @intCast(value.number);
+            if (previous) |before| if (count <= before) return error.ReadbackMismatch;
+            previous = count;
+            std.log.info("zOMSp program counter={d}", .{count});
+            close_sequence += 1;
+        }
+    }
+    try writer.begin(2, 0x31, 0x4d4, close_sequence, session, 0x34);
+    try writer.be32(session);
+    try writer.byte(0);
+    try writer.put(&wire.qualifier_bytes);
+    try writer.vlq(previous_counter + 4);
+    try writer.be32(0);
+    try channel.send(try writer.finish());
+}
+
 fn authenticatedClient(channel: *Channel, notifications: *wire.NotificationQueue, session: u32, password: []const u8, username: []const u8) !void {
     if (password.len == 0 or password.len > 256 or username.len > 128) return error.InvalidCredentials;
     var writer: wire.Writer = .{};
@@ -299,6 +372,7 @@ fn authenticatedClient(channel: *Channel, notifications: *wire.NotificationQueue
     _ = try checkReply(try channel.receiveReply(notifications), 0x4f2, 8);
     if (try readRole(channel, notifications, &writer, session, 9, 299, 4) != 32) return error.ReadbackMismatch;
     std.log.info("zOMSp authenticated roundtrip=ok role={d}->32", .{before});
+    if (std.process.hasEnvVarConstant("ZOMSP_ACTIVATION")) return clientActivation(channel, notifications, session, 10, 5);
     try writer.begin(2, 0x31, 0x4d4, 10, session, 0x34);
     try writer.be32(session);
     try writer.byte(0);
@@ -380,6 +454,7 @@ fn client(host: [:0]const u8, port: u16, certificate: [:0]const u8) !void {
     const after = try readRole(&channel, notifications, &writer, session, 7, 299, 3);
     if (after != 32) return error.ReadbackMismatch;
     std.log.info("zOMSp roundtrip=ok role={d}->{d}", .{ before, after });
+    if (std.process.hasEnvVarConstant("ZOMSP_ACTIVATION")) return clientActivation(&channel, notifications, session, 8, 4);
     var close_sequence: u16 = 8;
     if (std.process.hasEnvVarConstant("OMSP_EXTENDED")) {
         if (try readRole(&channel, notifications, &writer, session, 8, 1842, 4) != 4) return error.CapabilityMismatch;

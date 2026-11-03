@@ -136,6 +136,10 @@ def check(library, runtime):
         shutil.copyfile(key, credentials / 'server-key.pem')
         executable = runtime / ('zOMSp.exe' if os.name == 'nt' else 'zOMSp')
         check_credentials(library, tls_library, credentials, binary=executable)
+        from activation import check as check_activation
+        check_activation(library, reference=tls_library, credentials=credentials, binary=executable)
+        from program import check as check_program
+        check_program(library, tls_library, credentials, executable)
     print('OMSp bundled TLS: verified handshake, native login, mapped read/write and cancelled partial handshake passed')
 
 

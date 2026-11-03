@@ -39,6 +39,15 @@ int32_t zomsp_legacy_password(zomsp_context *context, const uint8_t *password, s
 int32_t zomsp_password(zomsp_context *, const uint8_t *password, size_t length);
 int32_t zomsp_user_password(zomsp_context *, const uint8_t *username, size_t username_length,
     const uint8_t *password, size_t length);
+/* Activation validation runs before publishing a collective's private mapping.
+ * Directives: encoded AID 1702 PValue (<=1024 bytes). Image: read-only version-1
+ * shared-memory layout, valid only during the call. Zero accepts; any nonzero
+ * native status rejects and discards the staged image. No external side effects
+ * or recursive same-session dispatch: validation may still encounter a conflict.
+ * Register before starting/opening sessions; NULL disables. */
+typedef uint64_t (*zomsp_activation_handler)(void *, const zomsp_invocation *,
+    const uint8_t *directives, size_t directives_length, const uint8_t *image, size_t image_length);
+int32_t zomsp_activation(zomsp_context *, zomsp_activation_handler, void *user);
 int32_t zomsp_transactions(zomsp_context *, uint8_t enabled);
 int32_t zomsp_method(zomsp_context *, uint32_t target, uint32_t method,
     zomsp_invoke_handler, void *user);
@@ -48,6 +57,8 @@ int32_t zomsp_template(zomsp_context *, uint32_t rid);
 int32_t zomsp_link(zomsp_context *, uint32_t rid, uint32_t aid, const uint32_t *targets, size_t count);
 int32_t zomsp_set(zomsp_context *, uint32_t rid, uint32_t aid, const uint8_t *, size_t length, uint8_t writable);
 intptr_t zomsp_get(zomsp_context *, uint32_t rid, uint32_t aid, uint8_t *, size_t capacity);
+/* Bytes occupied by the first bounded encoded PValue, or -1 if unsupported. */
+intptr_t zomsp_value_size(const uint8_t *, size_t length);
 size_t zomsp_size(void);
 int32_t zomsp_start(zomsp_context *, uint16_t port, const char *certificate, const char *key, const char *tls_library);
 uint16_t zomsp_port(zomsp_context *);
