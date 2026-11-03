@@ -314,3 +314,10 @@ the prepared Linux SDK (WSL on Windows). The default `--clients zomsp` needs onl
 stdlib Python, platform zOMSp binaries and test credentials. CI runs that 8 MiB
 case on Windows/Linux x64/Linux ARM64, the native large-write case on Linux x64,
 and headless failure/cleanup/isolation tests on all three platforms.
+
+For reusable clients and memory-backed upload completion, see
+[`examples/zomsp`](../../examples/zomsp/README.md). The C client supports verified
+TLS login, credentials, scoped name lookup, read/write, collectives and streamed
+upload. Python and Deno demos drive both ends through the shared library.
+`zomsp_stream` delivers a retained immutable buffer after successful commit,
+without writing an upload file; the existing `zomsp_blob` file mode is unchanged.

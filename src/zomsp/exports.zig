@@ -6,6 +6,7 @@ const endpoints = @import("endpoints.zig");
 const transport = @import("channel.zig");
 const allocator = std.heap.page_allocator;
 const application = @import("application.zig");
+const client_api = @import("client.zig");
 
 const Context = struct {
     store: backend.Backend,
@@ -178,6 +179,39 @@ export fn zomsp_blob(context: ?*Context, rid: u32, aid: u32, length: u32, direct
     ctx.store.blob = blob;
     return 0;
 }
+export fn zomsp_stream(context: ?*Context, rid: u32, aid: u32, length: u32, validate: ?backend.streaming.MemoryValidator, complete: ?backend.streaming.Completion, user: ?*anyopaque) i32 {
+    const ctx = context orelse return -1;
+    if (ctx.runtime != null or ctx.sessions != 0) return -6;
+    if (complete == null or ctx.store.blob != null) return -1;
+    const object = ctx.store.info(rid) catch |err| return failure(err);
+    if (object.flags != 0) return -4;
+    const blob = allocator.create(backend.streaming.Store) catch return -1;
+    blob.* = backend.streaming.Store.initMemory(rid, aid, length, validate, complete.?, user) catch |err| {
+        allocator.destroy(blob);
+        return failure(err);
+    };
+    ctx.store.blob = blob;
+    return 0;
+}
+export fn zomsp_buffer_retain(buffer: ?*backend.streaming.Buffer) void {
+    if (buffer) |value| value.retain();
+}
+export fn zomsp_buffer_release(buffer: ?*backend.streaming.Buffer) void {
+    if (buffer) |value| value.release();
+}
+export fn zomsp_buffer_generation(buffer: ?*const backend.streaming.Buffer) u64 {
+    return if (buffer) |value| value.generation else 0;
+}
+export fn zomsp_buffer_size(buffer: ?*const backend.streaming.Buffer) usize {
+    return if (buffer) |value| value.bytes.len else 0;
+}
+export fn zomsp_buffer_read(buffer: ?*const backend.streaming.Buffer, offset: usize, output: ?[*]u8, capacity: usize) isize {
+    const value = buffer orelse return -1;
+    if (output == null or offset > value.bytes.len) return -1;
+    const count = @min(capacity, value.bytes.len - offset);
+    @memcpy(output.?[0..count], value.bytes[offset..][0..count]);
+    return @intCast(count);
+}
 export fn zomsp_blob_path(context: ?*Context, output: ?[*]u8, capacity: usize) isize {
     const ctx = context orelse return -1;
     if (output == null or capacity == 0) return -1;
@@ -242,4 +276,78 @@ export fn zomsp_close(context: ?*Context) void {
     }
     ctx.store.close();
     allocator.destroy(ctx);
+}
+
+export fn zomsp_client_open(host: ?[*:0]const u8, port: u16, certificate: ?[*:0]const u8, tls_library: ?[*:0]const u8) ?*client_api.Client {
+    if (host == null or certificate == null or tls_library == null or port == 0) return null;
+    return client_api.Client.open(std.mem.span(host.?), port, std.mem.span(certificate.?), std.mem.span(tls_library.?)) catch |err| {
+        std.log.warn("zOMSp client connect: {s}", .{@errorName(err)});
+        return null;
+    };
+}
+export fn zomsp_client_close(client: ?*client_api.Client) void {
+    if (client) |handle| handle.close();
+}
+fn clientFailure(client: *client_api.Client, err: anyerror) i32 {
+    return switch (err) {
+        error.RemoteStatus => -9,
+        error.ObjectNotFound => -2,
+        error.AmbiguousName => -10,
+        error.BufferTooSmall => -5,
+        error.InvalidSequenceState, error.InvalidValue, error.InvalidCredentials => -1,
+        else => blk: {
+            client.failed = true;
+            break :blk -8;
+        },
+    };
+}
+export fn zomsp_client_session(client: ?*const client_api.Client) u32 {
+    return if (client) |handle| handle.session else 0;
+}
+export fn zomsp_client_status(client: ?*const client_api.Client) u64 {
+    return if (client) |handle| handle.status else 0;
+}
+export fn zomsp_client_authenticate(client: ?*client_api.Client, username: ?[*]const u8, username_length: usize, password: ?[*]const u8, password_length: usize) i32 {
+    const handle = client orelse return -1;
+    if (password == null or password_length == 0 or password_length > 256 or username_length > 128 or (username_length != 0 and username == null)) return -1;
+    handle.authenticate(if (username) |text| text[0..username_length] else &.{}, password.?[0..password_length]) catch |err| return clientFailure(handle, err);
+    return 0;
+}
+export fn zomsp_client_read(client: ?*client_api.Client, rid: u32, aid: u32, output: ?[*]u8, capacity: usize) isize {
+    const handle = client orelse return -1;
+    if (rid == 0 or aid == 0 or output == null or capacity == 0) return -1;
+    const value = handle.read(rid, aid) catch |err| return clientFailure(handle, err);
+    if (value.len > capacity) return -5;
+    @memcpy(output.?[0..value.len], value);
+    return @intCast(value.len);
+}
+export fn zomsp_client_write(client: ?*client_api.Client, rid: u32, aid: u32, value: ?[*]const u8, length: usize) i32 {
+    const handle = client orelse return -1;
+    if (rid == 0 or aid == 0 or value == null or length < 2 or length > 60000) return -1;
+    valid(value.?[0..length]) catch return -1;
+    handle.write(rid, aid, value.?[0..length]) catch |err| return clientFailure(handle, err);
+    return 0;
+}
+export fn zomsp_client_find(client: ?*client_api.Client, root: u32, name: ?[*]const u8, length: usize, output: ?*u32) i32 {
+    const handle = client orelse return -1;
+    if (root == 0 or name == null or length == 0 or length > 128 or output == null) return -1;
+    output.?.* = handle.find(root, name.?[0..length]) catch |err| return clientFailure(handle, err);
+    return 0;
+}
+export fn zomsp_client_begin(client: ?*client_api.Client) i32 {
+    const handle = client orelse return -1;
+    handle.start() catch |err| return clientFailure(handle, err);
+    return 0;
+}
+export fn zomsp_client_end(client: ?*client_api.Client, abort: u8) i32 {
+    const handle = client orelse return -1;
+    if (abort > 1) return -1;
+    handle.end(abort != 0) catch |err| return clientFailure(handle, err);
+    return 0;
+}
+export fn zomsp_client_upload(client: ?*client_api.Client, rid: u32, aid: u32, bytes: ?[*]const u8, length: usize) i32 {
+    const handle = client orelse return -1;
+    if (rid == 0 or aid == 0 or bytes == null or length == 0 or length > backend.streaming.max_bytes) return -1;
+    handle.stream(rid, aid, bytes.?[0..length]) catch |err| return clientFailure(handle, err);
+    return 0;
 }

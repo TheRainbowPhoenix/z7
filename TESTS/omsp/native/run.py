@@ -83,6 +83,11 @@ def main():
         result = subprocess.call(command, cwd=HERE.parents[2])
         if result:
             return result
+    result = subprocess.call([sys.executable, str(HERE.parent / 'sdk.py'), str(shared),
+        '--reference', str(library), '--credentials', str(credentials),
+        '--native', str(work / 'native_probe')], cwd=HERE.parents[2])
+    if result:
+        return result
     return subprocess.call([sys.executable, str(HERE.parent / 'large_program.py'),
         '--library', str(shared), '--binary', binary, '--reference', str(library),
         '--native-reference', str(library), '--native', str(work / 'native_probe'),

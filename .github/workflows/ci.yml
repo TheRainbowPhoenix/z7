@@ -96,6 +96,8 @@ jobs:
           if-no-files-found: ignore
 
   zomsp:
+    env:
+      ZOMSP_TEST_DENO: '1'
     permissions:
       contents: read
     strategy:
@@ -116,6 +118,11 @@ jobs:
         run: pwsh ./zig/download.win.ps1
       - name: Build zOMSp and test framing and native wire fixtures
         run: ./zig/zig build zomsp test:zomsp -Doptimize=ReleaseSafe
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.9.2'
+      - name: Check Deno FFI examples
+        run: deno check examples/zomsp/server.ts examples/zomsp/client.ts
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -178,6 +185,9 @@ jobs:
             zig-out/bin/openssl-*
             zig-out/include/zomsp.h
             src/zomsp/README.md
+            examples/zomsp/*.py
+            examples/zomsp/*.ts
+            examples/zomsp/README.md
             TESTS/omsp/*.py
             TESTS/omsp/native_requests.json
           if-no-files-found: error

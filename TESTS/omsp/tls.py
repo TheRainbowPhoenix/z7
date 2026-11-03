@@ -144,6 +144,11 @@ def check(library, runtime):
         from large_program import check as check_large_program
         check_large_program(SimpleNamespace(library=library, reference=tls_library,
             credentials=credentials, binary=executable, clients='zomsp'))
+        from sdk import check as check_sdk
+        check_sdk(library, tls_library, credentials)
+        if os.environ.get('ZOMSP_TEST_DENO') == '1':
+            from deno_ffi import check as check_deno
+            check_deno(library, tls_library, credentials)
     print('OMSp bundled TLS: verified handshake, native login, mapped read/write and cancelled partial handshake passed')
 
 

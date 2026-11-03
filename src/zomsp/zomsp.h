@@ -61,6 +61,26 @@ int32_t zomsp_blob(zomsp_context *, uint32_t rid, uint32_t aid, uint32_t length,
 /* Current committed immutable path, NUL terminated; byte count excludes NUL.
  * -3 before a commit, -5 for insufficient capacity. Path may change on commit. */
 intptr_t zomsp_blob_path(zomsp_context *, char *output, size_t capacity);
+/* Memory-backed alternative to zomsp_blob: no upload file is created.
+ * validate is optional and runs before commit; complete runs exactly once after
+ * successful commit, outside backend locks. No event for abort/rejection/conflict.
+ * Callbacks run on server workers, must return promptly, and must not re-enter
+ * dispatch on the same session. Keep callback/user alive through server stop.
+ * complete receives a BORROWED immutable buffer: retain it before queueing it
+ * to another thread, and release each retained reference. Retained buffers may
+ * outlive their context. Hosts own queue backpressure and retained-memory limits. */
+typedef struct zomsp_buffer zomsp_buffer;
+typedef uint64_t (*zomsp_stream_validator)(void *, const zomsp_invocation *, const uint8_t *, size_t);
+typedef void (*zomsp_stream_complete)(void *, const zomsp_invocation *, zomsp_buffer *);
+int32_t zomsp_stream(zomsp_context *, uint32_t rid, uint32_t aid, uint32_t length,
+    zomsp_stream_validator validate, zomsp_stream_complete complete, void *user);
+void zomsp_buffer_retain(zomsp_buffer *);
+void zomsp_buffer_release(zomsp_buffer *);
+size_t zomsp_buffer_size(const zomsp_buffer *);
+/* Commit generation orders notifications from concurrent server workers. */
+uint64_t zomsp_buffer_generation(const zomsp_buffer *);
+intptr_t zomsp_buffer_read(const zomsp_buffer *, size_t offset, uint8_t *, size_t capacity);
+
 int32_t zomsp_transactions(zomsp_context *, uint8_t enabled);
 int32_t zomsp_method(zomsp_context *, uint32_t target, uint32_t method,
     zomsp_invoke_handler, void *user);
@@ -77,6 +97,29 @@ int32_t zomsp_start(zomsp_context *, uint16_t port, const char *certificate, con
 uint16_t zomsp_port(zomsp_context *);
 void zomsp_stop(zomsp_context *);
 void zomsp_close(zomsp_context *);
+/* Persistent blocking OMSp client. IPv4 and certificate-verified TLS.
+ * Serialize operations/close on a handle; execute them on host workers for async
+ * frontends. No environment variables or subprocess are needed. Close/reopen
+ * after -8 (transport/protocol failure); -9 preserves a native remote status.
+ * read/write exchange encoded PValues. find performs scoped Explore Name(233)
+ * lookup, rejects ambiguity, and is not a universal PLC symbolic-address resolver.
+ * Credentials, if needed, must be supplied immediately after open.
+ * Errors: -1 arguments, -2 name missing, -5 capacity, -8 failed connection,
+ * -9 remote status, -10 ambiguous name. Returned buffers belong to the caller. */
+typedef struct zomsp_client zomsp_client;
+zomsp_client *zomsp_client_open(const char *ipv4, uint16_t port, const char *certificate, const char *tls_library);
+void zomsp_client_close(zomsp_client *);
+uint32_t zomsp_client_session(const zomsp_client *);
+uint64_t zomsp_client_status(const zomsp_client *);
+int32_t zomsp_client_authenticate(zomsp_client *, const uint8_t *username, size_t username_length,
+    const uint8_t *password, size_t password_length);
+intptr_t zomsp_client_read(zomsp_client *, uint32_t rid, uint32_t aid, uint8_t *, size_t capacity);
+int32_t zomsp_client_write(zomsp_client *, uint32_t rid, uint32_t aid, const uint8_t *, size_t length);
+int32_t zomsp_client_find(zomsp_client *, uint32_t root, const uint8_t *name, size_t name_length, uint32_t *rid);
+int32_t zomsp_client_begin(zomsp_client *);
+int32_t zomsp_client_end(zomsp_client *, uint8_t abort);
+int32_t zomsp_client_upload(zomsp_client *, uint32_t rid, uint32_t aid, const uint8_t *, size_t length);
+
 #ifdef __cplusplus
 }
 #endif

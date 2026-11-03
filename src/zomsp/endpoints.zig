@@ -5,7 +5,7 @@ const transport = @import("channel.zig");
 const Channel = transport.Channel;
 const Backend = @import("backend.zig").Backend;
 
-fn configure(stream: std.net.Stream) !void {
+pub fn configure(stream: std.net.Stream) !void {
     const enabled: u32 = 1;
     try std.posix.setsockopt(stream.handle, std.posix.IPPROTO.TCP, std.posix.TCP.NODELAY, std.mem.asBytes(&enabled));
     if (builtin.os.tag == .windows) {
@@ -21,7 +21,7 @@ fn configure(stream: std.net.Stream) !void {
     }
 }
 
-fn clearFooter(channel: *Channel) !void {
+pub fn clearFooter(channel: *Channel) !void {
     const remaining = channel.plaintext[channel.consumed..channel.queued];
     if (remaining.len != 0 and !std.mem.eql(u8, remaining, &.{ 0x72, 1, 0, 0 })) return error.InvalidTlsTransition;
     channel.queued = 0;
@@ -38,7 +38,7 @@ fn setNonblocking(stream: std.net.Stream) !void {
     }
 }
 
-fn checkReply(data: []const u8, function: u16, sequence: u16) !wire.Message {
+pub fn checkReply(data: []const u8, function: u16, sequence: u16) !wire.Message {
     const message = try wire.Message.parse(data);
     if (message.opcode != 0x32 or message.function != function or message.sequence != sequence) return error.UnexpectedReply;
     var reader = wire.Reader{ .data = message.body };
@@ -394,7 +394,7 @@ fn clientActivation(channel: *Channel, notifications: *wire.NotificationQueue, s
     try channel.send(try writer.finish());
 }
 
-fn authenticatedClient(channel: *Channel, notifications: *wire.NotificationQueue, session: u32, password: []const u8, username: []const u8) !void {
+pub fn authenticateConnection(channel: *Channel, notifications: *wire.NotificationQueue, session: u32, password: []const u8, username: []const u8) !void {
     if (password.len == 0 or password.len > 256 or username.len > 128) return error.InvalidCredentials;
     var writer: wire.Writer = .{};
     try writer.begin(2, 0x31, 0x586, 4, session, 0x34);
@@ -461,6 +461,11 @@ fn authenticatedClient(channel: *Channel, notifications: *wire.NotificationQueue
     try channel.send(try writer.finish());
     _ = try checkReply(try channel.receiveReply(notifications), 0x4f2, 5);
     if (try readRole(channel, notifications, &writer, session, 6, 1842, 2) != 1) return error.AuthenticationDenied;
+}
+
+fn authenticatedClient(channel: *Channel, notifications: *wire.NotificationQueue, session: u32, password: []const u8, username: []const u8) !void {
+    try authenticateConnection(channel, notifications, session, password, username);
+    var writer: wire.Writer = .{};
     const before = try readRole(channel, notifications, &writer, session, 7, 299, 3);
     try writer.begin(2, 0x31, 0x4f2, 8, session, 0x36);
     try writer.be32(session);

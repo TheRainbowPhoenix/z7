@@ -621,7 +621,13 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
                 state.transaction_rid = 0x70001800 + @as(u32, state.transaction_serial);
                 state.backend = &transaction.shadow;
             } else if (request.function == 0x556) state.best_effort = true else if (state.transaction) |transaction| {
-                if (!abort and status == 0) try transaction.commit();
+                if (!abort and status == 0) {
+                    try transaction.commit();
+                    if (transaction.upload) |*upload| {
+                        const call: application.Invocation = .{ .target = state.transaction_rid, .method = 0x560, .session = state.session, .client = state.client, .role = state.role };
+                        upload.notify(&call);
+                    }
+                }
                 state.deinit();
             } else state.best_effort = false;
         }
