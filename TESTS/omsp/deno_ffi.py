@@ -80,7 +80,8 @@ def check(library, tls_library, credentials):
         reader.join(timeout=2)
         process.stdout.close()
     with tempfile.TemporaryDirectory() as folder, Server(Path(folder) / "data.shm", Library(library)) as server:
-        server.variable("Counter", 0, writable=False)
+        counter_rid = server.variable("Counter", 0, writable=False)
+        server.link(201, 2699, [counter_rid])
         port = server.start(certificate, key, tls_library)
         stop = threading.Event()
         errors = []
@@ -98,8 +99,11 @@ def check(library, tls_library, credentials):
             result = subprocess.run(command + [str(ROOT / "examples/zomsp/client.ts"), library,
                 tls_library, str(certificate), str(port)], capture_output=True, text=True, timeout=20)
             assert result.returncode == 0, result.stdout + result.stderr
+            discovered = subprocess.run(command + [str(ROOT / "examples/zomsp/discover.ts"), library,
+                tls_library, str(certificate), str(port)], capture_output=True, text=True, timeout=20)
+            assert discovered.returncode == 0, discovered.stdout + discovered.stderr
         finally:
             stop.set()
             worker.join(timeout=2)
         assert not errors, errors
-    print("Deno client: five actual increasing values through zOMSp FFI passed")
+    print("Deno client: increasing values, Explore/object visitor and GetLink through zOMSp FFI passed")

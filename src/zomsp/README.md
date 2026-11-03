@@ -80,8 +80,9 @@ incoming associations. Undefined associations retain the observed native error.
   explicit overflow error.
 - Explore with bounded recursion, attribute selection, up to ten filters, and
   mapped ancestor serialization. Scalar comparisons support equality/ordering;
-  class filters match exact mapped class IDs (no synthesized inheritance).
-  Combining WithParent and filters is rejected. Explicit GetLink associations
+  InstanceOf filters follow registered base classes. Filters can be combined
+  with WithParent; ancestors provide scaffolding for matching objects only.
+  Explicit GetLink associations
   and best-effort BeginSequence/EndSequence remain available. The tested native
   class 255 container does not serialize itself during Explore.
 - Registered application Invoke methods: 32 methods, two bounded sparse input
@@ -239,7 +240,7 @@ A host can change its mapped values and drive existing value subscriptions.
 
 Current fixed bounds: 128 objects, 512 values, 1024 bytes/value, 16 sessions,
 4 subscriptions/session, 64 references/subscription. General streamed reads and multi-blob application models, complete class
-inheritance/metadata, ASOM job lifecycles and full V3 endpoint negotiation still
+metadata descriptors, additional ASOM job lifecycles and V3 endpoint negotiation still
 limit real TIA project parity. Configured file-backed streamed writes are
 supported as described below.
 
@@ -370,3 +371,32 @@ TLS login, credentials, scoped name lookup, read/write, collectives and streamed
 upload. Python and Deno demos drive both ends through the shared library.
 `zomsp_stream` delivers a retained immutable buffer after successful commit,
 without writing an upload file; the existing `zomsp_blob` file mode is unchanged.
+
+## V2 object and client FFI
+
+`zomsp_class` registers a class, its base, flags and composition AID before
+sessions start. The process-local registry holds 32 classes, at most eight levels
+deep; the shared-memory format is unchanged. Register bases first. Creation
+merges base templates before derived templates, preserving encoded types for
+overrides and bounding the result to 64 fields. Abstract classes cannot be
+instantiated. Explore emits registered flags/composition and InstanceOf follows
+the hierarchy. This is application-provided metadata, not synthesized PLC data.
+
+The C client exposes Explore, GetLink, Invoke, subscription creation, nested
+RID/AID reads and writes, best-effort sequences and application sequences.
+Object, notification and Invoke-result visitors validate complete input before
+calling the host. Visitor pointers are borrowed for the duration of the call;
+copy retained data. Notification headers expose credit, phase, missed count,
+timestamp and sequence. Calls on a connection must be serialized.
+
+`zomsp_sequences` opts into sequence modes 3–5 with host begin/end/cancellation
+callbacks. The host supplies application semantics and native error statuses.
+Rejected completion stays active for retry or abort; disconnect triggers
+cancellation. Application sequences can nest inside a collective. Without a
+handler they remain unsupported. These hooks do not implement a PLC uploader.
+
+`TESTS/omsp/ffi_v2.py` checks these paths through the shared library. Native
+server tests cover actual reads, writes, Explore, best-effort completion and error
+recovery. Native integrity is checked exactly as request ID plus request integrity;
+the mapped server's existing reply-counter format is checked separately. General A5/A7
+metadata descriptors and modulo filter 7 remain unsupported. V3 is unchanged.

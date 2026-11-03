@@ -2,6 +2,31 @@
 
 This is a partial implementation checkpoint, not complete PLC application parity.
 
+## V2 FFI and class model checkpoint
+
+The class registry supplies bounded inheritance, merged base/derived templates,
+class flags and composition metadata. InstanceOf is operation 8, as named in the
+managed OMSp FilterOperation enum. AckJob 3636 now obtains its common fields from
+AlarmingJob 3640 in the host demo. No inferred PLC values are supplied.
+
+VPLC BeginSequence (1042ae00) distinguishes modes 3–5 from best-effort and
+collective sequences; these need application callbacks. zOMSp exposes opt-in
+begin/end/disconnect callbacks, including retryable rejection and nesting inside
+a collective. Host integration tests exercise these semantics; this does not
+claim the bare native SDK implements a PLC application's sequence effects.
+
+Native OMS_ServerSession_CheckRequestSequence computes the reply integrity as
+the request ID plus its integrity counter. The C client checks this exact sum
+separately from the existing zOMSp reply-counter model. Linux native-server
+checks cover session reads/writes, trimmed Explore, best-effort begin/read/end,
+an unknown attribute rejection and a successful subsequent read.
+
+Windows full TLS/FFI regression, Linux SDK/FFI/typed-alarm tests and Deno FFI on
+both platforms pass. The new FFI test is wired into the existing cross-platform
+TLS CI test. Object/notification/Invoke visitors reject malformed trailing data
+before invoking host callbacks. General A5/A7 descriptors, modulo filter 7 and
+full PLC application metadata remain outside this checkpoint. V3 is unchanged.
+
 ## Validated changes
 
 * Invoke 0x056b uses a fixed-width target/method RID, two sparse Variant argument

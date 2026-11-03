@@ -148,6 +148,8 @@ def check(library, runtime):
         check_sdk(library, tls_library, credentials)
         from alarms import check as check_alarms
         check_alarms(library, tls_library, credentials)
+        from ffi_v2 import check as check_ffi_v2
+        check_ffi_v2(library, tls_library, credentials)
         if os.environ.get('ZOMSP_TEST_DENO') == '1':
             from deno_ffi import check as check_deno
             check_deno(library, tls_library, credentials)

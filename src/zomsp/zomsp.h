@@ -14,6 +14,12 @@ intptr_t zomsp_dispatch(zomsp_session *session, const uint8_t *input, size_t len
 intptr_t zomsp_poll(zomsp_session *session, int64_t now_us, uint8_t *output, size_t capacity);
 /* Serialize context configuration and headless session open/close in the host. */
 typedef struct zomsp_context zomsp_context;
+/* Quiescent class registry: 32 classes, base registered first, depth <=8.
+ * Constructor defaults merge base templates then derived overrides, <=64 fields.
+ * Class flags/composition are exposed by Explore; flags are not access policy.
+ * Metadata is process-local; the version-1 mmap layout is unchanged. */
+int32_t zomsp_class(zomsp_context *, uint32_t class_id, uint32_t base,
+    uint32_t class_flags, uint32_t composition);
 zomsp_context *zomsp_open(const char *path, uint8_t create);
 /* Register before starting the runtime or opening sessions. Keep callback/user alive
    until all sessions close and runtime stops. Callbacks may run concurrently and
@@ -25,6 +31,14 @@ zomsp_context *zomsp_open(const char *path, uint8_t create);
 typedef struct zomsp_invocation {
     uint32_t target, method, session, client, role;
 } zomsp_invocation;
+/* Application sequence modes 3..5 are opt-in. phase: 0 begin, 1 end, 2 cancel
+ * on disconnect. Nonzero status rejects begin/end; failed end remains active
+ * for retry/abort. Cancel status is ignored. Callbacks run outside backend locks.
+ * One application sequence may nest inside a collective. Hosts own the actual
+ * application semantics/resources and keep callback/user alive through stop. */
+typedef uint64_t (*zomsp_sequence_handler)(void *, const zomsp_invocation *,
+    uint8_t kind, uint8_t phase, uint32_t parameter_rid, uint8_t abort);
+int32_t zomsp_sequences(zomsp_context *, zomsp_sequence_handler, void *);
 /* Enable a bounded typed-event journal before sessions. publish accepts a DAI
  * (class 2681) PObject, <=2048 bytes. Each subscription has its own cursor;
  * lag beyond 64 events reports missed_sendings. Disabled/no-credit readers
@@ -123,6 +137,65 @@ void zomsp_close(zomsp_context *);
  * Errors: -1 arguments, -2 name missing, -5 capacity, -8 failed connection,
  * -9 remote status, -10 ambiguous name. Returned buffers belong to the caller. */
 typedef struct zomsp_client zomsp_client;
+typedef struct zomsp_object_record {
+    uint32_t kind, rid, class_id, class_flags, aid, target, depth, reserved;
+    const uint8_t *data;
+    size_t length;
+} zomsp_object_record;
+/* Object record kinds: 1 begin, 2 end, 3 attribute PValue, 4 relation target.
+ * Entire input is validated before any callback. All byte pointers are borrowed
+ * for the call. Visitors must not modify input. Bounds: depth8, 128 objects. */
+typedef void (*zomsp_object_visitor)(void *, const zomsp_object_record *);
+int32_t zomsp_objects_visit(const uint8_t *, size_t, zomsp_object_visitor, void *);
+typedef struct zomsp_notification_info_data {
+    uint32_t subscription, sequence;
+    uint16_t missed, ticks;
+    uint8_t credit, phase;
+    uint16_t reserved;
+    uint64_t status, timestamp;
+} zomsp_notification_info_data;
+int32_t zomsp_notification_info(const uint8_t *, size_t, zomsp_notification_info_data *);
+/* kind 1=value, 2=typed PObject. Validates before delivery; max64 records.
+ * Both value updates and ASOM events use this decoder. */
+typedef void (*zomsp_event_visitor)(void *, uint32_t subscription, uint32_t sequence,
+    uint32_t kind, uint32_t reference, uint64_t status, uint32_t flags, const uint8_t *, size_t);
+int32_t zomsp_notification_visit(const uint8_t *, size_t, zomsp_event_visitor, void *);
+/* Invoke result sections: 0 return value, 1 outputs, 2 inout. */
+typedef void (*zomsp_value_visitor)(void *, uint32_t section, uint32_t index, const uint8_t *, size_t);
+int32_t zomsp_invoke_result_visit(const uint8_t *, size_t, zomsp_value_visitor, void *);
+typedef struct zomsp_filter {
+    uint32_t operation, address_count, address[4];
+    const uint8_t *value;
+    size_t length;
+} zomsp_filter;
+/* Encodes up to10 filters, <=4 address components, <=1024 bytes/operand.
+ * Output capacity >=8192. Operations1..6, InstanceOf8, sequence upload11.
+ * Operation7 (modulo comparison) is rejected until native-verified. */
+intptr_t zomsp_filters_encode(const zomsp_filter *, size_t count, uint8_t *, size_t capacity);
+typedef struct zomsp_explore_options {
+    uint32_t flags, reserved; /* bit0 recursive, bit1 recursive-filter, bit2 with-parent */
+    const uint32_t *aids;
+    size_t aid_count;
+    const uint8_t *filters; /* encoded filter list; NULL/0 means no filter */
+    size_t filters_length;
+} zomsp_explore_options;
+/* Explore returns encoded PObject list, excluding reply/trailer; capacity>=65535.
+ * NULL options defaults flags3, all attributes. GetLink returns target count.
+ * Invoke arguments are input/inout sparse lists; result is PValue/output/inout.
+ * GetLink capacity>=16; Invoke capacity>=8192. */
+intptr_t zomsp_client_explore(zomsp_client *, uint32_t rid, const zomsp_explore_options *, uint8_t *, size_t, uint32_t *parent);
+intptr_t zomsp_client_get_link(zomsp_client *, uint32_t rid, uint32_t aid, uint32_t *, size_t capacity);
+intptr_t zomsp_client_invoke(zomsp_client *, uint32_t rid, uint32_t method,
+    const uint8_t *arguments, size_t length, uint8_t *, size_t capacity);
+typedef struct zomsp_reference {
+    uint32_t handle, rid, aid, path_length, path[3], reserved;
+} zomsp_reference;
+/* <=64 unique nonzero handles; <=3 nested components; cycle0..60000 ms;
+ * credits=-1 unlimited or >=0 finite. Control via AIDs1051/1053; Delete to stop. */
+int32_t zomsp_client_subscribe(zomsp_client *, const zomsp_reference *, size_t count,
+    uint32_t cycle_ms, int16_t credits, uint32_t *subscription);
+int32_t zomsp_client_begin_best_effort(zomsp_client *);
+int32_t zomsp_client_begin_application(zomsp_client *, uint8_t kind, uint32_t parameter_rid);
 zomsp_client *zomsp_client_open(const char *ipv4, uint16_t port, const char *certificate, const char *tls_library);
 void zomsp_client_close(zomsp_client *);
 uint32_t zomsp_client_session(const zomsp_client *);
@@ -139,6 +212,9 @@ uint64_t zomsp_client_status(const zomsp_client *);
 int32_t zomsp_client_authenticate(zomsp_client *, const uint8_t *username, size_t username_length,
     const uint8_t *password, size_t password_length);
 intptr_t zomsp_client_read(zomsp_client *, uint32_t rid, uint32_t aid, uint8_t *, size_t capacity);
+/* Path contains AID followed by up to3 struct member AIDs. */
+intptr_t zomsp_client_read_path(zomsp_client *, uint32_t rid, const uint32_t *path, size_t count, uint8_t *, size_t capacity);
+int32_t zomsp_client_write_path(zomsp_client *, uint32_t rid, const uint32_t *path, size_t count, const uint8_t *, size_t length);
 int32_t zomsp_client_write(zomsp_client *, uint32_t rid, uint32_t aid, const uint8_t *, size_t length);
 int32_t zomsp_client_find(zomsp_client *, uint32_t root, const uint8_t *name, size_t name_length, uint32_t *rid);
 int32_t zomsp_client_begin(zomsp_client *);

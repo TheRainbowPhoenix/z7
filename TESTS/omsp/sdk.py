@@ -190,6 +190,12 @@ def check_native(library, native, reference, credentials):
             assert client.read(client.session, 299) == 2
             client.write(client.session, 32, 299)
             assert client.read(client.session, 299) == 32
+            discovered = client.explore(client.session, recursive=False, aids=[299])
+            assert discovered["objects"][0]["rid"] == client.session
+            assert discovered["objects"][0]["attributes"][299] == b"\0\x04\x20"
+            client.begin(best_effort=True)
+            assert client.read(client.session, 299) == 32
+            client.end()
             try:
                 client.read(client.session, 65535)
             except RuntimeError as error:
@@ -197,7 +203,7 @@ def check_native(library, native, reference, credentials):
             else:
                 raise AssertionError("unknown native attribute accepted")
             assert client.read(client.session, 299) == 32
-        print("C client -> independent native server: actual reads/writes, native error and recovery passed")
+        print("C client -> independent native server: reads/writes, Explore, best-effort sequence, native error and recovery passed")
     finally:
         process.terminate()
         try:

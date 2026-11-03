@@ -354,6 +354,8 @@ pub const State = struct {
     negotiated: bool = false,
     authentication: @import("authentication.zig").Session = .{},
     best_effort: bool = false,
+    application_sequence: u8 = 0,
+    sequence_parameter: u32 = 0,
     transaction: ?*backend.Transaction = null,
     transaction_rid: u32 = 0,
     transaction_serial: u16 = 0,
@@ -362,6 +364,12 @@ pub const State = struct {
     backend: ?*backend.Backend = null,
     subscriptions: [subscriptions.max_subscriptions]subscriptions.Subscription = @splat(.{}),
     pub fn close(self: *State) void {
+        if (self.application_sequence != 0) if (self.backend) |store| if (store.sequencer) |sequencer| {
+            const call: application.Invocation = .{ .target = self.sequence_parameter, .method = 0x560, .session = self.session, .client = self.client, .role = self.role };
+            _ = sequencer.callback(sequencer.user, &call, self.application_sequence, 2, self.sequence_parameter, 1);
+        };
+        self.application_sequence = 0;
+        self.sequence_parameter = 0;
         self.deinit();
         if (self.tls_secret) |*secret| std.crypto.utils.secureZero(u8, secret);
         self.tls_secret = null;
@@ -553,7 +561,7 @@ fn attribute(writer: *Writer, aid: u32) !void {
     try writer.byte(0xa3);
     try writer.vlq(aid);
 }
-fn openObject(writer: *Writer, rid_value: u32, class: u32, flags: u8) !void {
+fn openObject(writer: *Writer, rid_value: u32, class: u32, flags: u32) !void {
     try writer.byte(0xa1);
     try writer.be32(rid_value);
     try writer.vlq(class);
@@ -646,18 +654,23 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         var sequence_type: u8 = 0;
         var directives: []const u8 = &.{};
         var abort = false;
+        var parameter: u32 = state.sequence_parameter;
+        const application_end = request.function == 0x560 and state.application_sequence != 0;
         if (request.function == 0x556) {
-            if (state.best_effort or state.transaction != null) return error.InvalidSequenceState;
             sequence_type = try reader.byte();
+            if (state.application_sequence != 0 or state.best_effort or (state.transaction != null and sequence_type < 3)) return error.InvalidSequenceState;
             const value = try reader.value(0);
             if (sequence_type == 1) {
                 if (value.kind != 0) return error.UnsupportedSequence;
             } else if (sequence_type == 2) {
                 if (value.raw[0] != 0 or value.kind != 1 or value.number != 0) return error.UnsupportedSequence;
+            } else if (sequence_type >= 3 and sequence_type <= 5) {
+                if (value.raw[0] != 0 or value.kind != 0x12 or value.number == 0) return error.UnsupportedSequence;
+                parameter = @intCast(value.number);
             } else return error.UnsupportedSequence;
         } else {
             const flag = try reader.byte();
-            if (flag > 1 or (!state.best_effort and state.transaction == null)) return error.InvalidSequenceState;
+            if (flag > 1 or (!state.best_effort and state.transaction == null and !application_end)) return error.InvalidSequenceState;
             abort = flag != 0;
             if (try reader.signed(32) != @as(u64, if (state.transaction != null) 1 else 0)) return error.UnsupportedSequence;
         }
@@ -677,9 +690,15 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
             }
         }
         if (try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidTrailer;
-        const supported = sequence_type != 2 or (state.backend != null and state.backend.?.transactions_enabled);
+        const application_kind = if (application_end) state.application_sequence else if (sequence_type >= 3) sequence_type else 0;
+        const supported = if (application_kind != 0) state.backend != null and state.backend.?.sequencer != null else sequence_type != 2 or (state.backend != null and state.backend.?.transactions_enabled);
         var status: u64 = if (supported) 0 else 0xa201a3002ae3ff19;
-        if (request.function == 0x560 and !abort) if (state.transaction) |transaction| {
+        if (application_kind != 0 and supported) {
+            const sequencer = state.backend.?.sequencer.?;
+            const call: application.Invocation = .{ .target = parameter, .method = request.function, .session = state.session, .client = state.client, .role = state.role };
+            status = sequencer.callback(sequencer.user, &call, application_kind, @intFromBool(application_end), parameter, @intFromBool(abort));
+        }
+        if (request.function == 0x560 and !abort and !application_end) if (state.transaction) |transaction| {
             const call: application.Invocation = .{ .target = state.transaction_rid, .method = 0x560, .session = state.session, .client = state.client, .role = state.role };
             if (transaction.upload) |*upload| status = try upload.validate(&call);
             if (status == 0 and transaction.directives_length != 0) {
@@ -699,7 +718,12 @@ fn replyInner(writer: *Writer, request: Message, state: *State) ![]const u8 {
         try writer.vlq(counter << 1);
         try writer.be32(0);
         const response = try writer.finish();
-        if (supported) {
+        if (application_kind != 0) {
+            if (supported and status == 0) {
+                state.application_sequence = if (application_end) 0 else application_kind;
+                state.sequence_parameter = if (application_end) 0 else parameter;
+            }
+        } else if (supported) {
             if (sequence_type == 2) {
                 const transaction = try backend.Transaction.open(state.backend.?, std.heap.page_allocator);
                 @memcpy(transaction.directives[0..directives.len], directives);
@@ -1200,10 +1224,12 @@ const CreatePlan = struct {
         if (try reader.byte() != 0xa1) return error.InvalidObject;
         const temporary = try reader.u32be();
         const class = try reader.vlq();
-        if (class == 0 or class > std.math.maxInt(u32) or try reader.vlq() != 0 or try reader.vlq() != 0) return error.UnsupportedObject;
+        const class_flags = try reader.vlq();
+        const composition = try reader.vlq();
+        if (class == 0 or class > std.math.maxInt(u32) or class_flags > std.math.maxInt(u32) or composition > std.math.maxInt(u32)) return error.UnsupportedObject;
         const index = self.node_count;
         self.node_count += 1;
-        self.nodes[index] = .{ .temporary = temporary, .parent = parent, .class = @intCast(class), .first = self.value_count, .count = 0 };
+        self.nodes[index] = .{ .temporary = temporary, .parent = parent, .class = @intCast(class), .first = self.value_count, .count = 0, .class_flags = @intCast(class_flags), .composition = @intCast(composition) };
         var children = false;
         while (true) {
             const tag = try reader.byte();
@@ -1235,6 +1261,13 @@ const ExploreFilter = struct {
     address: [4]u32 = @splat(0),
     value: []const u8 = &.{},
 };
+
+pub fn validateFilters(raw: []const u8) !void {
+    var reader: Reader = .{ .data = raw };
+    var filters: [10]ExploreFilter = undefined;
+    _ = try exploreFilters(&reader, &filters);
+    if (reader.offset != raw.len) return error.InvalidTrailer;
+}
 
 fn exploreFilters(reader: *Reader, output: *[10]ExploreFilter) ![]const ExploreFilter {
     var indices: [10]u32 = undefined;
@@ -1342,7 +1375,9 @@ fn matchesExplore(state: *State, model: ?*const backend.Layout, rid_value: u32, 
             var reader: Reader = .{ .data = filter.value };
             const value = try reader.value(0);
             if (value.raw[0] != 0 or value.kind != 0x12) return error.UnsupportedFilter;
-            if (value.number != class) return false;
+            if (value.number > std.math.maxInt(u32)) return error.UnsupportedFilter;
+            const matched = if (state.backend) |store| store.schema.instanceOf(class, @intCast(value.number)) else value.number == class;
+            if (!matched) return false;
             continue;
         }
         var buffer: Writer = .{};
@@ -1366,8 +1401,13 @@ fn matchesExplore(state: *State, model: ?*const backend.Layout, rid_value: u32, 
     return true;
 }
 
-fn exploreFields(writer: *Writer, model: *const backend.Layout, object_info: *const backend.Object, aids: []const u32) !void {
-    try openObject(writer, object_info.rid, object_info.class, 0);
+fn exploreFields(writer: *Writer, state: *State, model: *const backend.Layout, object_info: *const backend.Object, aids: []const u32) !void {
+    const metadata = if (state.backend) |store| store.schema.find(object_info.class) else null;
+    try writer.byte(0xa1);
+    try writer.be32(object_info.rid);
+    try writer.vlq(object_info.class);
+    try writer.vlq(if (metadata) |info| info.flags else 0);
+    try writer.vlq(if (metadata) |info| info.composition else 0);
     for (&model.values) |*entry| {
         if (entry.rid != object_info.rid or entry.flags == 2) continue;
         if (entry.length < 2 or entry.length > backend.max_value_bytes or entry.flags > 1) return error.InvalidLayout;
@@ -1393,14 +1433,14 @@ fn exploreObject(writer: *Writer, state: *State, model: *const backend.Layout, r
     const object_info = try exploreInfo(model, rid_value);
     if (object_info.class == 255 or object_info.flags == 1) return;
     const matched = try matchesExplore(state, model, rid_value, object_info.class, filters);
-    if (matched) try exploreFields(writer, model, object_info, aids);
+    if (matched) try exploreFields(writer, state, model, object_info, aids);
     if (recursive and (matched or recursive_filter)) for (&model.objects) |*child| {
         if (child.rid != 0 and child.parent == rid_value) try exploreObject(writer, state, model, child.rid, aids, true, recursive_filter, if (recursive_filter) filters else &.{}, depth + 1);
     };
     if (matched) try writer.byte(0xa2);
 }
 
-fn exploreAncestors(writer: *Writer, state: *State, model: *const backend.Layout, target: u32, aids: []const u32, recursive: bool) !void {
+fn exploreAncestors(writer: *Writer, state: *State, model: *const backend.Layout, target: u32, aids: []const u32, recursive: bool, recursive_filter: bool, filters: []const ExploreFilter) !void {
     var ancestors: [8]*const backend.Object = undefined;
     var count: usize = 0;
     var parent = (try exploreInfo(model, target)).parent;
@@ -1413,13 +1453,15 @@ fn exploreAncestors(writer: *Writer, state: *State, model: *const backend.Layout
         count += 1;
         parent = entry.parent;
     }
-    if (count == 0) return;
+    var selected: Writer = .{};
+    try exploreObject(&selected, state, model, target, aids, recursive, recursive_filter, filters, count);
+    if (selected.used == 0) return;
     var index = count;
     while (index > 0) {
         index -= 1;
-        try exploreFields(writer, model, ancestors[index], aids);
+        try exploreFields(writer, state, model, ancestors[index], aids);
     }
-    try exploreObject(writer, state, model, target, aids, recursive, false, &.{}, count);
+    try writer.put(selected.data[0..selected.used]);
     for (0..count) |_| try writer.byte(0xa2);
 }
 
@@ -1431,7 +1473,6 @@ fn explore(writer: *Writer, request: Message, state: *State, target: u32, reader
     if (recursive > 1 or recursive_filter > 1 or with_parent > 1) return error.UnsupportedExplore;
     var filter_buffer: [10]ExploreFilter = undefined;
     const filters = try exploreFilters(reader, &filter_buffer);
-    if (with_parent != 0 and filters.len != 0) return error.UnsupportedExplore;
     const count = try reader.vlq();
     if (count > 64) return error.ValueLimit;
     var aids: [64]u32 = undefined;
@@ -1468,7 +1509,7 @@ fn explore(writer: *Writer, request: Message, state: *State, target: u32, reader
         }
         try writer.byte(0xa2);
     } else if (found and target != state.session) {
-        if (with_parent != 0) try exploreAncestors(writer, state, model.?, target, aids[0..@intCast(count)], recursive != 0) else try exploreObject(writer, state, model.?, target, aids[0..@intCast(count)], recursive != 0, recursive_filter != 0, filters, 0);
+        if (with_parent != 0) try exploreAncestors(writer, state, model.?, target, aids[0..@intCast(count)], recursive != 0, recursive_filter != 0, filters) else try exploreObject(writer, state, model.?, target, aids[0..@intCast(count)], recursive != 0, recursive_filter != 0, filters, 0);
     }
     try writer.be32(0);
     const result = try writer.finish();
@@ -1476,7 +1517,7 @@ fn explore(writer: *Writer, request: Message, state: *State, target: u32, reader
     return result;
 }
 
-fn invokeArguments(reader: *Reader) !void {
+pub fn invokeArguments(reader: *Reader) !void {
     for (0..2) |_| {
         var indices: [16]u32 = undefined;
         var count: usize = 0;

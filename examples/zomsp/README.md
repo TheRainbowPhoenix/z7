@@ -116,3 +116,27 @@ starting.
 
 CI runs Python and Deno FFI client/server checks on Windows, Linux x64 and Linux
 ARM64. Linux x64 also checks the library client against the native server.
+## V2 discovery and callbacks
+
+Run a self-contained Python server/client demo:
+
+```powershell
+python examples/zomsp/discover.py --library zig-out/bin/zomsp.dll --tls-library zig-out/bin/libssl-1_1-x64.dll
+```
+
+On Linux use `zig-out/lib/libzomsp.so` and the platform TLS library path.
+`discover.py` shows Explore, GetLink, an application method returning 42, and a
+subscription delivering a changed Counter. `discover.ts` uses Deno FFI to visit
+objects and resolve links through the same C interface.
+
+Python clients offer `explore`, `get_link`, `invoke`, `subscribe`, `next_event`,
+`read_path` and `write_path`. Explore returns an object tree with raw encoded
+attributes; `decode` converts supported values. `next_event` includes typed
+records and credit/phase/sequence metadata. Subscription owners support
+`disabled`, `credits` and `close`.
+
+Hosts configure `class_`, `template`, `method` and `sequences` before starting
+sessions. Sequence callbacks receive begin/end/disconnect phases and return
+native status codes. They own application actions; zOMSp supplies routing and
+bounds. C callbacks can run on session threads: synchronize host state and copy
+borrowed buffers before returning. Keep each client connection serialized.

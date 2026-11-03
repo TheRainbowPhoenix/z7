@@ -15,6 +15,21 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class Invocation(C.Structure):
     _fields_ = [(name, C.c_uint32) for name in ("target", "method", "session", "client", "role")]
+class ObjectRecord(C.Structure):
+    _fields_ = [(name, C.c_uint32) for name in ("kind", "rid", "class_id", "class_flags", "aid", "target", "depth", "reserved")] + [("data", C.c_void_p), ("length", C.c_size_t)]
+class NotificationInfo(C.Structure):
+    _fields_ = [("subscription", C.c_uint32), ("sequence", C.c_uint32), ("missed", C.c_uint16), ("ticks", C.c_uint16), ("credit", C.c_uint8), ("phase", C.c_uint8), ("reserved", C.c_uint16), ("status", C.c_uint64), ("timestamp", C.c_uint64)]
+class ExploreOptions(C.Structure):
+    _fields_ = [("flags", C.c_uint32), ("reserved", C.c_uint32), ("aids", C.POINTER(C.c_uint32)), ("aid_count", C.c_size_t), ("filters", C.c_void_p), ("filters_length", C.c_size_t)]
+class Reference(C.Structure):
+    _fields_ = [(name, C.c_uint32) for name in ("handle", "rid", "aid", "path_length")] + [("path", C.c_uint32 * 3), ("reserved", C.c_uint32)]
+class Filter(C.Structure):
+    _fields_ = [("operation", C.c_uint32), ("address_count", C.c_uint32), ("address", C.c_uint32 * 4), ("value", C.c_void_p), ("length", C.c_size_t)]
+ObjectVisitor = C.CFUNCTYPE(None, C.c_void_p, C.POINTER(ObjectRecord))
+EventVisitor = C.CFUNCTYPE(None, C.c_void_p, C.c_uint32, C.c_uint32, C.c_uint32, C.c_uint32, C.c_uint64, C.c_uint32, C.c_void_p, C.c_size_t)
+ValueVisitor = C.CFUNCTYPE(None, C.c_void_p, C.c_uint32, C.c_uint32, C.c_void_p, C.c_size_t)
+Method = C.CFUNCTYPE(C.c_uint64, C.c_void_p, C.POINTER(Invocation), C.c_void_p, C.c_size_t, C.c_void_p, C.c_size_t, C.POINTER(C.c_size_t))
+SequenceHandler = C.CFUNCTYPE(C.c_uint64, C.c_void_p, C.POINTER(Invocation), C.c_uint8, C.c_uint8, C.c_uint32, C.c_uint8)
 
 
 Validate = C.CFUNCTYPE(C.c_uint64, C.c_void_p, C.POINTER(Invocation), C.c_void_p, C.c_size_t)
@@ -103,6 +118,21 @@ class Library:
             "client_close": ([pointer], None),
             "client_session": ([pointer], C.c_uint32),
             "client_context": ([pointer], C.c_uint32),
+            "class": ([pointer, C.c_uint32, C.c_uint32, C.c_uint32, C.c_uint32], integer),
+            "sequences": ([pointer, SequenceHandler, pointer], integer),
+            "client_begin_application": ([pointer, C.c_uint8, C.c_uint32], integer),
+            "method": ([pointer, C.c_uint32, C.c_uint32, Method, pointer], integer),
+            "link": ([pointer, C.c_uint32, C.c_uint32, C.POINTER(C.c_uint32), size], integer),
+            "invoke_result_visit": ([pointer, size, ValueVisitor, pointer], integer),
+            "objects_visit": ([pointer, size, ObjectVisitor, pointer], integer),
+            "notification_visit": ([pointer, size, EventVisitor, pointer], integer),
+            "notification_info": ([pointer, size, C.POINTER(NotificationInfo)], integer),
+            "filters_encode": ([C.POINTER(Filter), size, pointer, size], C.c_ssize_t),
+            "client_explore": ([pointer, C.c_uint32, C.POINTER(ExploreOptions), pointer, size, C.POINTER(C.c_uint32)], C.c_ssize_t),
+            "client_get_link": ([pointer, C.c_uint32, C.c_uint32, C.POINTER(C.c_uint32), size], C.c_ssize_t),
+            "client_invoke": ([pointer, C.c_uint32, C.c_uint32, pointer, size, pointer, size], C.c_ssize_t),
+            "client_begin_best_effort": ([pointer], integer),
+            "client_subscribe": ([pointer, C.POINTER(Reference), size, C.c_uint32, C.c_int16, C.POINTER(C.c_uint32)], integer),
             "client_create": ([pointer, C.c_uint32, pointer, size, C.POINTER(C.c_uint32), size], C.c_ssize_t),
             "client_delete": ([pointer, C.c_uint32], integer),
             "client_notification": ([pointer, pointer, size, C.c_uint8], C.c_ssize_t),
@@ -113,6 +143,8 @@ class Library:
             "value_size": ([pointer, size], C.c_ssize_t),
             "client_status": ([pointer], C.c_uint64),
             "client_read": ([pointer, C.c_uint32, C.c_uint32, pointer, size], C.c_ssize_t),
+            "client_read_path": ([pointer, C.c_uint32, C.POINTER(C.c_uint32), size, pointer, size], C.c_ssize_t),
+            "client_write_path": ([pointer, C.c_uint32, C.POINTER(C.c_uint32), size, pointer, size], integer),
             "client_write": ([pointer, C.c_uint32, C.c_uint32, pointer, size], integer),
             "client_find": ([pointer, C.c_uint32, pointer, size, C.POINTER(C.c_uint32)], integer),
             "client_begin": ([pointer], integer),
@@ -129,6 +161,53 @@ class Library:
         if result < 0:
             raise RuntimeError("zOMSp error %d" % result)
         return result
+
+    def objects(self, raw):
+        roots, stack = [], []
+        @ObjectVisitor
+        def visit(user, item):
+            item = item.contents
+            if item.kind == 1:
+                node = dict(rid=item.rid, class_id=item.class_id, class_flags=item.class_flags,
+                    aid=item.aid, attributes={}, relations={}, children=[])
+                (stack[-1]["children"] if stack else roots).append(node)
+                stack.append(node)
+            elif item.kind == 2:
+                stack.pop()
+            elif item.kind == 3:
+                stack[-1]["attributes"][item.aid] = C.string_at(item.data, item.length)
+            elif item.kind == 4:
+                stack[-1]["relations"].setdefault(item.aid, []).append(item.target)
+        self.check(self.dll.zomsp_objects_visit(raw, len(raw), visit, None))
+        return roots
+
+    def notification(self, raw):
+        info = NotificationInfo()
+        self.check(self.dll.zomsp_notification_info(raw, len(raw), C.byref(info)))
+        records = []
+        @EventVisitor
+        def visit(user, subscription, sequence, kind, reference, status, flags, data, length):
+            payload = C.string_at(data, length)
+            records.append(dict(kind="value" if kind == 1 else "object", reference=reference,
+                status=status, flags=flags, raw=payload))
+        self.check(self.dll.zomsp_notification_visit(raw, len(raw), visit, None))
+        for record in records:
+            if record["kind"] == "object":
+                record["objects"] = self.objects(record["raw"])
+        return dict(subscription=info.subscription, sequence=info.sequence, missed=info.missed,
+            credit=info.credit, phase=info.phase, status=info.status, timestamp=info.timestamp, records=records)
+
+    def filters(self, definitions):
+        entries, buffers = (Filter * len(definitions))(), []
+        for index, (operation, address, raw) in enumerate(definitions):
+            if len(address) > 4:
+                raise ValueError("filter address limit")
+            buffer = C.create_string_buffer(raw)
+            buffers.append(buffer)
+            entries[index] = Filter(operation, len(address), (C.c_uint32 * 4)(*address), C.cast(buffer, C.c_void_p), len(raw))
+        output = C.create_string_buffer(8192)
+        count = self.check(self.dll.zomsp_filters_encode(entries, len(entries), output, len(output)))
+        return output.raw[:count]
 
 
 class Upload(io.RawIOBase):
@@ -192,6 +271,7 @@ class Server:
         if not self.handle:
             raise RuntimeError("cannot open mapped backend")
         self.names, self.callbacks, self.errors = {}, [], []
+        self.classes, self.templates = {}, {}
         self.writable = {}
         self.library.check(self.dll.zomsp_object(self.handle, 201, 0, 9000))
 
@@ -280,6 +360,7 @@ class Server:
         for aid, raw in defaults.items():
             self.library.check(self.dll.zomsp_set(self.handle, prototype, aid, raw, len(raw), 0))
         self.library.check(self.dll.zomsp_template(self.handle, prototype))
+        self.templates[class_id] = prototype
 
         @CreateValidate
         def check(user, call, data, length):
@@ -301,6 +382,53 @@ class Server:
 
     def set_raw(self, rid, aid, raw, writable=False):
         self._call(lambda: self.dll.zomsp_set(self.handle, rid, aid, raw, len(raw), writable))
+
+    def class_(self, id, base=0, flags=0, composition=0):
+        self.library.check(self.dll.zomsp_class(self.handle, id, base, flags, composition))
+        self.classes[id] = (base, flags, composition)
+
+    def link(self, rid, aid, targets):
+        values = (C.c_uint32 * len(targets))(*targets)
+        self._call(lambda: self.dll.zomsp_link(self.handle, rid, aid, values, len(values)))
+
+    def method(self, rid, method_id, handler):
+        @Method
+        def invoke(user, call, arguments, length, output, capacity, output_length):
+            output_length[0] = 0
+            try:
+                status, result = handler(call.contents, C.string_at(arguments, length))
+                if status & (1 << 63):
+                    return status
+                if len(result) > capacity:
+                    raise ValueError("Invoke result exceeds bound")
+                C.memmove(output, result, len(result))
+                output_length[0] = len(result)
+                return status
+            except Exception as error:
+                self._error(error)
+                return 0x8020ab00199afff4
+        self.callbacks.append(invoke)
+        self.library.check(self.dll.zomsp_method(self.handle, rid, method_id, invoke, None))
+
+    def sequences(self, handler):
+        @SequenceHandler
+        def execute(user, call, kind, phase, parameter, abort):
+            try:
+                return handler(call.contents, kind, phase, parameter, bool(abort))
+            except Exception as error:
+                self._error(error)
+                return 0x8020ab00199afff4
+        self.callbacks.append(execute)
+        self.library.check(self.dll.zomsp_sequences(self.handle, execute, None))
+
+    def template(self, id, fields, rid=None):
+        rid = rid or 0x50000000 + id
+        self.library.check(self.dll.zomsp_object(self.handle, rid, 201, id))
+        for aid, value in fields.items():
+            self.set_raw(rid, aid, value, writable=True)
+        self.library.check(self.dll.zomsp_template(self.handle, rid))
+        self.templates[id] = rid
+        return rid
 
     def close(self):
         if self.handle:
@@ -350,6 +478,60 @@ class Client:
         length = self._check(self.dll.zomsp_client_notification(self.handle, output, len(output), wait))
         return output.raw[:length] if length else None
 
+    def next_event(self, wait=True):
+        raw = self.notification(wait)
+        return self.library.notification(raw) if raw else None
+
+    def subscribe(self, addresses, cycle_ms=0, credits=-1):
+        entries = (Reference * len(addresses))()
+        for index, address in enumerate(addresses):
+            rid, aid, *path = address
+            if len(path) > 3:
+                raise ValueError("reference path limit")
+            entries[index] = Reference(index + 1, rid, aid, len(path), (C.c_uint32 * 3)(*path), 0)
+        rid = C.c_uint32()
+        self._check(self.dll.zomsp_client_subscribe(self.handle, entries, len(entries), cycle_ms, credits, C.byref(rid)))
+        return Subscription(self, rid.value)
+
+    def explore(self, rid=None, recursive=True, recursive_filter=True, with_parent=False, aids=(), filters=()):
+        raw_filters = self.library.filters(filters)
+        filter_buffer = C.create_string_buffer(raw_filters)
+        fields = (C.c_uint32 * len(aids))(*aids)
+        options = ExploreOptions(int(recursive) | (int(recursive_filter) << 1) | (int(with_parent) << 2),
+            0, fields, len(fields), C.cast(filter_buffer, C.c_void_p), len(raw_filters))
+        parent, output = C.c_uint32(), C.create_string_buffer(65535)
+        length = self._check(self.dll.zomsp_client_explore(self.handle, rid or self.root, C.byref(options), output, len(output), C.byref(parent)))
+        return dict(parent=parent.value, objects=self.library.objects(output.raw[:length]), raw=output.raw[:length])
+
+    def get_link(self, rid, aid):
+        targets = (C.c_uint32 * 16)()
+        count = self._check(self.dll.zomsp_client_get_link(self.handle, rid, aid, targets, len(targets)))
+        return list(targets[:count])
+
+    def invoke_raw(self, rid, method, arguments=b"\0\0"):
+        output = C.create_string_buffer(8192)
+        count = self._check(self.dll.zomsp_client_invoke(self.handle, rid, method, arguments, len(arguments), output, len(output)))
+        return output.raw[:count]
+
+    def invoke(self, rid, method, inputs=None, inout=None):
+        def arguments(values):
+            return b"".join(vlq(index) + encode(value) for index, value in (values or {}).items()) + b"\0"
+        raw = self.invoke_raw(rid, method, arguments(inputs) + arguments(inout))
+        result = dict(value=None, outputs={}, inout={})
+        @ValueVisitor
+        def visit(user, section, index, data, length):
+            value = C.string_at(data, length)
+            try:
+                value = decode(value)
+            except ValueError:
+                pass
+            if section == 0:
+                result["value"] = value
+            else:
+                result["outputs" if section == 1 else "inout"][index] = value
+        self.library.check(self.dll.zomsp_invoke_result_visit(raw, len(raw), visit, None))
+        return result
+
     def authenticate(self, password, username=""):
         user, secret = username.encode(), password.encode()
         self._check(self.dll.zomsp_client_authenticate(self.handle, user, len(user), secret, len(secret)))
@@ -369,6 +551,17 @@ class Client:
     def read(self, name, aid=42):
         return decode(self.read_raw(name, aid))
 
+    def read_path(self, rid, path):
+        fields = (C.c_uint32 * len(path))(*path)
+        output = C.create_string_buffer(65535)
+        count = self._check(self.dll.zomsp_client_read_path(self.handle, rid, fields, len(fields), output, len(output)))
+        return output.raw[:count]
+
+    def write_path(self, rid, path, value):
+        fields = (C.c_uint32 * len(path))(*path)
+        raw = encode(value)
+        self._check(self.dll.zomsp_client_write_path(self.handle, rid, fields, len(fields), raw, len(raw)))
+
     def write(self, name, value, aid=42):
         rid = self.resolve(name) if isinstance(name, str) else name
         raw = encode(value)
@@ -377,8 +570,12 @@ class Client:
     def write_raw(self, rid, aid, raw):
         self._check(self.dll.zomsp_client_write(self.handle, rid, aid, raw, len(raw)))
 
-    def begin(self):
-        self._check(self.dll.zomsp_client_begin(self.handle))
+    def begin(self, best_effort=False):
+        function = self.dll.zomsp_client_begin_best_effort if best_effort else self.dll.zomsp_client_begin
+        self._check(function(self.handle))
+
+    def begin_application(self, kind, parameter):
+        self._check(self.dll.zomsp_client_begin_application(self.handle, kind, parameter))
 
     def end(self, abort=False):
         self._check(self.dll.zomsp_client_end(self.handle, abort))
@@ -392,6 +589,28 @@ class Client:
         if self.handle:
             self.dll.zomsp_client_close(self.handle)
             self.handle = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exception):
+        self.close()
+
+
+class Subscription:
+    def __init__(self, client, rid):
+        self.client, self.rid = client, rid
+
+    def disabled(self, value=True):
+        self.client.write(self.rid, bool(value), 1051)
+
+    def credits(self, limit):
+        self.client.write_raw(self.rid, 1053, b"\0\x07" + struct.pack(">h", limit))
+
+    def close(self):
+        if self.rid:
+            self.client.delete(self.rid)
+            self.rid = 0
 
     def __enter__(self):
         return self

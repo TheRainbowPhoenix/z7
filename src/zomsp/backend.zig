@@ -20,7 +20,7 @@ pub const Entry = extern struct { rid: u32, aid: u32, length: u32, flags: u32, g
 pub const Layout = extern struct { header: Header, objects: [max_objects]Object, values: [max_values]Entry };
 pub const Update = struct { rid: u32, aid: u32, value: []const u8, generation: ?u64 = null };
 pub const Snapshot = struct { value: []const u8, generation: u64, flags: u32 };
-pub const CreateNode = struct { temporary: u32, parent: u32, class: u32, first: usize, count: usize };
+pub const CreateNode = struct { temporary: u32, parent: u32, class: u32, first: usize, count: usize, class_flags: u32 = 0, composition: u32 = 0 };
 pub const InitialValue = struct { aid: u32, value: []const u8 };
 pub fn sameType(first: []const u8, second: []const u8) bool {
     if (first.len < 2 or second.len < 2 or !std.mem.eql(u8, first[0..2], second[0..2])) return false;
@@ -51,6 +51,8 @@ pub const Backend = struct {
     private: bool = false,
     events: ?*@import("events.zig").Store = null,
     factories: [16]?application.Factory = @splat(null),
+    schema: @import("schema.zig").Registry = .{},
+    sequencer: ?application.Sequencer = null,
 
     pub fn open(path: []const u8, create: bool) !Backend {
         const file = std.fs.cwd().openFile(path, .{ .mode = .read_write }) catch |err| blk: {
@@ -235,6 +237,7 @@ pub const Backend = struct {
         try self.lock();
         defer self.unlock();
         const object = self.findObject(rid) orelse return error.ObjectNotFound;
+        for (self.data.objects) |existing| if (existing.rid != rid and existing.rid != 0 and existing.class == object.class and existing.flags == 1) return error.ObjectExists;
         const generation = try self.next();
         object.flags = 1;
         object.generation = generation;
@@ -263,16 +266,53 @@ pub const Backend = struct {
             rid.* = next_rid;
             next_rid += 1;
         }
-        var prototypes: [8]u32 = undefined;
+        var prototypes: [8][64]*Entry = undefined;
+        var field_counts: [8]usize = @splat(0);
         var parents: [8]u32 = undefined;
         var needed: usize = 0;
         for (nodes, 0..) |node, index| {
             if (node.temporary == 0 or node.class == 0 or node.first > initial.len or node.count > initial.len - node.first) return error.InvalidObject;
             for (nodes[0..index]) |previous| if (previous.temporary == node.temporary) return error.InvalidObject;
-            const prototype = for (&self.data.objects) |*object| {
-                if (object.class == node.class and object.flags == 1 and object.rid != 0) break object.rid;
-            } else return error.ClassNotRegistered;
-            prototypes[index] = prototype;
+            const metadata = self.schema.find(node.class);
+            if (node.class_flags != 0 and (metadata == null or metadata.?.flags != node.class_flags)) return error.InvalidObject;
+            if (node.composition != 0 and (metadata == null or metadata.?.composition != node.composition)) return error.InvalidObject;
+            if (metadata != null and metadata.?.flags & 4 != 0) return error.ReadOnly;
+            var classes: [8]u32 = undefined;
+            var class_count: usize = 0;
+            var current = node.class;
+            while (current != 0) {
+                if (class_count == classes.len) return error.DepthLimit;
+                classes[class_count] = current;
+                class_count += 1;
+                current = if (self.schema.find(current)) |ancestor| ancestor.base else 0;
+            }
+            var found_prototype = false;
+            var class_index = class_count;
+            while (class_index > 0) {
+                class_index -= 1;
+                const prototype = for (&self.data.objects) |*object| {
+                    if (object.class == classes[class_index] and object.flags == 1 and object.rid != 0) break object.rid;
+                } else continue;
+                found_prototype = true;
+                for (&self.data.values) |*source| {
+                    if (source.rid != prototype) continue;
+                    if (source.length < 2 or source.length > max_value_bytes or source.flags > 1) return error.InvalidLayout;
+                    var slot = field_counts[index];
+                    for (prototypes[index][0..field_counts[index]], 0..) |previous, field| {
+                        if (previous.aid == source.aid) {
+                            if (!sameType(previous.value[0..previous.length], source.value[0..source.length])) return error.TypeMismatch;
+                            slot = field;
+                            break;
+                        }
+                    }
+                    if (slot == field_counts[index]) {
+                        if (slot == prototypes[index].len) return error.ValueLimit;
+                        field_counts[index] += 1;
+                    }
+                    prototypes[index][slot] = source;
+                }
+            }
+            if (!found_prototype) return error.ClassNotRegistered;
             parents[index] = node.parent;
             var nested = false;
             for (nodes[0..index], 0..) |previous, parent_index| {
@@ -286,15 +326,14 @@ pub const Backend = struct {
                 const parent = self.findObject(node.parent) orelse return error.ObjectNotFound;
                 if (parent.flags != 0) return error.ReadOnly;
             }
-            for (&self.data.values) |*entry| if (entry.rid == prototype) {
-                if (entry.length < 2 or entry.length > max_value_bytes or entry.flags > 1) return error.InvalidLayout;
-                needed += 1;
-            };
+            needed += field_counts[index];
             const values = initial[node.first..][0..node.count];
             for (values, 0..) |value, value_index| {
                 if (value.value.len < 2 or value.value.len > max_value_bytes) return error.InvalidValue;
                 for (values[0..value_index]) |previous| if (previous.aid == value.aid) return error.DuplicateAttribute;
-                const entry = self.findValue(prototype, value.aid) orelse return error.AttributeNotFound;
+                const entry = for (prototypes[index][0..field_counts[index]]) |field| {
+                    if (field.aid == value.aid) break field;
+                } else return error.AttributeNotFound;
                 if (entry.flags != 1 and !immutable) return error.ReadOnly;
                 if (!sameType(entry.value[0..entry.length], value.value)) return error.TypeMismatch;
             }
@@ -303,8 +342,7 @@ pub const Backend = struct {
         for (nodes, 0..) |node, index| {
             object_slots[index].* = .{ .rid = assigned[index], .parent = parents[index], .class = node.class, .flags = 0, .generation = generation };
             self.data.header.object_count += 1;
-            for (&self.data.values) |*source| {
-                if (source.rid != prototypes[index]) continue;
+            for (prototypes[index][0..field_counts[index]]) |source| {
                 const entry = for (&self.data.values) |*candidate| {
                     if (candidate.rid == 0) break candidate;
                 } else unreachable;
@@ -425,7 +463,7 @@ pub const Transaction = struct {
             .source = source,
             .generation = copy.header.generation,
             .allocator = allocator,
-            .shadow = .{ .file = source.file, .bytes = source.bytes, .data = copy, .private = true, .methods = source.methods, .blob = source.blob, .authentication = source.authentication, .factories = source.factories, .events = source.events },
+            .shadow = .{ .file = source.file, .bytes = source.bytes, .data = copy, .private = true, .methods = source.methods, .blob = source.blob, .authentication = source.authentication, .factories = source.factories, .events = source.events, .schema = source.schema, .sequencer = source.sequencer },
         };
         return transaction;
     }

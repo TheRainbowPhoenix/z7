@@ -163,9 +163,14 @@ class AlarmHost:
         self.jobs, self.errors = queue.Queue(maxsize=16), []
         server.library.check(server.dll.zomsp_object(server.handle, subsystem, 201, 2669))
         server.events()
+        for class_id, base in ((220, 0), (3640, 220), (3636, 3640)):
+            if class_id not in server.classes:
+                server.class_(class_id, base)
         defaults = {aid: encode("") for aid in (3637, 3638, 3639)}
-        defaults.update({3647: b"\x40\x16\0", 3641: b"\0\x08\0", 3642: b"\0\x10" + b"\0" * 8})
-        server.factory(3636, defaults, self.created, self.validate)
+        defaults.update({3641: b"\0\x08\0", 3642: b"\0\x10" + b"\0" * 8})
+        if 3640 not in server.templates:
+            server.template(3640, defaults)
+        server.factory(3636, {3647: b"\x40\x16\0"}, self.created, self.validate)
         self.worker = threading.Thread(target=self.run)
         self.worker.start()
 

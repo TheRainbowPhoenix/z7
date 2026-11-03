@@ -3,6 +3,15 @@ const builtin = @import("builtin");
 const wire = @import("wire.zig");
 const transport = @import("channel.zig");
 const endpoints = @import("endpoints.zig");
+pub const ExploreOptions = extern struct {
+    flags: u32 = 3,
+    reserved: u32 = 0,
+    aids: ?[*]const u32 = null,
+    aid_count: usize = 0,
+    filters: ?[*]const u8 = null,
+    filters_length: usize = 0,
+};
+pub const Reference = extern struct { handle: u32, rid: u32, aid: u32, path_length: u32 = 0, path: [3]u32 = @splat(0), reserved: u32 = 0 };
 
 pub const Client = struct {
     channel: transport.Channel,
@@ -15,7 +24,11 @@ pub const Client = struct {
     write_counter: u32 = 3,
     read_responses: u32 = 0,
     write_responses: u32 = 3,
+    response_model: enum { unknown, echo, native } = .unknown,
+    last_integrity: u32 = 0,
     transaction: bool = false,
+    best_effort: bool = false,
+    application_sequence: u8 = 0,
     failed: bool = false,
     status: u64 = 0,
 
@@ -103,6 +116,7 @@ pub const Client = struct {
         counter.* += 1;
         self.sequence += 1;
         self.status = 0;
+        self.last_integrity = counter.*;
         try self.writer.begin(2, 0x31, function, self.sequence, self.session, if (is_read) 0x34 else 0x36);
         return counter.*;
     }
@@ -112,13 +126,18 @@ pub const Client = struct {
         if (message.opcode != 0x32 or message.function != function or message.sequence != self.sequence) return error.UnexpectedReply;
         var reader: wire.Reader = .{ .data = message.body };
         self.status = try reader.vlq();
-        const response_counter = if (function == 0x586 or function == 0x4bb) &self.read_responses else &self.write_responses;
+        const response_counter = if (function == 0x586 or function == 0x4bb or function == 0x524) &self.read_responses else &self.write_responses;
         if (self.status != 0) {
-            // Native exception replies carry a fixed-width detail and do not
-            // advance the successful-response counter. zOMSp echoes integrity.
+            // Native exception replies carry a fixed-width detail without an
+            // integrity token. The request counter was already consumed by begin.
             if (reader.data.len - reader.offset == 8 and reader.data[reader.offset] == 0) {
                 _ = try reader.u32be();
+                if (self.response_model == .echo) return error.InvalidIntegrity;
+                self.response_model = .native;
             } else {
+                if (function == 0x556) _ = try reader.value(0);
+                if (function == 0x56b or function == 0x4bb) _ = try reader.u32be();
+                if (function == 0x524 and try reader.vlq() != 0) return error.InvalidTrailer;
                 _ = try reader.vlq();
                 response_counter.* += 1;
             }
@@ -128,23 +147,53 @@ pub const Client = struct {
         response_counter.* += 1;
         return reader;
     }
-    fn finish(reader: *wire.Reader, expected: u64) !void {
+    fn checkIntegrity(self: *Client, actual: u64, expected: u64) !void {
+        // OMS_ServerSession_CheckRequestSequence: combined = request ID + integrity.
+        const echo_match = actual == expected;
+        const native_match = actual == @as(u64, self.sequence) + self.last_integrity;
+        switch (self.response_model) {
+            .echo => if (!echo_match) return error.InvalidIntegrity,
+            .native => if (!native_match) return error.InvalidIntegrity,
+            .unknown => {
+                if (!echo_match and !native_match) return error.InvalidIntegrity;
+                if (echo_match != native_match) self.response_model = if (echo_match) .echo else .native;
+            },
+        }
+    }
+    fn finish(self: *Client, reader: *wire.Reader, expected: u64) !void {
         const integrity = try reader.vlq();
-        // The native server varies bit zero independently of the echoed counter.
-        if ((integrity & ~@as(u64, 1)) != (expected & ~@as(u64, 1)) or
-            try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidIntegrity;
+        try self.checkIntegrity(integrity, expected);
+        if (try reader.u32be() != 0 or reader.offset != reader.data.len) return error.InvalidIntegrity;
     }
     pub fn read(self: *Client, rid: u32, aid: u32) ![]const u8 {
+        return self.readPath(rid, &.{aid});
+    }
+    pub fn readPath(self: *Client, rid: u32, path: []const u32) ![]const u8 {
         const counter = try self.begin(0x586, true);
         try self.writer.be32(rid);
-        try self.writer.put(&.{ 0x20, 4, 1 });
-        try self.writer.vlq(aid);
+        try self.writer.put(&.{ 0x20, 4 });
+        try self.writer.vlq(path.len);
+        for (path) |part| try self.writer.vlq(part);
         try self.writer.qualifier(true, counter);
         var reader = try self.exchange(0x586);
         if (try reader.byte() != 0) return error.UnsupportedValue;
         const value = try reader.value(0);
-        try finish(&reader, (@as(u64, self.read_responses) << 2) | 1);
+        try self.finish(&reader, (@as(u64, self.read_responses) << 2) | 1);
         return value.raw;
+    }
+    pub fn writePath(self: *Client, rid: u32, path: []const u32, value: []const u8) !void {
+        const counter = try self.begin(0x57c, false);
+        try self.writer.be32(rid);
+        try self.writer.put(&.{ 0x20, 4 });
+        try self.writer.vlq(path.len);
+        for (path) |part| try self.writer.vlq(part);
+        try self.writer.put(&wire.qualifier_bytes);
+        try self.writer.put(&.{ 0, 1 });
+        try self.writer.put(value);
+        try self.writer.vlq(counter);
+        try self.writer.be32(0);
+        var reader = try self.exchange(0x57c);
+        try self.finish(&reader, @as(u64, self.write_responses) << 1);
     }
     pub fn write(self: *Client, rid: u32, aid: u32, value: []const u8) !void {
         const counter = try self.begin(0x4f2, false);
@@ -154,10 +203,10 @@ pub const Client = struct {
         try self.writer.put(value);
         try self.writer.qualifier(false, counter);
         var reader = try self.exchange(0x4f2);
-        try finish(&reader, @as(u64, self.write_responses) << 1);
+        try self.finish(&reader, @as(u64, self.write_responses) << 1);
     }
     pub fn start(self: *Client) !void {
-        if (self.transaction) return error.InvalidSequenceState;
+        if (self.transaction or self.best_effort or self.application_sequence != 0) return error.InvalidSequenceState;
         const counter = try self.begin(0x556, false);
         try self.writer.put(&.{ 2, 0, 1, 0 });
         try self.writer.vlq(counter);
@@ -167,21 +216,27 @@ pub const Client = struct {
         try self.writer.put(&.{ 0, 0, 0xa2, 0, 0, 0, 0 });
         var reader = try self.exchange(0x556);
         if ((try reader.value(0)).kind != 0x12) return error.InvalidSequenceState;
-        try finish(&reader, @as(u64, self.write_responses) << 1);
+        try self.finish(&reader, @as(u64, self.write_responses) << 1);
         self.transaction = true;
     }
     pub fn end(self: *Client, abort: bool) !void {
-        if (!self.transaction) return error.InvalidSequenceState;
+        if (!self.transaction and !self.best_effort and self.application_sequence == 0) return error.InvalidSequenceState;
         const counter = try self.begin(0x560, false);
-        try self.writer.put(&.{ @intFromBool(abort), 1 });
+        try self.writer.put(&.{ @intFromBool(abort), @intFromBool(self.transaction) });
         try self.writer.vlq(counter);
         try self.writer.be32(0);
         var reader = self.exchange(0x560) catch |err| {
-            if (err == error.RemoteStatus) self.transaction = false;
+            if (err == error.RemoteStatus and self.application_sequence == 0) {
+                self.transaction = false;
+                self.best_effort = false;
+            }
             return err;
         };
-        try finish(&reader, @as(u64, self.write_responses) << 1);
-        self.transaction = false;
+        try self.finish(&reader, @as(u64, self.write_responses) << 1);
+        if (self.application_sequence != 0) self.application_sequence = 0 else {
+            self.transaction = false;
+            self.best_effort = false;
+        }
     }
     pub fn stream(self: *Client, rid: u32, aid: u32, bytes: []const u8) !void {
         if (!self.transaction or bytes.len == 0 or bytes.len > @import("streaming.zig").max_bytes) return error.InvalidValue;
@@ -201,7 +256,7 @@ pub const Client = struct {
             try self.writer.vlq(counter);
             try self.writer.be32(0);
             var reader = try self.exchange(0x57c);
-            try finish(&reader, @as(u64, self.write_responses) << 1);
+            try self.finish(&reader, @as(u64, self.write_responses) << 1);
             offset += chunk.len;
         }
     }
@@ -221,7 +276,7 @@ pub const Client = struct {
             if (value == 0 or value > std.math.maxInt(u32)) return error.InvalidObject;
             rid.* = @intCast(value);
         }
-        try finish(&reader, @as(u64, self.write_responses) << 1);
+        try self.finish(&reader, @as(u64, self.write_responses) << 1);
         return @intCast(count);
     }
     pub fn delete(self: *Client, rid: u32) !void {
@@ -233,7 +288,7 @@ pub const Client = struct {
         try self.writer.be32(0);
         var reader = try self.exchange(0x4d4);
         if (try reader.u32be() != rid) return error.UnexpectedReply;
-        try finish(&reader, @as(u64, self.write_responses) << 1);
+        try self.finish(&reader, @as(u64, self.write_responses) << 1);
     }
     pub fn notification(self: *Client, output: []u8, wait: bool) !usize {
         if (self.failed) return error.InvalidSequenceState;
@@ -249,6 +304,114 @@ pub const Client = struct {
         @memcpy(output[0..raw.len], raw);
         return raw.len;
     }
+    pub fn beginBestEffort(self: *Client) !void {
+        if (self.transaction or self.best_effort or self.application_sequence != 0) return error.InvalidSequenceState;
+        const counter = try self.begin(0x556, false);
+        try self.writer.put(&.{ 1, 0, 0 });
+        try self.writer.vlq(counter);
+        try self.writer.be32(0);
+        var reader = try self.exchange(0x556);
+        if ((try reader.value(0)).kind != 0) return error.InvalidSequenceState;
+        try self.finish(&reader, @as(u64, self.write_responses) << 1);
+        self.best_effort = true;
+    }
+    pub fn beginApplication(self: *Client, kind: u8, parameter: u32) !void {
+        if (self.best_effort or self.application_sequence != 0) return error.InvalidSequenceState;
+        const counter = try self.begin(0x556, false);
+        try self.writer.byte(kind);
+        try self.writer.rid(parameter);
+        try self.writer.vlq(counter);
+        try self.writer.be32(0);
+        var reader = try self.exchange(0x556);
+        if ((try reader.value(0)).kind != 0) return error.InvalidSequenceState;
+        try self.finish(&reader, @as(u64, self.write_responses) << 1);
+        self.application_sequence = kind;
+    }
+    pub fn getLink(self: *Client, rid: u32, aid: u32, targets: *[16]u32) !usize {
+        const counter = try self.begin(0x524, true);
+        try self.writer.be32(rid);
+        try self.writer.vlq(aid);
+        try self.writer.put(&.{ 0, 0 });
+        try self.writer.vlq(counter);
+        try self.writer.be32(0);
+        var reader = try self.exchange(0x524);
+        const count = try reader.vlq();
+        if (count > targets.len) return error.ValueLimit;
+        for (targets[0..@intCast(count)]) |*target| target.* = try reader.u32be();
+        try self.finish(&reader, (@as(u64, self.read_responses) << 2) | 1);
+        return @intCast(count);
+    }
+    pub fn explore(self: *Client, rid: u32, options: ExploreOptions, parent: *u32) ![]const u8 {
+        const filters: []const u8 = if (options.filters) |raw| raw[0..options.filters_length] else &.{0};
+        const counter = try self.begin(0x4bb, true);
+        try self.writer.be32(rid);
+        try self.writer.put(&.{ 0, @intFromBool(options.flags & 1 != 0), @intFromBool(options.flags & 2 != 0), @intFromBool(options.flags & 4 != 0) });
+        try self.writer.put(filters);
+        try self.writer.vlq(options.aid_count);
+        if (options.aids) |aids| for (aids[0..options.aid_count]) |aid| try self.writer.vlq(aid);
+        try self.writer.vlq(counter);
+        try self.writer.put(&.{ 0, 0, 0, 0, 0 });
+        var reader = try self.exchange(0x4bb);
+        parent.* = try reader.u32be();
+        const integrity = try reader.vlq();
+        try self.checkIntegrity(integrity, (@as(u64, self.read_responses) << 2) | 1);
+        if (reader.data.len - reader.offset < 4) return error.InvalidIntegrity;
+        const objects = try reader.take(reader.data.len - reader.offset - 4);
+        if (try reader.u32be() != 0) return error.InvalidTrailer;
+        try @import("model.zig").objects(objects, null, null);
+        return objects;
+    }
+    pub fn invoke(self: *Client, rid: u32, method: u32, arguments: []const u8) ![]const u8 {
+        const counter = try self.begin(0x56b, false);
+        try self.writer.be32(rid);
+        try self.writer.be32(method);
+        try self.writer.put(arguments);
+        try self.writer.vlq(counter);
+        try self.writer.be32(0);
+        var reader = try self.exchange(0x56b);
+        const result_start = reader.offset;
+        _ = try reader.value(0);
+        try wire.invokeArguments(&reader);
+        const result = reader.data[result_start..reader.offset];
+        if (result.len > 8192) return error.ValueLimit;
+        try self.finish(&reader, @as(u64, self.write_responses) << 1);
+        return result;
+    }
+    pub fn subscribe(self: *Client, references: []const Reference, cycle: u32, credits: i16) !u32 {
+        var descriptor: wire.Writer = .{};
+        try descriptor.byte(0xa1);
+        try descriptor.be32(0x7fffc001);
+        try descriptor.vlq(1001);
+        try descriptor.put(&.{ 0, 0, 0xa3 });
+        try descriptor.vlq(1048);
+        try descriptor.put(&.{ 0x20, 4 });
+        var words: usize = 3;
+        for (references) |reference| words += 6 + reference.path_length;
+        try descriptor.vlq(words);
+        try descriptor.vlq(0x80000000);
+        try descriptor.byte(0);
+        try descriptor.vlq(references.len);
+        for (references) |reference| {
+            try descriptor.vlq(0x80100001 + reference.path_length);
+            try descriptor.vlq(reference.handle);
+            try descriptor.byte(0);
+            try descriptor.vlq(reference.rid);
+            try descriptor.byte(0);
+            try descriptor.vlq(reference.aid);
+            for (reference.path[0..reference.path_length]) |part| try descriptor.vlq(part);
+        }
+        try descriptor.byte(0xa3);
+        try descriptor.vlq(1049);
+        try descriptor.uint(cycle);
+        try descriptor.byte(0xa3);
+        try descriptor.vlq(1053);
+        try descriptor.put(&.{ 0, 7 });
+        try descriptor.be16(@bitCast(credits));
+        try descriptor.byte(0xa2);
+        var assigned: [8]u32 = undefined;
+        if (try self.create(self.context, descriptor.data[0..descriptor.used], &assigned) != 1) return error.InvalidObject;
+        return assigned[0];
+    }
     pub fn find(self: *Client, root: u32, name: []const u8) !u32 {
         const counter = try self.begin(0x4bb, true);
         try self.writer.be32(root);
@@ -258,7 +421,7 @@ pub const Client = struct {
         try self.writer.put(&.{ 0, 0, 0, 0, 0 });
         var reader = try self.exchange(0x4bb);
         _ = try reader.u32be();
-        if ((try reader.vlq() & ~@as(u64, 1)) != (@as(u64, self.read_responses) << 2)) return error.InvalidIntegrity;
+        try self.checkIntegrity(try reader.vlq(), (@as(u64, self.read_responses) << 2) | 1);
         var stack: [8]u32 = undefined;
         var depth: usize = 0;
         var objects: usize = 0;

@@ -7,6 +7,66 @@ const transport = @import("channel.zig");
 const allocator = std.heap.page_allocator;
 const application = @import("application.zig");
 const client_api = @import("client.zig");
+const model_api = @import("model.zig");
+export fn zomsp_invoke_result_visit(data: ?[*]const u8, length: usize, callback: ?model_api.ValueVisitor, user: ?*anyopaque) i32 {
+    if (data == null or length > 8192 or callback == null) return -1;
+    model_api.invokeResult(data.?[0..length], callback, user) catch return -1;
+    return 0;
+}
+const Filter = extern struct { operation: u32, address_count: u32, address: [4]u32, value: ?[*]const u8, length: usize };
+export fn zomsp_filters_encode(filters: ?[*]const Filter, count: usize, output: ?[*]u8, capacity: usize) isize {
+    if ((count != 0 and filters == null) or count > 10 or output == null or capacity < 8192) return -1;
+    var writer: wire.Writer = .{};
+    if (filters) |entries| for (entries[0..count], 0..) |entry, index| {
+        if (entry.address_count > 4 or entry.value == null or entry.length < 2 or entry.length > 1024 or entry.operation > 63) return -1;
+        valid(entry.value.?[0..entry.length]) catch return -1;
+        writer.vlq(index + 1) catch return -1;
+        writer.put(&.{ 0, 0x17 }) catch return -1;
+        writer.be32(1246) catch return -1;
+        writer.vlq(1247) catch return -1;
+        writer.put(&.{ 0, 8, @intCast(entry.operation) }) catch return -1;
+        writer.vlq(1249) catch return -1;
+        writer.uint(entry.address_count) catch return -1;
+        writer.vlq(1250) catch return -1;
+        writer.put(&.{ 0x10, 4, 32 }) catch return -1;
+        for (0..32) |slot| writer.vlq(if (slot < entry.address_count) entry.address[slot] else 0) catch return -1;
+        writer.vlq(1251) catch return -1;
+        writer.put(entry.value.?[0..entry.length]) catch return -1;
+        writer.byte(0) catch return -1;
+    };
+    writer.byte(0) catch return -1;
+    if (writer.used > capacity or writer.used > 8192) return -5;
+    wire.validateFilters(writer.data[0..writer.used]) catch return -1;
+    @memcpy(output.?[0..writer.used], writer.data[0..writer.used]);
+    return @intCast(writer.used);
+}
+export fn zomsp_notification_info(data: ?[*]const u8, length: usize, output: ?*model_api.NotificationInfo) i32 {
+    if (data == null or length > wire.limit or output == null) return -1;
+    output.?.* = model_api.notificationInfo(data.?[0..length]) catch return -1;
+    return 0;
+}
+export fn zomsp_objects_visit(data: ?[*]const u8, length: usize, callback: ?model_api.Visitor, user: ?*anyopaque) i32 {
+    if (data == null or length > wire.limit or callback == null) return -1;
+    model_api.objects(data.?[0..length], callback, user) catch return -1;
+    return 0;
+}
+export fn zomsp_notification_visit(data: ?[*]const u8, length: usize, callback: ?model_api.EventVisitor, user: ?*anyopaque) i32 {
+    if (data == null or length > wire.limit or callback == null) return -1;
+    model_api.notification(data.?[0..length], callback, user) catch return -1;
+    return 0;
+}
+export fn zomsp_class(context: ?*Context, id: u32, base: u32, flags: u32, composition: u32) i32 {
+    const ctx = context orelse return -1;
+    if (ctx.runtime != null or ctx.sessions != 0) return -6;
+    ctx.store.schema.register(.{ .id = id, .base = base, .flags = flags, .composition = composition }) catch |err| return failure(err);
+    return 0;
+}
+export fn zomsp_sequences(context: ?*Context, callback: ?application.SequenceCallback, user: ?*anyopaque) i32 {
+    const ctx = context orelse return -1;
+    if (ctx.runtime != null or ctx.sessions != 0) return -6;
+    ctx.store.sequencer = if (callback) |function| .{ .callback = function, .user = user } else null;
+    return 0;
+}
 const events_api = @import("events.zig");
 
 export fn zomsp_events(context: ?*Context) i32 {
@@ -361,6 +421,59 @@ export fn zomsp_client_notification(client: ?*client_api.Client, output: ?[*]u8,
 export fn zomsp_client_status(client: ?*const client_api.Client) u64 {
     return if (client) |handle| handle.status else 0;
 }
+export fn zomsp_client_explore(client: ?*client_api.Client, rid: u32, options: ?*const client_api.ExploreOptions, output: ?[*]u8, capacity: usize, parent: ?*u32) isize {
+    const handle = client orelse return -1;
+    const settings = if (options) |value| value.* else client_api.ExploreOptions{};
+    if (rid == 0 or output == null or capacity < wire.limit or parent == null or settings.flags & ~@as(u32, 7) != 0 or settings.reserved != 0 or settings.aid_count > 64 or settings.filters_length > 8192 or
+        (settings.aid_count != 0 and settings.aids == null) or (settings.filters_length != 0 and settings.filters == null)) return -1;
+    if (settings.aids) |aids| for (aids[0..settings.aid_count]) |aid| {
+        if (aid == 0) return -1;
+    };
+    if (settings.filters) |raw| wire.validateFilters(raw[0..settings.filters_length]) catch return -1;
+    const objects = handle.explore(rid, settings, parent.?) catch |err| return clientFailure(handle, err);
+    @memcpy(output.?[0..objects.len], objects);
+    return @intCast(objects.len);
+}
+export fn zomsp_client_get_link(client: ?*client_api.Client, rid: u32, aid: u32, output: ?[*]u32, capacity: usize) isize {
+    const handle = client orelse return -1;
+    if (rid == 0 or aid == 0 or output == null or capacity < 16) return -1;
+    var targets: [16]u32 = undefined;
+    const count = handle.getLink(rid, aid, &targets) catch |err| return clientFailure(handle, err);
+    @memcpy(output.?[0..count], targets[0..count]);
+    return @intCast(count);
+}
+export fn zomsp_client_invoke(client: ?*client_api.Client, rid: u32, method: u32, arguments: ?[*]const u8, length: usize, output: ?[*]u8, capacity: usize) isize {
+    const handle = client orelse return -1;
+    if (rid == 0 or method == 0 or arguments == null or length < 2 or length > 8192 or output == null or capacity < 8192) return -1;
+    var reader: wire.Reader = .{ .data = arguments.?[0..length] };
+    wire.invokeArguments(&reader) catch return -1;
+    if (reader.offset != length) return -1;
+    const result = handle.invoke(rid, method, arguments.?[0..length]) catch |err| return clientFailure(handle, err);
+    @memcpy(output.?[0..result.len], result);
+    return @intCast(result.len);
+}
+export fn zomsp_client_begin_best_effort(client: ?*client_api.Client) i32 {
+    const handle = client orelse return -1;
+    handle.beginBestEffort() catch |err| return clientFailure(handle, err);
+    return 0;
+}
+export fn zomsp_client_begin_application(client: ?*client_api.Client, kind: u8, parameter: u32) i32 {
+    const handle = client orelse return -1;
+    if (kind < 3 or kind > 5 or parameter == 0) return -1;
+    handle.beginApplication(kind, parameter) catch |err| return clientFailure(handle, err);
+    return 0;
+}
+export fn zomsp_client_subscribe(client: ?*client_api.Client, references: ?[*]const client_api.Reference, count: usize, cycle_ms: u32, credits: i16, output: ?*u32) i32 {
+    const handle = client orelse return -1;
+    if (references == null or count == 0 or count > 64 or cycle_ms > 60000 or credits < -1 or output == null) return -1;
+    for (references.?[0..count], 0..) |reference, index| {
+        if (reference.handle == 0 or reference.rid == 0 or reference.aid == 0 or reference.path_length > 3 or reference.reserved != 0) return -1;
+        for (references.?[0..index]) |previous| if (previous.handle == reference.handle) return -1;
+        for (reference.path[0..reference.path_length]) |part| if (part == 0) return -1;
+    }
+    output.?.* = handle.subscribe(references.?[0..count], cycle_ms, credits) catch |err| return clientFailure(handle, err);
+    return 0;
+}
 export fn zomsp_client_authenticate(client: ?*client_api.Client, username: ?[*]const u8, username_length: usize, password: ?[*]const u8, password_length: usize) i32 {
     const handle = client orelse return -1;
     if (password == null or password_length == 0 or password_length > 256 or username_length > 128 or (username_length != 0 and username == null)) return -1;
@@ -374,6 +487,23 @@ export fn zomsp_client_read(client: ?*client_api.Client, rid: u32, aid: u32, out
     if (value.len > capacity) return -5;
     @memcpy(output.?[0..value.len], value);
     return @intCast(value.len);
+}
+export fn zomsp_client_read_path(client: ?*client_api.Client, rid: u32, path: ?[*]const u32, count: usize, output: ?[*]u8, capacity: usize) isize {
+    const handle = client orelse return -1;
+    if (rid == 0 or path == null or count == 0 or count > 4 or output == null or capacity == 0) return -1;
+    for (path.?[0..count]) |part| if (part == 0) return -1;
+    const value = handle.readPath(rid, path.?[0..count]) catch |err| return clientFailure(handle, err);
+    if (value.len > capacity) return -5;
+    @memcpy(output.?[0..value.len], value);
+    return @intCast(value.len);
+}
+export fn zomsp_client_write_path(client: ?*client_api.Client, rid: u32, path: ?[*]const u32, count: usize, value: ?[*]const u8, length: usize) i32 {
+    const handle = client orelse return -1;
+    if (rid == 0 or path == null or count == 0 or count > 4 or value == null or length < 2 or length > 1024) return -1;
+    for (path.?[0..count]) |part| if (part == 0) return -1;
+    valid(value.?[0..length]) catch return -1;
+    handle.writePath(rid, path.?[0..count], value.?[0..length]) catch |err| return clientFailure(handle, err);
+    return 0;
 }
 export fn zomsp_client_write(client: ?*client_api.Client, rid: u32, aid: u32, value: ?[*]const u8, length: usize) i32 {
     const handle = client orelse return -1;

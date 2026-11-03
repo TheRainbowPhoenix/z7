@@ -122,7 +122,7 @@ jobs:
         with:
           deno-version: '2.9.2'
       - name: Check Deno FFI examples
-        run: deno check examples/zomsp/server.ts examples/zomsp/client.ts
+        run: deno check examples/zomsp/server.ts examples/zomsp/client.ts examples/zomsp/discover.ts
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
