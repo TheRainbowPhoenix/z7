@@ -1,0 +1,86 @@
+version: 2
+aoi:
+  name: CASE_OF
+  description: ''
+  tags:
+    input:
+      - name: batchSelector
+        dataType: DINT
+        description: Integer batch code that drives valve routing
+    output:
+      - name: zonePelletDischarge
+        dataType: BOOL
+        description: Energizes the pellet discharge valve
+      - name: zoneSyrupDischarge
+        dataType: BOOL
+        description: Energizes the syrup discharge valve
+      - name: zonePelletBypass
+        dataType: BOOL
+        description: Energizes the pellet bypass valve
+      - name: zoneSyrupRecirculation
+        dataType: BOOL
+        description: Energizes the syrup recirculation valve
+  routines:
+    Logic:
+      type: st
+      content: |-
+        // Select valve combinations based on the batch selector.
+        CASE batchSelector OF
+          1:
+            // Default batch sends pellets and syrup through the main discharge path.
+            zonePelletDischarge := 1;
+            zoneSyrupDischarge := 1;
+
+          2..4:
+            // Alternate batches push pellets through the bypass and syrup to recirculation.
+            zonePelletBypass := 1;
+            zoneSyrupRecirculation := 1;
+
+          5..8:
+            // Mid-range batches reuse the alternate routing with the same valve pair.
+            zonePelletBypass := 1;
+            zoneSyrupRecirculation := 1;
+
+          9, 12..14:
+            // Higher batches return to the main discharge valves.
+            zonePelletDischarge := 1;
+            zoneSyrupDischarge := 1;
+
+        ELSE
+            // Default condition de-energizes all valves.
+            zonePelletDischarge := 0;
+            zonePelletBypass := 0;
+            zoneSyrupRecirculation := 0;
+            zoneSyrupDischarge := 0;
+
+        END_CASE;
+  testing:
+    content: |-
+      const executeCase = (batchSelector) =>
+        AOITestKit.run({ batchSelector }).outputs;
+
+      describe('CASE_OF AOI', () => {
+        it('energizes main discharge valves for batch 1', () => {
+          const outputs = executeCase(1);
+          expect(outputs.zonePelletDischarge).toBe(1);
+          expect(outputs.zoneSyrupDischarge).toBe(1);
+          expect(outputs.zonePelletBypass).toBe(0);
+          expect(outputs.zoneSyrupRecirculation).toBe(0);
+        });
+
+        it('routes through bypass for batches 2-4', () => {
+          const outputs = executeCase(3);
+          expect(outputs.zonePelletBypass).toBe(1);
+          expect(outputs.zoneSyrupRecirculation).toBe(1);
+          expect(outputs.zonePelletDischarge).toBe(0);
+          expect(outputs.zoneSyrupDischarge).toBe(0);
+        });
+
+        it('turns all valves off for unknown batches', () => {
+          const outputs = executeCase(42);
+          expect(outputs.zonePelletDischarge).toBe(0);
+          expect(outputs.zoneSyrupDischarge).toBe(0);
+          expect(outputs.zonePelletBypass).toBe(0);
+          expect(outputs.zoneSyrupRecirculation).toBe(0);
+        });
+      });

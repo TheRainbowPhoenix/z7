@@ -4,6 +4,7 @@ const zCom = @import("zCom");
 const IO = zCom.io.IO;
 const Storage = @import("storage.zig").Storage;
 const Connection = @import("connection.zig").Connection;
+const AlarmStore = @import("alarms.zig").Store;
 const exports = @import("exports.zig");
 
 var current_log_level: std.log.Level = .info;
@@ -44,8 +45,53 @@ pub const Server = struct {
     connections: []Connection,
 
     accept_completion: IO.Completion = undefined,
+    accept_pending: bool = false,
+    stopping: bool = false,
+    maintenance_at: ?std.time.Instant = null,
+    write_cursor: usize = 0,
+
+    pub fn wait_ns(self: *const Server) u63 {
+        return (if (self.storage.deferred_writes > 0) @as(u63, 1) else 10) * std.time.ns_per_ms;
+    }
+
+    pub fn poll_alarms(self: *Server) void {
+        const now = std.time.Instant.now() catch return;
+        if (self.maintenance_at) |previous| {
+            if (now.since(previous) < std.time.ns_per_ms) return;
+        }
+        self.maintenance_at = now;
+        for (self.connections) |*connection| {
+            if (connection.deferred_write and now.since(connection.deferred_started) >= std.time.ns_per_s) {
+                connection.complete_deferred_write(false);
+            }
+            connection.poll_alarms();
+        }
+        if (self.storage.deferred_writes == 0) return;
+        const locked = self.storage.try_lock() catch {
+            for (self.connections) |*connection| {
+                if (connection.deferred_write) connection.complete_deferred_write(false);
+            }
+            return;
+        };
+        if (!locked) return;
+        defer self.storage.unlock();
+        // Round-robin retries; at most eight bounded requests share one acquisition.
+        var applied: u32 = 0;
+        for (0..self.connections.len) |_| {
+            const index = self.write_cursor;
+            self.write_cursor = (index + 1) % self.connections.len;
+            const connection = &self.connections[index];
+            if (!connection.deferred_write) continue;
+            connection.complete_deferred_write(true);
+            applied += 1;
+            if (applied == 8) break;
+        }
+    }
 
     pub fn start_accept(self: *Server) void {
+        if (self.stopping) return;
+        std.debug.assert(!self.accept_pending);
+        self.accept_pending = true;
         self.io.accept(
             *Server,
             self,
@@ -57,11 +103,18 @@ pub const Server = struct {
 
     fn on_accept(self: *Server, completion: *IO.Completion, result: IO.AcceptError!std.posix.socket_t) void {
         _ = completion;
+        std.debug.assert(self.accept_pending);
+        self.accept_pending = false;
         const client_socket = result catch |err| {
+            if (self.stopping) return;
             log.err("Accept failed: {}", .{err});
             self.start_accept();
             return;
         };
+        if (self.stopping) {
+            self.io.close_socket(client_socket);
+            return;
+        }
 
         // Find free slot
         var found_slot: ?*Connection = null;
@@ -195,13 +248,14 @@ pub fn main() !void {
 
     const connections = try allocator.alloc(Connection, MAX_CONNECTIONS);
     defer allocator.free(connections);
+    var alarm_store: AlarmStore = .{};
 
     const invalid_socket = if (builtin.os.tag == .windows) std.os.windows.ws2_32.INVALID_SOCKET else -1;
 
     // Initialize as closed with safe defaults
     for (connections) |*c| {
         // We use dummy values for io/storage because closed=true prevents usage
-        c.* = Connection.init(&io, &storage, invalid_socket);
+        c.* = Connection.init(&io, &storage, &alarm_store, invalid_socket);
     }
 
     var server = Server{
@@ -214,6 +268,7 @@ pub fn main() !void {
     server.start_accept();
 
     while (true) {
-        try io.run_for_ns(10 * std.time.ns_per_ms);
+        try io.run_once_for_ns(server.wait_ns());
+        server.poll_alarms();
     }
 }

@@ -1,0 +1,11 @@
+/native_probe
+/native_socket_trace.so
+/native_test_credentials/
+/python_interop_latest.json
+/__pycache__/
+
+/libwrapper_native-nx.so
+
+/native_*_reference.json
+/native_filter_trace.json
+/sweep_*.json

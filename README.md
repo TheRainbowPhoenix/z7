@@ -45,6 +45,9 @@ zig build run -- --port 10202
 
 ## Python
 
+Classic S7 ALARM_8 subscriptions, indications, acknowledgements and queries are available
+through the library host API. See [alarm usage and limits](extra/README_ALARMS.md).
+
 Look at extra:
 - plc logic (that writes to shm)
 - client (handler, that's more like a server)

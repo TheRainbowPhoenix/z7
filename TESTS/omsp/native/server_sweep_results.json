@@ -1,0 +1,67 @@
+{
+  "native_sha256": "e967cc414222a5ff9b869a072094cf769e46b6ca95963ec3ff733ca509155445",
+  "normalized_sha256": "cd1320970e26efd0696b9cc21d1ba15310476da790879bc97a4dad6c9c56cf5f",
+  "cases": [
+    {
+      "mode": "native_both",
+      "passed": true,
+      "native_checks": [
+        "application.invoke.status=0x8020ab00199afff4",
+        "application.invoke.recovery=0x0000000000000000"
+      ]
+    },
+    {
+      "mode": "zomsp_client_native",
+      "passed": true,
+      "native_checks": []
+    },
+    {
+      "mode": "native_client_zomsp",
+      "passed": true,
+      "native_checks": [
+        "application.invoke.status=0x8020ab00199afff4",
+        "application.invoke.recovery=0x0000000000000000"
+      ]
+    },
+    {
+      "mode": "native_both",
+      "explore_with_parent": false,
+      "passed": true,
+      "native_checks": [
+        "application.invoke.status=0x8020ab00199afff4",
+        "application.invoke.recovery=0x0000000000000000",
+        "application.explore.status=0x0000000000000000"
+      ]
+    },
+    {
+      "mode": "native_client_zomsp",
+      "explore_with_parent": false,
+      "passed": true,
+      "native_checks": [
+        "application.invoke.status=0x8020ab00199afff4",
+        "application.invoke.recovery=0x0000000000000000",
+        "application.explore.status=0x0000000000000000"
+      ]
+    },
+    {
+      "mode": "native_both",
+      "explore_with_parent": true,
+      "passed": true,
+      "native_checks": [
+        "application.invoke.status=0x8020ab00199afff4",
+        "application.invoke.recovery=0x0000000000000000",
+        "application.explore.status=0x0000000000000000"
+      ]
+    },
+    {
+      "mode": "native_client_zomsp",
+      "explore_with_parent": true,
+      "passed": true,
+      "native_checks": [
+        "application.invoke.status=0x8020ab00199afff4",
+        "application.invoke.recovery=0x0000000000000000",
+        "application.explore.status=0x0000000000000000"
+      ]
+    }
+  ]
+}

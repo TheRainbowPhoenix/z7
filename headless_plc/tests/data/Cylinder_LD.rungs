@@ -1,0 +1,74 @@
+version: 2
+aoi:
+  name: Cylinder_LD
+  description: >-
+    Pneumatic cylinder control with extend/retract sensors (Ladder Logic)
+  tags:
+    input:
+      - name: Start_Btn
+        dataType: BOOL
+        description: Start Auto Mode
+      - name: Stop_Btn
+        dataType: BOOL
+        description: Stop Auto Mode
+      - name: Prox_Extended
+        dataType: BOOL
+        description: Extended position sensor
+      - name: Prox_Retracted
+        dataType: BOOL
+        description: Retracted position sensor
+    output:
+      - name: Extend_Cmd
+        dataType: BOOL
+        description: Command to extend cylinder
+      - name: Retract_Cmd
+        dataType: BOOL
+        description: Command to retract cylinder
+      - name: Auto_Mode
+        dataType: BOOL
+        description: Auto Mode Status
+  routines:
+    Logic:
+      type: ld
+      content: >-
+        [XIC(Start_Btn),XIC(Auto_Mode)]XIO(Stop_Btn)OTE(Auto_Mode);
+        XIC(Auto_Mode)XIC(Prox_Retracted)XIO(Prox_Extended)OTE(Extend_Cmd);
+        XIC(Auto_Mode)XIC(Prox_Extended)OTE(Retract_Cmd);
+  testing:
+    content: |-
+      const run = (inputs = {}) => AOITestKit.run(inputs).outputs;
+
+      describe('Cylinder LD', () => {
+        it('starts auto mode', () => {
+          const out = run({ Start_Btn: 1, Stop_Btn: 0 });
+          expect(out.Auto_Mode).toBe(1);
+        });
+
+        it('stops auto mode', () => {
+          const out = run({ Start_Btn: 0, Stop_Btn: 1, Auto_Mode: 1 });
+          expect(out.Auto_Mode).toBe(0);
+        });
+
+        it('latches auto mode', () => {
+          // First scan sets it
+          let out = run({ Start_Btn: 1, Stop_Btn: 0 });
+          expect(out.Auto_Mode).toBe(1);
+          // Second scan maintains it even if start is released
+          out = run({ Start_Btn: 0, Stop_Btn: 0, Auto_Mode: 1 }); // Note: In real PLC, internal state persists. Here we pass state manually if needed, or rely on AOITestKit state persistence if configured.
+          // AOITestKit resets state by default unless using a stateful runner. For unit tests, we usually check logic in one scan or pass previous state.
+          // Given the simple test kit, we'll assume stateless for this simple check unless we want to simulate sequences.
+          expect(out.Auto_Mode).toBe(1);
+        });
+
+        it('extends when auto and retracted', () => {
+          const out = run({ Auto_Mode: 1, Prox_Retracted: 1, Prox_Extended: 0 });
+          expect(out.Extend_Cmd).toBe(1);
+          expect(out.Retract_Cmd).toBe(0);
+        });
+
+        it('retracts when auto and extended', () => {
+          const out = run({ Auto_Mode: 1, Prox_Retracted: 0, Prox_Extended: 1 });
+          expect(out.Retract_Cmd).toBe(1);
+          expect(out.Extend_Cmd).toBe(0);
+        });
+      });

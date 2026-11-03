@@ -41,6 +41,10 @@ class Z7Client:
         # int32_t z7_write(Context* ctx, uint8_t area, uint16_t db_num, uint32_t start, uint32_t len, const uint8_t* in_buf);
         self.lib.z7_write.argtypes = [ctypes.POINTER(Context), ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint8)]
         self.lib.z7_write.restype = ctypes.c_int32
+
+        # int32_t z7_alarm_set(Context*, uint32_t event_id, uint8_t signals);
+        self.lib.z7_alarm_set.argtypes = [ctypes.POINTER(Context), ctypes.c_uint32, ctypes.c_uint8]
+        self.lib.z7_alarm_set.restype = ctypes.c_int32
         
         # Keep a reference to the callback to prevent GC
         self.log_cb = self.LOG_CALLBACK_TYPE(self._log_handler)
@@ -80,6 +84,27 @@ class Z7Client:
         res = self.lib.z7_write(self.ctx, area, db_num, start, length, c_data)
         if res != 0:
             raise RuntimeError("Write failed")
+
+    def set_alarm(self, event_id, signals):
+        """Set the eight ALARM_8 signals for a stable, nonzero event ID.
+
+        May run on a producer thread while the server runs. Do not race close().
+        Zero signals clears the alarm; repeated values do not emit another event.
+        """
+        if not self.ctx:
+            raise RuntimeError("Client is closed")
+        if not isinstance(event_id, int) or not 1 <= event_id <= 0xFFFFFFFF:
+            raise ValueError("event_id must be an integer in 1..0xFFFFFFFF")
+        if not isinstance(signals, int) or not 0 <= signals <= 0xFF:
+            raise ValueError("signals must be an integer in 0..255")
+        result = self.lib.z7_alarm_set(self.ctx, event_id, signals)
+        if result == -2:
+            raise RuntimeError("Alarm capacity exhausted: at most 64 distinct event IDs per context")
+        if result != 0:
+            raise RuntimeError(f"Alarm update failed ({result})")
+
+    def clear_alarm(self, event_id):
+        self.set_alarm(event_id, 0)
 
 if __name__ == "__main__":
     # Example usage:

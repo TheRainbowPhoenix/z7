@@ -28,7 +28,18 @@ pub fn listen(
     address: std.net.Address,
     options: ListenOptions,
 ) !std.net.Address {
-    try setsockopt(fd, posix.SOL.SOCKET, posix.SO.REUSEADDR, 1);
+    if (builtin.os.tag == .windows) {
+        // Winsock SO_REUSEADDR permits a second listener to steal an endpoint.
+        // SO_EXCLUSIVEADDRUSE is the bitwise complement of SO_REUSEADDR.
+        const enabled: i32 = 1;
+        // std.posix.setsockopt casts its unsigned option to i32 and cannot
+        // represent this negative Winsock option in Zig 0.14.
+        if (std.os.windows.ws2_32.setsockopt(fd, posix.SOL.SOCKET, ~@as(i32, posix.SO.REUSEADDR), std.mem.asBytes(&enabled), @sizeOf(i32)) != 0) {
+            return error.ExclusiveAddressFailed;
+        }
+    } else {
+        try setsockopt(fd, posix.SOL.SOCKET, posix.SO.REUSEADDR, 1);
+    }
     try posix.bind(fd, &address.any, address.getOsSockLen());
 
     // Resolve port 0 to an actual port picked by the OS.

@@ -1,0 +1,145 @@
+version: 2
+aoi:
+  name: TrafficLight_ST
+  description: Traffic light sequence using TIMER instruction
+  tags:
+    input:
+      - name: WalkRequest
+        dataType: BOOL
+        description: Pedestrian crossing request button
+    local:
+      - name: PhaseTimer
+        dataType: FBD_TIMER
+        description: Timer for crossing cycle and cooldown
+        defaultValue:
+          EnableIn: 1
+      - name: CycleActive
+        dataType: BOOL
+        description: Crossing cycle in progress
+      - name: YellowDuration
+        dataType: DINT
+        description: Yellow phase duration in ms
+        defaultValue: 1000
+      - name: RedDuration
+        dataType: DINT
+        description: Red phase duration in ms
+        defaultValue: 5000
+      - name: CooldownDuration
+        dataType: DINT
+        description: Minimum green time before next crossing in ms
+        defaultValue: 3000
+    output:
+      - name: GreenLight
+        dataType: BOOL
+        description: Green light output
+      - name: YellowLight
+        dataType: BOOL
+        description: Yellow light output
+      - name: RedLight
+        dataType: BOOL
+        description: Red light output
+      - name: WalkSign
+        dataType: BOOL
+        description: Pedestrian walk signal
+  routines:
+    Logic:
+      type: st
+      content: >-
+        /* Pedestrian Crossing Controller
+
+        Click "Start" to run the simulation.
+
+        Press WalkRequest to trigger a crossing cycle.
+
+        Light stays green until pedestrian requests to cross.
+
+        Cooldown prevents immediate re-triggering. */
+
+
+        // Start cycle only if not already running.
+
+        IF WalkRequest AND NOT CycleActive THEN
+          CycleActive := 1;
+        END_IF;
+
+
+        // Clear cycle at end of full sequence.
+
+        IF PhaseTimer.DN THEN
+          CycleActive := 0;
+        END_IF;
+
+
+        // Timer covers: Yellow + Red + Cooldown phases.
+
+        PhaseTimer.PRE := YellowDuration + RedDuration + CooldownDuration;
+
+        PhaseTimer.TimerEnable := CycleActive;
+
+        PhaseTimer.Reset := PhaseTimer.DN;
+
+        TONR(PhaseTimer);
+
+
+        // Yellow phase: 0 to YellowDuration
+
+        YellowLight := CycleActive AND PhaseTimer.ACC < YellowDuration;
+
+
+        // Red phase: YellowDuration to YellowDuration + RedDuration
+
+        RedLight := CycleActive AND PhaseTimer.ACC >= YellowDuration AND
+        PhaseTimer.ACC < (YellowDuration + RedDuration);
+
+
+        // Walk sign active during red phase.
+
+        WalkSign := RedLight;
+
+
+        // Green when idle or during cooldown phase.
+
+        GreenLight := NOT CycleActive OR PhaseTimer.ACC >= (YellowDuration +
+        RedDuration);
+  testing:
+    content: |-
+      const runLight = (inputs = {}) => AOITestKit.run(inputs).outputs;
+
+      describe('TrafficLight AOI', () => {
+        it('shows green when idle', () => {
+          const outputs = runLight({});
+          expect(outputs.GreenLight).toBe(1);
+          expect(outputs.YellowLight).toBe(0);
+          expect(outputs.RedLight).toBe(0);
+          expect(outputs.WalkSign).toBe(0);
+        });
+
+        it('starts yellow phase on walk request', () => {
+          const outputs = runLight({ WalkRequest: 1 });
+          expect(outputs.YellowLight).toBe(1);
+          expect(outputs.GreenLight).toBe(0);
+          expect(outputs.RedLight).toBe(0);
+        });
+
+        it('ignores walk request during active cycle', () => {
+          const outputs = runLight({ WalkRequest: 1, CycleActive: 1 });
+          expect(outputs.YellowLight).toBe(1);
+        });
+
+        it('walk sign follows red light', () => {
+          const outputs = runLight({});
+          expect(outputs.WalkSign).toBe(outputs.RedLight);
+        });
+
+        it('only one light active at a time when idle', () => {
+          const outputs = runLight({});
+          const activeCount = outputs.GreenLight + outputs.YellowLight + outputs.RedLight;
+          expect(activeCount).toBe(1);
+        });
+
+        it('only one traffic light active during cycle start', () => {
+          const outputs = runLight({ WalkRequest: 1 });
+          const activeCount = outputs.GreenLight + outputs.YellowLight + outputs.RedLight;
+          expect(activeCount).toBe(1);
+        });
+      });

@@ -1,0 +1,51 @@
+version: 2
+aoi:
+  name: TIMER
+  description: TON timer on delay instruction
+  tags:
+    input:
+      - name: Enable
+        dataType: BOOL
+        description: Starts the timer when set
+    local:
+      - name: DelayTimer
+        dataType: TIMER
+        description: TON timer structure
+        defaultValue:
+          PRE: 3000
+    output:
+      - name: TimerAcc
+        dataType: DINT
+        description: Current accumulated time in milliseconds
+      - name: TimerDone
+        dataType: BOOL
+        description: Set when the timer reaches its preset
+      - name: TimerTiming
+        dataType: BOOL
+        description: Set while the timer is actively counting
+  routines:
+    Logic:
+      type: ld
+      content: >-
+        XIC(Enable)TON(DelayTimer,?,?);XIC(DelayTimer.DN)OTE(TimerDone);XIC(DelayTimer.TT)OTE(TimerTiming);MOVE(DelayTimer.ACC,TimerAcc)
+  testing:
+    content: |-
+      const run = (inputs = {}) => AOITestKit.run(inputs).outputs;
+
+      describe('TIMER AOI', () => {
+        it('exposes timer accumulator', () => {
+          const outputs = run({ Enable: 1 });
+          expect(typeof outputs.TimerAcc).toBe('number');
+        });
+
+        it('timer not done on first scan', () => {
+          const outputs = run({ Enable: 1 });
+          expect(outputs.TimerDone).toBe(0);
+        });
+
+        it('timer inactive when enable is off', () => {
+          const outputs = run({ Enable: 0 });
+          expect(outputs.TimerTiming).toBe(0);
+          expect(outputs.TimerDone).toBe(0);
+        });
+      });

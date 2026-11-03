@@ -1,0 +1,50 @@
+version: 2
+aoi:
+  name: FBD_TIMER
+  description: Timer On Delay instruction
+  tags:
+    local:
+      - name: Tmr_Generator
+        dataType: FBD_TIMER
+        description: Timer structure for the TONR instruction
+        defaultValue:
+          EnableIn: 1
+    output:
+      - name: TimerAcc
+        dataType: DINT
+        description: Current accumulated timer value in milliseconds
+      - name: Output
+        dataType: BOOL
+        description: Output coil driven when the timer completes
+  routines:
+    Logic:
+      type: st
+      content: >-
+        // Configure the timer preset and enable logic.
+
+        Tmr_Generator.PRE := 2000;
+
+        Tmr_Generator.TimerEnable := 1;
+
+        Tmr_Generator.Reset := Tmr_Generator.DN; // Reset the timer when done so
+        the cycle repeats.
+
+        TONR(Tmr_Generator);
+
+
+        // Surface the accumulated value and drive the output when the timer
+        crosses the threshold.
+
+        TimerAcc := Tmr_Generator.ACC;
+
+        Output := Tmr_Generator.ACC > 500; // Assert the output once 500 ms has
+        elapsed.
+  testing:
+    content: |-
+      describe('FBD_TIMER AOI', () => {
+        it('provides timer outputs with default inputs', () => {
+          const { outputs } = AOITestKit.run();
+          expect(typeof outputs.TimerAcc).toBe('number');
+          expect(outputs.Output === 0 || outputs.Output === 1).toBe(true);
+        });
+      });

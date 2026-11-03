@@ -1,0 +1,114 @@
+version: 2
+aoi:
+  name: COMPARE
+  description: EQ, NE, GT, GE, LT, LE, and LIMIT comparison instructions
+  tags:
+    input:
+      - name: SensorValue
+        dataType: DINT
+        description: Value being compared against the setpoint
+      - name: Setpoint
+        dataType: DINT
+        description: Reference value for comparisons
+        defaultValue: 50
+      - name: LowLimit
+        dataType: DINT
+        description: Lower bound for the LIMIT range check
+        defaultValue: 20
+      - name: HighLimit
+        dataType: DINT
+        description: Upper bound for the LIMIT range check
+        defaultValue: 80
+    output:
+      - name: IsEqual
+        dataType: BOOL
+        description: True when SensorValue equals Setpoint
+      - name: IsNotEqual
+        dataType: BOOL
+        description: True when SensorValue differs from Setpoint
+      - name: IsAbove
+        dataType: BOOL
+        description: True when SensorValue exceeds Setpoint
+      - name: IsAtOrAbove
+        dataType: BOOL
+        description: True when SensorValue meets or exceeds Setpoint
+      - name: IsBelow
+        dataType: BOOL
+        description: True when SensorValue is less than Setpoint
+      - name: IsAtOrBelow
+        dataType: BOOL
+        description: True when SensorValue is at most Setpoint
+      - name: InRange
+        dataType: BOOL
+        description: True when SensorValue is between LowLimit and HighLimit inclusive
+      - name: OutOfRange
+        dataType: BOOL
+        description: True when SensorValue is outside LowLimit..HighLimit (inverted LIMIT)
+  routines:
+    Logic:
+      type: ld
+      content: >-
+        EQ(SensorValue,Setpoint)OTE(IsEqual);NE(SensorValue,Setpoint)OTE(IsNotEqual);GT(SensorValue,Setpoint)OTE(IsAbove);GE(SensorValue,Setpoint)OTE(IsAtOrAbove);LT(SensorValue,Setpoint)OTE(IsBelow);LE(SensorValue,Setpoint)OTE(IsAtOrBelow);LIMIT(LowLimit,SensorValue,HighLimit)OTE(InRange);LIMIT(HighLimit,SensorValue,LowLimit)OTE(OutOfRange)
+  testing:
+    content: |-
+      const run = (inputs = {}) => AOITestKit.run(inputs).outputs;
+
+      describe('COMPARE AOI', () => {
+        it('all comparisons correct when values are equal', () => {
+          const outputs = run({ SensorValue: 50, Setpoint: 50 });
+          expect(outputs.IsEqual).toBe(1);
+          expect(outputs.IsNotEqual).toBe(0);
+          expect(outputs.IsAbove).toBe(0);
+          expect(outputs.IsAtOrAbove).toBe(1);
+          expect(outputs.IsBelow).toBe(0);
+          expect(outputs.IsAtOrBelow).toBe(1);
+        });
+
+        it('all comparisons correct when sensor is above setpoint', () => {
+          const outputs = run({ SensorValue: 60, Setpoint: 50 });
+          expect(outputs.IsEqual).toBe(0);
+          expect(outputs.IsNotEqual).toBe(1);
+          expect(outputs.IsAbove).toBe(1);
+          expect(outputs.IsAtOrAbove).toBe(1);
+          expect(outputs.IsBelow).toBe(0);
+          expect(outputs.IsAtOrBelow).toBe(0);
+        });
+
+        it('all comparisons correct when sensor is below setpoint', () => {
+          const outputs = run({ SensorValue: 30, Setpoint: 50 });
+          expect(outputs.IsEqual).toBe(0);
+          expect(outputs.IsNotEqual).toBe(1);
+          expect(outputs.IsAbove).toBe(0);
+          expect(outputs.IsAtOrAbove).toBe(0);
+          expect(outputs.IsBelow).toBe(1);
+          expect(outputs.IsAtOrBelow).toBe(1);
+        });
+
+        it('LIMIT standard: true when sensor is within range', () => {
+          const outputs = run({ SensorValue: 50, LowLimit: 20, HighLimit: 80 });
+          expect(outputs.InRange).toBe(1);
+          expect(outputs.OutOfRange).toBe(0);
+        });
+
+        it('LIMIT standard: false when sensor is above range', () => {
+          const outputs = run({ SensorValue: 90, LowLimit: 20, HighLimit: 80 });
+          expect(outputs.InRange).toBe(0);
+          expect(outputs.OutOfRange).toBe(1);
+        });
+
+        it('LIMIT standard: false when sensor is below range', () => {
+          const outputs = run({ SensorValue: 10, LowLimit: 20, HighLimit: 80 });
+          expect(outputs.InRange).toBe(0);
+          expect(outputs.OutOfRange).toBe(1);
+        });
+
+        it('LIMIT standard: true at low boundary', () => {
+          const outputs = run({ SensorValue: 20, LowLimit: 20, HighLimit: 80 });
+          expect(outputs.InRange).toBe(1);
+        });
+
+        it('LIMIT standard: true at high boundary', () => {
+          const outputs = run({ SensorValue: 80, LowLimit: 20, HighLimit: 80 });
+          expect(outputs.InRange).toBe(1);
+        });
+      });

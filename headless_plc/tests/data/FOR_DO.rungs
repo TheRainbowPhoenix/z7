@@ -1,0 +1,137 @@
+version: 2
+aoi:
+  name: FOR_DO
+  description: ''
+  tags:
+    input:
+      - name: scannedBarcode
+        dataType: DINT
+        description: Barcode to locate within the storage buffers
+    local:
+      - name: arrayIndex
+        dataType: DINT
+        description: Loop counter used while clearing the buffer array
+      - name: slotIndex
+        dataType: DINT
+        description: Index pointer while scanning storage arrays
+      - name: detectionFlags
+        dataType: BOOL
+        description: Scratch array that is reset before processing each scan
+        dimension: 24
+        elements: {}
+      - name: storageCount
+        dataType: DINT
+        description: Computed number of populated storage entries
+      - name: storageIds
+        dataType: DINT
+        description: Parallel array of known storage identifiers
+        dimension: 10
+        elements:
+          '0':
+            defaultValue: 101
+          '1':
+            defaultValue: 202
+          '2':
+            defaultValue: 303
+          '3':
+            defaultValue: 404
+          '4':
+            defaultValue: 505
+          '5':
+            defaultValue: 606
+          '6':
+            defaultValue: 707
+          '7':
+            defaultValue: 808
+          '8':
+            defaultValue: 909
+          '9':
+            defaultValue: 1010
+      - name: storageQty
+        dataType: DINT
+        description: Parallel array of quantities for each storage identifier
+        dimension: 10
+        elements:
+          '0':
+            defaultValue: 5
+          '1':
+            defaultValue: 10
+          '2':
+            defaultValue: 15
+          '3':
+            defaultValue: 20
+          '4':
+            defaultValue: 25
+          '5':
+            defaultValue: 30
+          '6':
+            defaultValue: 35
+          '7':
+            defaultValue: 40
+          '8':
+            defaultValue: 45
+          '9':
+            defaultValue: 50
+    output:
+      - name: locatedQuantity
+        dataType: DINT
+        description: Quantity associated with the matched barcode
+  routines:
+    Logic:
+      type: st
+      content: |-
+        // Reset the local detection flags prior to scanning storage slots.
+        For arrayIndex:=0 to 23 by 1 do
+          detectionFlags[arrayIndex] := 0;
+        End_for;
+
+        // Measure the storage structure and search for the provided barcode.
+        SIZE(storageIds,0,storageCount);
+        For slotIndex:=0 to storageCount do
+          // Exit early when the barcode matches.
+          If scannedBarcode = storageIds[slotIndex] then
+            locatedQuantity := storageQty[slotIndex];
+            Exit;
+          End_if;
+        End_for;
+  testing:
+    content: |-
+      const runLookup = (scannedBarcode) =>
+        AOITestKit.run({ scannedBarcode }).outputs;
+
+      describe('FOR_DO AOI', () => {
+        it('returns the quantity when a barcode is present', () => {
+          const outputs = runLookup(202);
+          expect(outputs.locatedQuantity).toBe(10);
+        });
+
+        it('returns zero when the barcode is not found', () => {
+          const outputs = runLookup(999);
+          expect(outputs.locatedQuantity).toBe(0);
+        });
+
+        it('finds the first barcode in the array', () => {
+          const outputs = runLookup(101);
+          expect(outputs.locatedQuantity).toBe(5);
+        });
+
+        it('finds the last barcode in the array', () => {
+          const outputs = runLookup(1010);
+          expect(outputs.locatedQuantity).toBe(50);
+        });
+
+        it('finds a barcode in the middle of the array', () => {
+          const outputs = runLookup(505);
+          expect(outputs.locatedQuantity).toBe(25);
+        });
+
+        it('returns zero for barcode value 0', () => {
+          const outputs = runLookup(0);
+          expect(outputs.locatedQuantity).toBe(0);
+        });
+
+        it('returns zero for negative barcode values', () => {
+          const outputs = runLookup(-100);
+          expect(outputs.locatedQuantity).toBe(0);
+        });
+      });

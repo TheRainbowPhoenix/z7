@@ -6,10 +6,11 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 on:
+  workflow_dispatch:
   merge_group:
   pull_request:
   push:
-    branches: ["master"]
+    branches: ["**"]
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -18,7 +19,7 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: shellcheck ./zig/download.sh
       - shell: pwsh
         run: Invoke-ScriptAnalyzer -Path zig/download.win.ps1 -Severity Error,Warning,Information -EnableExit
@@ -40,7 +41,7 @@ jobs:
         run: | # Allow unshare for vortex.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 2147483647 } # Fetch full history for tidy.
       - name: Download Zig (Unix)
         if: runner.os != 'Windows'
@@ -62,9 +63,13 @@ jobs:
           - { target: 'x86_64-linux-musl',   os: 'ubuntu-latest',  optimize: 'ReleaseSafe' }
           - { target: 'x86_64-linux-gnu',    os: 'ubuntu-latest',  optimize: 'Debug' }
           - { target: 'x86_64-linux-gnu',    os: 'ubuntu-latest',  optimize: 'ReleaseSafe' }
+          - { target: 'aarch64-linux-gnu',   os: 'ubuntu-24.04-arm', optimize: 'Debug' }
+          - { target: 'aarch64-linux-gnu',   os: 'ubuntu-24.04-arm', optimize: 'ReleaseSafe' }
+          - { target: 'aarch64-linux-musl',  os: 'ubuntu-24.04-arm', optimize: 'ReleaseSafe' }
+          - { target: 'arm-linux-musleabihf', os: 'ubuntu-latest', optimize: 'ReleaseSafe', cpu: 'cortex_a7' }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Download Zig (Unix)
         if: runner.os != 'Windows'
         run: |
@@ -74,12 +79,12 @@ jobs:
         if: runner.os == 'Windows'
         run: pwsh ./zig/download.win.ps1
       - name: Build (${{ matrix.optimize }})
-        run: ./zig/zig build -Dtarget=${{ matrix.target }} -Doptimize=${{ matrix.optimize }}
+        run: ./zig/zig build -Dtarget=${{ matrix.target }} -Dcpu=${{ matrix.cpu || 'baseline' }} -Doptimize=${{ matrix.optimize }}
       - name: Test
-        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-linux-gnu' && matrix.optimize == 'Debug'
+        if: (matrix.target == 'x86_64-linux-gnu' || matrix.target == 'aarch64-linux-gnu') && matrix.optimize == 'Debug'
         run: ./zig/zig build test -Dtarget=${{ matrix.target }}
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: z7-${{ matrix.target }}-${{ matrix.optimize }}
           path: |
@@ -90,15 +95,19 @@ jobs:
             zig-out/lib/libz7.so
           if-no-files-found: ignore
 
-  integration-test:
+  zomsp:
+    env:
+      ZOMSP_TEST_DENO: '1'
+    permissions:
+      contents: read
     strategy:
+      fail-fast: false
       matrix:
-        include:
-          - { os: 'ubuntu-latest' }
-          # - { os: 'windows-latest' } # Windows skipped: CI runners have localhost networking issues
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Download Zig (Unix)
         if: runner.os != 'Windows'
         run: |
@@ -107,7 +116,121 @@ jobs:
       - name: Download Zig (Windows)
         if: runner.os == 'Windows'
         run: pwsh ./zig/download.win.ps1
-      - uses: actions/setup-python@v5
+      - name: Build zOMSp and test framing and native wire fixtures
+        run: ./zig/zig build zomsp test:zomsp -Doptimize=ReleaseSafe
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.9.2'
+      - name: Check Deno FFI examples
+        run: deno check examples/zomsp/server.ts examples/zomsp/client.ts examples/zomsp/discover.ts
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Test headless mapped-file ABI (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          python TESTS/omsp/mapped.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/wire.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/invoke.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/transactions.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/activation.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/streaming.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/test_capture_model.py zig-out/lib/libzomsp.so
+          python TESTS/omsp/authentication.py zig-out/lib/libzomsp.so
+      - name: Test headless mapped-file ABI (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          python TESTS/omsp/mapped.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/wire.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/invoke.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/transactions.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/activation.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/streaming.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/test_capture_model.py zig-out/bin/zomsp.dll
+          python TESTS/omsp/authentication.py zig-out/bin/zomsp.dll
+      - name: Test Git OpenSSL packaging layouts
+        if: runner.os == 'Windows'
+        run: python TESTS/omsp/test_package_runtime.py
+      - name: Bundle matching OpenSSL runtime and licenses
+        run: python TESTS/omsp/package_runtime.py zig-out/bin
+      - name: Test bundled TLS and program upload/run (Linux)
+        if: runner.os == 'Linux'
+        run: python TESTS/omsp/tls.py zig-out/lib/libzomsp.so zig-out/bin
+      - name: Test bundled TLS and program upload/run (Windows)
+        if: runner.os == 'Windows'
+        run: python TESTS/omsp/tls.py zig-out/bin/zomsp.dll zig-out/bin
+      - name: Native client/server interoperability (Linux x64)
+        if: matrix.os == 'ubuntu-latest'
+        run: python TESTS/omsp/native/run.py --binary zig-out/bin/zOMSp --cc ./zig/zig
+      - name: Upload native interoperability evidence
+        if: always() && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: zomsp-native-interop
+          path: TESTS/omsp/native/omsp_capture_analysis/python_interop_latest.json
+          if-no-files-found: warn
+      - name: Upload zOMSp
+        uses: actions/upload-artifact@v7
+        with:
+          name: zomsp-${{ matrix.os }}
+          path: |
+            zig-out/bin/zOMSp
+            zig-out/bin/zOMSp.exe
+            zig-out/bin/zOMSp.pdb
+            zig-out/bin/zomsp.dll
+            zig-out/bin/zomsp.pdb
+            zig-out/lib/libzomsp.so
+            zig-out/bin/libssl*
+            zig-out/bin/libcrypto*
+            zig-out/bin/openssl-*
+            zig-out/include/zomsp.h
+            src/zomsp/README.md
+            examples/zomsp/*.py
+            examples/zomsp/*.ts
+            examples/zomsp/README.md
+            TESTS/omsp/*.py
+            TESTS/omsp/native_requests.json
+            TESTS/omsp/alarm_capture.json
+          if-no-files-found: error
+
+  zdcp:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download Zig
+        run: pwsh ./zig/download.win.ps1
+      - name: Build Windows DCP helper
+        run: ./zig/zig build zdcp -Doptimize=ReleaseSafe
+      - name: Test DCP packets (no Npcap driver required)
+        run: ./zig-out/bin/zDCP.exe --self-test
+      - uses: actions/upload-artifact@v7
+        with:
+          name: zdcp-windows-x64
+          path: |
+            zig-out/bin/zDCP.exe
+            src/zdcp/README.md
+          if-no-files-found: error
+
+  integration-test:
+    strategy:
+      matrix:
+        include:
+          - { os: 'ubuntu-latest' }
+          # - { os: 'windows-latest' } # Windows skipped: CI runners have localhost networking issues
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download Zig (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x zig/download.sh zig/download.ps1
+          ./zig/download.ps1 && chmod +x zig/zig
+      - name: Download Zig (Windows)
+        if: runner.os == 'Windows'
+        run: pwsh ./zig/download.win.ps1
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Build z7 server
@@ -157,10 +280,66 @@ jobs:
         shell: pwsh
         run: Get-Process z7 -ErrorAction SilentlyContinue | Stop-Process -Force
 
+  ignition:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: 'ubuntu-latest', library: 'zig-out/lib/libz7.so' }
+          - { os: 'ubuntu-24.04-arm', library: 'zig-out/lib/libz7.so' }
+          - { os: 'windows-latest', library: 'zig-out/bin/z7.dll' }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with: { distribution: temurin, java-version: '11' }
+      - uses: actions/setup-python@v7
+        with: { python-version: '3.12' }
+      - name: Download Zig (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x zig/download.sh zig/download.ps1
+          ./zig/download.ps1 && chmod +x zig/zig
+      - name: Download Zig (Windows)
+        if: runner.os == 'Windows'
+        run: pwsh ./zig/download.win.ps1
+      - name: Build current server
+        run: ./zig/zig build -Doptimize=ReleaseSafe
+      - name: Native bounds and parser tests
+        run: ./zig/zig build test
+      - name: Shared-library lifecycle
+        run: python TESTS/test_shared_library.py ${{ matrix.library }}
+      - name: Failure recovery and endpoint lifecycle
+        run: python TESTS/test_recovery.py ${{ matrix.library }}
+      - name: TCP stream framing and backpressure
+        run: python TESTS/test_stream.py ${{ matrix.library }}
+      - name: Contested writes and responsive shutdown
+        run: python TESTS/test_deferred_writes.py ${{ matrix.library }}
+      - name: Alarm integration
+        run: python TESTS/test_alarms.py ${{ matrix.library }}
+      - name: Original Ignition driver interoperability
+        run: python TESTS/ignition/run.py --driver-jar TESTS/ignition/vendor/driver-siemens-5.0.1.jar --z7-library ${{ matrix.library }} --output .zig-cache/ignition-harness
+      - name: Ignition under shared-memory lock contention
+        run: python TESTS/ignition/run.py --driver-jar TESTS/ignition/vendor/driver-siemens-5.0.1.jar --z7-library ${{ matrix.library }} --lock-hold-ms 10 --load-iterations 1000 --output .zig-cache/ignition-contended
+      - name: Upload interoperability evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ignition-${{ matrix.os }}
+          path: |
+            .zig-cache/ignition-harness/results.json
+            .zig-cache/ignition-harness/java.log
+            .zig-cache/ignition-harness/wire.pcap
+            .zig-cache/ignition-contended/results.json
+            .zig-cache/ignition-contended/java.log
+            .zig-cache/ignition-contended/wire.pcap
+          if-no-files-found: warn
+
   core-pipeline:
     if: always() && github.event_name == 'merge_group'
     runs-on: ubuntu-latest
-    needs: [smoke, test, z7, integration-test]
+    needs: [smoke, test, z7, zomsp, zdcp, integration-test, ignition]
     steps:
       - if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
         run: exit 0

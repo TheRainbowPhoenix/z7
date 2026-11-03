@@ -1,0 +1,86 @@
+version: 2
+aoi:
+  name: TankLevel_ST
+  description: Tank level simulation with manual valve control and alarms
+  tags:
+    input:
+      - name: FillCmd
+        dataType: BOOL
+        description: Command to open fill valve
+      - name: DrainCmd
+        dataType: BOOL
+        description: Command to open drain valve
+    local:
+      - name: FillRate
+        dataType: REAL
+        description: Rate at which tank fills per scan
+      - name: DrainRate
+        dataType: REAL
+        description: Rate at which tank drains per scan
+    output:
+      - name: Level
+        dataType: REAL
+        description: Current tank level (0-100%)
+        defaultValue: 50
+      - name: HighAlarm
+        dataType: BOOL
+        description: High level alarm (above 80%)
+      - name: LowAlarm
+        dataType: BOOL
+        description: Low level alarm (below 20%)
+  routines:
+    Logic:
+      type: st
+      content: |-
+        /* Click "Start" to run the simulation, then toggle FillCmd or DrainCmd
+        in the right panel to control the tank. Open the "Trend" tab to watch
+        the Level change in real-time.
+        Feel free to edit the code below to see different behaviors! */
+
+        // Fill the tank when fill command is active.
+        IF FillCmd THEN
+          FillRate := 1.3; // Try changing this value!
+          Level := Level + FillRate; // Increases by FillRate every scan
+        END_IF;
+
+        // Drain the tank when drain command is active.
+        IF DrainCmd THEN
+          DrainRate := 0.9; // Try changing this value!
+          Level := Level - DrainRate; // Decreases by DrainRate every scan
+        END_IF;
+
+        // Clamp level to valid 0-100% range.
+        IF Level > 100.0 THEN
+          Level := 100.0;
+        ELSIF Level < 0.0 THEN
+          Level := 0.0;
+        END_IF;
+
+        // Alarm outputs trigger when level crosses thresholds.
+        HighAlarm := Level >= 80.0;
+        LowAlarm := Level <= 20.0;
+  testing:
+    content: |-
+      const runTank = (overrides = {}) => AOITestKit.run(overrides).outputs;
+
+      describe('TankLevel AOI', () => {
+        it('increases level when fill command is active', () => {
+          const outputs = runTank({ FillCmd: 1, Level: 50 });
+          expect(outputs.Level).toBeGreaterThan(50);
+        });
+
+        it('decreases level when drain command is active', () => {
+          const outputs = runTank({ DrainCmd: 1, Level: 50 });
+          expect(outputs.Level).toBeLessThan(50);
+        });
+
+        it('triggers high alarm at 80%', () => {
+          const outputs = runTank({ Level: 80 });
+          expect(outputs.HighAlarm).toBe(1);
+        });
+
+        it('triggers low alarm at 20%', () => {
+          const outputs = runTank({ Level: 20 });
+          expect(outputs.LowAlarm).toBe(1);
+        });
+      });

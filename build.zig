@@ -4,6 +4,15 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    if (target.result.os.tag == .windows) {
+        const zdcp = b.addExecutable(.{ .name = "zDCP", .target = target, .optimize = optimize });
+        zdcp.addCSourceFile(.{ .file = b.path("src/zdcp/main.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
+        zdcp.linkLibC();
+        zdcp.linkSystemLibrary("iphlpapi");
+        const install_zdcp = b.addInstallArtifact(zdcp, .{});
+        b.step("zdcp", "Build the Windows DCP discovery helper (Npcap runtime)").dependOn(&install_zdcp.step);
+    }
+
     // --- Modules ---
 
     const stdx_module = b.addModule("stdx", .{
@@ -34,6 +43,9 @@ pub fn build(b: *std.Build) void {
     });
     z7_lib.root_module.addImport("stdx", stdx_module);
     z7_lib.root_module.addImport("zCom", zCom_module);
+    // A loaded Linux library must use the host libc's pthread/TLS runtime.
+    // Zig's freestanding Linux thread setup expects executable startup to initialize TLS.
+    if (target.result.os.tag == .linux) z7_lib.linkLibC();
     b.installArtifact(z7_lib);
 
     // --- z7 Executable ---
@@ -56,8 +68,47 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(z7);
 
+    const zomsp = b.addExecutable(.{
+        .name = "zOMSp",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/zomsp/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    zomsp.root_module.addImport("zCom", zCom_module);
+    zomsp.addCSourceFile(.{ .file = b.path("src/zomsp/tls_bridge.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
+    zomsp.linkLibC();
+    if (target.result.os.tag == .linux) zomsp.linkSystemLibrary("dl");
+    const install_zomsp = b.addInstallArtifact(zomsp, .{});
+    b.step("zomsp", "Build the OMSp proxy and endpoints").dependOn(&install_zomsp.step);
+    const zomsp_lib = b.addSharedLibrary(.{
+        .name = "zomsp",
+        .root_module = b.createModule(.{ .root_source_file = b.path("src/zomsp/exports.zig"), .target = target, .optimize = optimize }),
+    });
+    zomsp_lib.addCSourceFile(.{ .file = b.path("src/zomsp/tls_bridge.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
+    zomsp_lib.linkLibC();
+    if (target.result.os.tag == .linux) zomsp_lib.linkSystemLibrary("dl");
+    const install_zomsp_lib = b.addInstallArtifact(zomsp_lib, .{});
+    b.top_level_steps.get("zomsp").?.step.dependOn(&install_zomsp_lib.step);
+    const install_zomsp_header = b.addInstallFile(b.path("src/zomsp/zomsp.h"), "include/zomsp.h");
+    b.top_level_steps.get("zomsp").?.step.dependOn(&install_zomsp_header.step);
+    const zomsp_tests = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/zomsp/protocol.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+    b.step("test:zomsp", "Test bounded OMSp framing").dependOn(&b.addRunArtifact(zomsp_tests).step);
+    const zomsp_wire_tests = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/zomsp/wire.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+    b.top_level_steps.get("test:zomsp").?.step.dependOn(&b.addRunArtifact(zomsp_wire_tests).step);
+
     const check_step = b.step("check", "Check if z7 compiles");
     check_step.dependOn(&z7.step);
+    check_step.dependOn(&zomsp.step);
 
     const run_cmd = b.addRunArtifact(z7);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -72,7 +123,7 @@ pub fn build(b: *std.Build) void {
     const unit_tests = b.addTest(.{
         .name = "test",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/z7/packet.zig"),
+            .root_source_file = b.path("src/z7/tests.zig"),
             .target = target,
             .optimize = optimize,
         }),
@@ -81,6 +132,19 @@ pub fn build(b: *std.Build) void {
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_unit_tests.step);
+    const io_wait_check = b.addExecutable(.{
+        .name = "io_wait_check",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/io_wait_check.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    io_wait_check.root_module.addImport("zCom", zCom_module);
+    const run_io_wait_check = b.addRunArtifact(io_wait_check);
+    test_step.dependOn(&run_io_wait_check.step);
+    const install_io_wait_check = b.addInstallArtifact(io_wait_check, .{});
+    b.step("test:io:build", "Build the IO wait regression executable").dependOn(&install_io_wait_check.step);
 
     const run_fmt = b.addFmt(.{ .paths = &.{"."}, .check = true });
     const fmt_step = b.step("test:fmt", "Check formatting");
@@ -102,6 +166,7 @@ pub fn build(b: *std.Build) void {
     }
     if (ci_mode == .@"test" or ci_mode == .default) {
         ci_step.dependOn(test_step);
+        ci_step.dependOn(&b.top_level_steps.get("test:zomsp").?.step);
         // reference_build.zig also does check in smoke, and test usually implies smoke or depends on it.
         // For simplicity we follow the logic:
         if (ci_mode == .@"test") {

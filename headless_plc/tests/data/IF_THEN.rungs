@@ -1,0 +1,126 @@
+version: 2
+aoi:
+  name: IF_THEN
+  description: ''
+  tags:
+    input:
+      - name: rejectCount
+        dataType: DINT
+        description: Running count of rejected units on the line
+      - name: forwardCommand
+        dataType: BOOL
+        description: Indicates the requested conveyor direction
+      - name: overloadTrip
+        dataType: BOOL
+        description: Overload sensor input for the conveyor drive
+      - name: levelLow
+        dataType: BOOL
+        description: Sensor indicating low sugar level
+      - name: levelHigh
+        dataType: BOOL
+        description: Sensor indicating high sugar level
+      - name: tankTemperature
+        dataType: REAL
+        description: Process tank temperature reading
+    output:
+      - name: conveyorEnabled
+        dataType: BOOL
+        description: Conveyor run command driven by the AOI logic
+      - name: alarmHorn
+        dataType: BOOL
+        description: Alarm coil signaling a fault condition
+      - name: statusBeacon
+        dataType: BOOL
+        description: Indicator light state controlled by the AOI
+      - name: inletValve
+        dataType: BOOL
+        description: Valve command that opens the sugar inlet
+      - name: pumpHighSpeed
+        dataType: BOOL
+        description: Pump command for fast speed
+      - name: pumpLowSpeed
+        dataType: BOOL
+        description: Pump command for slow speed
+      - name: pumpStandby
+        dataType: BOOL
+        description: Pump off command when neither speed is selected
+  routines:
+    Logic:
+      type: st
+      content: |-
+        // Reject threshold stops the conveyor and raises an alarm.
+        IF rejectCount >= 4 THEN
+          conveyorEnabled := 0;
+          alarmHorn := 1;
+        END_IF;
+
+        // Indicate conveyor direction unless overload is active.
+        IF forwardCommand AND NOT overloadTrip THEN
+          statusBeacon := 0;
+        ELSE
+          statusBeacon := 1;
+        END_IF;
+
+
+        // Balance sugar inlet based on low/high sensor states.
+        IF levelLow & levelHigh THEN
+            inletValve := 1;
+        ELSIF NOT(levelHigh) THEN
+            inletValve := 0;
+        END_IF;
+
+        // Drive pump speeds from the tank temperature bands.
+        IF tankTemperature > 180 THEN
+            pumpHighSpeed := 1;
+            pumpLowSpeed := 0;
+            pumpStandby := 0;
+        ELSIF tankTemperature > 90 THEN
+            pumpHighSpeed := 0;
+            pumpLowSpeed := 1;
+            pumpStandby := 0;
+        ELSE
+            pumpHighSpeed := 0;
+            pumpLowSpeed := 0;
+            pumpStandby := 1;
+        END_IF;
+  testing:
+    content: |-
+      const runScenario = (overrides = {}) => AOITestKit.run(overrides).outputs;
+
+      describe('IF_THEN AOI', () => {
+        it('raises an alarm and drives high-speed pumping when rejects spike', () => {
+          const outputs = runScenario({
+            rejectCount: 5,
+            forwardCommand: 1,
+            overloadTrip: 0,
+            levelLow: 1,
+            levelHigh: 1,
+            tankTemperature: 200,
+          });
+
+          expect(outputs.conveyorEnabled).toBe(0);
+          expect(outputs.alarmHorn).toBe(1);
+          expect(outputs.statusBeacon).toBe(0);
+          expect(outputs.inletValve).toBe(1);
+          expect(outputs.pumpHighSpeed).toBe(1);
+          expect(outputs.pumpLowSpeed).toBe(0);
+          expect(outputs.pumpStandby).toBe(0);
+        });
+
+        it('falls back to standby pumping when tank temperature is low', () => {
+          const outputs = runScenario({
+            forwardCommand: 1,
+            overloadTrip: 1,
+            levelLow: 0,
+            levelHigh: 0,
+            tankTemperature: 60,
+          });
+
+          expect(outputs.statusBeacon).toBe(1);
+          expect(outputs.inletValve).toBe(0);
+          expect(outputs.pumpHighSpeed).toBe(0);
+          expect(outputs.pumpLowSpeed).toBe(0);
+          expect(outputs.pumpStandby).toBe(1);
+          expect(outputs.alarmHorn).toBe(0);
+        });
+      });
